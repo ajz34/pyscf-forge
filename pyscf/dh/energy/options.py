@@ -29,13 +29,7 @@ TODO: Function to parse frozen rule.
 frozen_list = None
 """ Index list of frozen orbitals.
 
-For example, if set to ``[0, 2, 3, 4]``, then those orbitals are not correlated in MP2 calculation.
-"""
-
-frac_num = None
-""" Fraction occupation number list.
-
-Should be list of floats, size as ``(nmo, )``.
+For example, if set to ``[0, 2, 3, 4]``, then those orbitals are not correlated in post-SCF calculation.
 """
 
 auxbasis_ri = None
@@ -57,23 +51,6 @@ By default,
 # endregion
 
 # region Process control
-
-incore_t_ijab = None
-""" Flag for tensor :math:`t_{ij}^{ab}` stored in memory or disk.
-
-Parameters
-----------
-True
-    Store tensor in memory.
-False
-    Store tensor in disk.
-None
-    Do not store tensor in either disk or memory.
-"auto"
-    Leave program to judge whether tensor locates.
-(int)
-    If tensor size exceeds this size (in MBytes), then store in disk.
-"""
 
 incore_resp_eri = "auto"
 """ Flag for tensor :math:`{}^\\mathrm{Exx} A_{ij}^{ab}` stored in memory or disk.
@@ -140,12 +117,6 @@ Parameters
     MP2/cr I (enhanced second-order treatment of electron pair).
 "MP2cr2"
     MP2/cr II (not recommended, restricted only)
-"""
-
-omega_list_mp2 = [0]
-""" Range-separate omega list of MP2.
-
-Zero refers to no range-separate. Long/Short range uses posi/negative values.
 """
 
 omega_list_ring_ccd = [0]

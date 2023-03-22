@@ -1,10 +1,17 @@
+from pyscf.dh.energy import UDHBase
 from pyscf.dh import util
 from pyscf import ao2mo, lib
 import numpy as np
-import typing
 
-if typing.TYPE_CHECKING:
-    from pyscf.dh.energy import UDH
+
+class UMP2ofDH(UDHBase):
+    """ Unestricted MP2 class of doubly-hybrid. """
+
+    def kernel(self, **kwargs):
+        with self.params.temporary_flags(kwargs):
+            results = driver_energy_ump2(self)
+        self.params.update_results(results)
+        return results
 
 
 def driver_energy_ump2(mf_dh):
@@ -12,36 +19,39 @@ def driver_energy_ump2(mf_dh):
 
     Parameters
     ----------
-    mf_dh : UDH
+    mf_dh : UMP2ofDH
         Restricted doubly hybrid object.
 
     Returns
     -------
-    UDH
+    dict
 
-    Notes
-    -----
-    See also ``pyscf.mp.ump2.kernel``.
-
-    This function does not make checks, such as SCF convergence.
+    See Also
+    --------
+    pyscf.dh.energy.mp2.rmp2.driver_energy_rmp2
     """
     mf_dh.build()
     mol = mf_dh.mol
-    frac_num = mf_dh.params.flags["frac_num"]
+    results_summary = dict()
     # parse frozen orbitals
     mask_act = mf_dh.get_mask_act()
     nact, nOcc, nVir = mf_dh.nact, mf_dh.nOcc, mf_dh.nVir
     mo_coeff_act = mf_dh.mo_coeff_act
     mo_energy_act = mf_dh.mo_energy_act
+    # other options
+    frac_num = mf_dh.params.flags["frac_num_mp2"]
     frac_num_f = frac_num if frac_num is None else [frac_num[s][mask_act[s]] for s in (0, 1)]
     omega_list = mf_dh.params.flags["omega_list_mp2"]
-    integral_scheme = mf_dh.params.flags["integral_scheme"].lower()
+    integral_scheme = mf_dh.params.flags["integral_scheme_mp2"]
+    if integral_scheme is None:
+        integral_scheme = mf_dh.params.flags["integral_scheme"]
+    integral_scheme = integral_scheme.lower()
     for omega in omega_list:
         # prepare t_ijab space
         params = mf_dh.params
         max_memory = mol.max_memory - lib.current_memory()[0]
         incore_t_ijab = util.parse_incore_flag(
-            params.flags["incore_t_ijab"], 3 * max(nOcc) ** 2 * max(nVir) ** 2,
+            params.flags["incore_t_ijab_mp2"], 3 * max(nOcc) ** 2 * max(nVir) ** 2,
             max_memory, dtype=mo_coeff_act[0].dtype)
         if incore_t_ijab is None:
             t_ijab = None
@@ -49,7 +59,7 @@ def driver_energy_ump2(mf_dh):
             t_ijab = [np.zeros(0)] * 3  # IDE type cheat
             for s0, s1, ss, ssn in ((0, 0, 0, "aa"), (0, 1, 1, "ab"), (1, 1, 2, "bb")):
                 t_ijab[ss] = params.tensors.create(
-                    name=util.pad_omega("t_ijab_{:}".format(ssn), omega),
+                    name=util.pad_omega(f"t_ijab_{ssn}", omega),
                     shape=(nOcc[s0], nOcc[s1], nVir[s0], nVir[s1]), incore=incore_t_ijab,
                     dtype=mo_coeff_act[0].dtype)
 
@@ -71,14 +81,14 @@ def driver_energy_ump2(mf_dh):
         elif mf_dh.params.flags["integral_scheme"].lower().startswith("ri"):
             with_df = util.get_with_df_omega(mf_dh.with_df, omega)
             Y_OV = [
-                params.tensors.get(util.pad_omega("Y_OV_{:}".format(sn), omega), None)
+                params.tensors.get(util.pad_omega(f"Y_OV_{sn}", omega), None)
                 for sn in ("a", "b")]
             if Y_OV[0] is None:
                 for s, sn in [(0, "a"), (1, "b")]:
                     Y_OV[s] = util.get_cderi_mo(
                         with_df, mo_coeff_act[s], None, (0, nOcc[s], nOcc[s], nact[s]),
                         mol.max_memory - lib.current_memory()[0])
-                    params.tensors[util.pad_omega("Y_OV_{:}".format(sn), omega)] = Y_OV[s]
+                    params.tensors[util.pad_omega(f"Y_OV_{sn}", omega)] = Y_OV[s]
             # Y_OV_2 is rarely called, so do not try to build omega for this special case
             Y_OV_2 = None
             if mf_dh.with_df_2 is not None:
@@ -143,6 +153,7 @@ def kernel_energy_ump2_conv_full_incore(
     different size of alpha and beta MO number is not allowed.
     """
     log = lib.logger.new_logger(verbose=verbose)
+    log.info("[INFO] Start unrestricted conventional MP2")
     log.warn("Conventional integral of MP2 is not recommended!\n"
              "Use density fitting approximation is recommended.")
 
@@ -157,12 +168,12 @@ def kernel_energy_ump2_conv_full_incore(
     Cv = [mo_coeff[s][:, nocc[s]:] for s in (0, 1)]
     eo = [mo_energy[s][:nocc[s]] for s in (0, 1)]
     ev = [mo_energy[s][nocc[s]:] for s in (0, 1)]
-    log.debug("Start ao2mo")
+    log.info("[INFO] Start ao2mo")
     g_iajb = [np.array([])] * 3
     for s0, s1, ss in zip((0, 0, 1), (0, 1, 1), (0, 1, 2)):
         g_iajb[ss] = ao2mo.general(eri_or_mol, (Co[s0], Cv[s0], Co[s1], Cv[s1])) \
                           .reshape(nocc[s0], nvir[s0], nocc[s1], nvir[s1])
-        log.debug("Spin {:}{:} ao2mo finished".format(s0, s1))
+        log.info(f"[INFO] Spin {s0, s1} ao2mo finished")
 
     # loops
     eng_spin = np.array([0, 0, 0], dtype=mo_coeff[0].dtype)
@@ -187,16 +198,16 @@ def kernel_energy_ump2_conv_full_incore(
     eng_mp2 = eng_spin[1] + (eng_spin[0] + eng_spin[2])
     # finalize results
     results = dict()
-    results["eng_MP2_aa"] = eng_spin[0]
-    results["eng_MP2_ab"] = eng_spin[1]
-    results["eng_MP2_bb"] = eng_spin[2]
-    results["eng_MP2_OS"] = eng_spin[1]
-    results["eng_MP2_SS"] = eng_spin[0] + eng_spin[2]
-    results["eng_MP2"] = eng_mp2
-    log.info("[RESULT] Energy MP2 of spin aa: {:18.10f}".format(eng_spin[0]))
-    log.info("[RESULT] Energy MP2 of spin ab: {:18.10f}".format(eng_spin[1]))
-    log.info("[RESULT] Energy MP2 of spin bb: {:18.10f}".format(eng_spin[2]))
-    log.info("[RESULT] Energy MP2 of total: {:18.10f}".format(eng_mp2))
+    results["eng_corr_MP2_aa"] = eng_spin[0]
+    results["eng_corr_MP2_ab"] = eng_spin[1]
+    results["eng_corr_MP2_bb"] = eng_spin[2]
+    results["eng_corr_MP2_OS"] = eng_spin[1]
+    results["eng_corr_MP2_SS"] = eng_spin[0] + eng_spin[2]
+    results["eng_corr_MP2"] = eng_mp2
+    log.note(f"[RESULT] Energy corr MP2 of spin aa: {eng_spin[0]:18.10f}")
+    log.note(f"[RESULT] Energy corr MP2 of spin ab: {eng_spin[1]:18.10f}")
+    log.note(f"[RESULT] Energy corr MP2 of spin bb: {eng_spin[2]:18.10f}")
+    log.note(f"[RESULT] Energy corr MP2 of total  : {eng_mp2    :18.10f}")
     return results
 
 
@@ -238,6 +249,8 @@ def kernel_energy_ump2_ri(
     purpose of this function should only be benchmark.
     """
     log = lib.logger.new_logger(verbose=verbose)
+    log.info("[INFO] Start unrestricted RI-MP2")
+
     nocc, nvir = np.array([0, 0]), np.array([0, 0])
     naux, nocc[0], nvir[0] = Y_OV[0].shape
     naux, nocc[1], nvir[1] = Y_OV[1].shape
@@ -253,12 +266,12 @@ def kernel_energy_ump2_ri(
 
     # loops
     eng_spin = np.array([0, 0, 0], dtype=Y_OV[0].dtype)
-    log.debug("Start RI-MP2 loop")
+    log.info("[INFO] Start RI-MP2 loop")
     nbatch = util.calc_batch_size(4 * max(nocc) * max(nvir) ** 2, max_memory, dtype=Y_OV[0].dtype)
     for s0, s1, ss in zip((0, 0, 1), (0, 1, 1), (0, 1, 2)):
-        log.debug("Starting spin {:}{:}".format(s0, s1))
+        log.info("[INFO] Starting spin {:}{:}".format(s0, s1))
         for sI in util.gen_batch(0, nocc[s0], nbatch):
-            log.debug("MP2 loop i: [{:}, {:})".format(sI.start, sI.stop))
+            log.info("[INFO] MP2 loop i: [{:}, {:})".format(sI.start, sI.stop))
             if Y_OV_2 is None:
                 g_Iajb = lib.einsum("PIa, Pjb -> Iajb", Y_OV[s0][:, sI], Y_OV[s1])
             else:
@@ -284,14 +297,14 @@ def kernel_energy_ump2_ri(
     eng_mp2 = eng_spin[1] + (eng_spin[0] + eng_spin[2])
     # finalize results
     results = dict()
-    results["eng_MP2_aa"] = eng_spin[0]
-    results["eng_MP2_ab"] = eng_spin[1]
-    results["eng_MP2_bb"] = eng_spin[2]
-    results["eng_MP2_OS"] = eng_spin[1]
-    results["eng_MP2_SS"] = eng_spin[0] + eng_spin[2]
-    results["eng_MP2"] = eng_mp2
-    log.info("[RESULT] Energy MP2 of spin aa: {:18.10f}".format(eng_spin[0]))
-    log.info("[RESULT] Energy MP2 of spin ab: {:18.10f}".format(eng_spin[1]))
-    log.info("[RESULT] Energy MP2 of spin bb: {:18.10f}".format(eng_spin[2]))
-    log.info("[RESULT] Energy MP2 of total: {:18.10f}".format(eng_mp2))
+    results["eng_corr_MP2_aa"] = eng_spin[0]
+    results["eng_corr_MP2_ab"] = eng_spin[1]
+    results["eng_corr_MP2_bb"] = eng_spin[2]
+    results["eng_corr_MP2_OS"] = eng_spin[1]
+    results["eng_corr_MP2_SS"] = eng_spin[0] + eng_spin[2]
+    results["eng_corr_MP2"] = eng_mp2
+    log.note(f"[RESULT] Energy corr MP2 of spin aa: {eng_spin[0]:18.10f}")
+    log.note(f"[RESULT] Energy corr MP2 of spin ab: {eng_spin[1]:18.10f}")
+    log.note(f"[RESULT] Energy corr MP2 of spin bb: {eng_spin[2]:18.10f}")
+    log.note(f"[RESULT] Energy corr MP2 of total  : {eng_mp2    :18.10f}")
     return results

@@ -215,4 +215,4 @@ def pad_omega(s, omega):
     """
     if omega == 0:
         return s
-    return s + "_omega({:.6f})".format(omega)
+    return f"{s}_omega({omega:.6f})"
