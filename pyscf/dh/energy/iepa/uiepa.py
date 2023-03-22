@@ -1,5 +1,5 @@
 from pyscf.dh import util
-from pyscf.dh.energy.riepa import get_pair_mp2, get_pair_iepa, get_pair_siepa, get_pair_dcpt2
+from pyscf.dh.energy.iepa.riepa import get_pair_mp2, get_pair_iepa, get_pair_siepa, get_pair_dcpt2
 
 from pyscf import lib, ao2mo
 import numpy as np

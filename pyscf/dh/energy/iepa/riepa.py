@@ -1,26 +1,24 @@
+from pyscf.dh.energy import RDHBase
 from pyscf.dh import util
-
+from pyscf.dh.util import HybridDict
 from pyscf import lib, ao2mo
 import numpy as np
 from scipy.special import erfc
-import typing
 import warnings
 
-if typing.TYPE_CHECKING:
-    from pyscf.dh.energy import RDH
+
+class RIEPAofDH(RDHBase):
+    """ Restricted IEPA (independent electron-pair approximation) class of doubly hybrid. """
+
+    def kernel(self, **kwargs):
+        with self.params.temporary_flags(kwargs):
+            results = driver_energy_riepa(self)
+        self.params.update_results(results)
+        return results
 
 
 def driver_energy_riepa(mf_dh):
-    """ Driver of pair occupied energy methods (restricted).
-
-    Methods included in this pair occupied energy driver are
-    - IEPA (independent electron pair approximation)
-    - sIEPA (screened IEPA, using erfc function)
-    - DCPT2 (degeneracy-corrected second-order perturbation)
-    - MP2/cr (enhanced second-order treatment of electron pair)
-    - MP2 (as a basic pair method)
-
-    Parameters of these methods are controled by flags.
+    """ Driver of restricted IEPA energy.
 
     Parameters
     ----------
@@ -29,56 +27,73 @@ def driver_energy_riepa(mf_dh):
 
     Returns
     -------
-    RDH
-
-    Notes
-    -----
-    This function does not make checks, such as SCF convergence.
-
-    Calculation of this driver forces using density fitting MP2.
+    dict
     """
     mf_dh.build()
-    flags = mf_dh.params.flags
+    results_summary = dict()
     log = mf_dh.log
-    # parse frozen orbitals
+    params = mf_dh.params
+    # some results from mf_dh
+    mol = mf_dh.mol
+    mo_coeff_act = mf_dh.mo_coeff_act
     mo_energy_act = mf_dh.mo_energy_act
-    nOcc = mf_dh.nOcc
-    # kernel
-    if flags["integral_scheme"].lower().startswith("ri"):
-        # generate ri-eri
-        Y_OV = mf_dh.get_Y_OV()
+    nOcc, nVir, nact = mf_dh.nOcc, mf_dh.nVir, mf_dh.nact
+    # some flags
+    tol_eng_pair_iepa = params.flags["tol_eng_pair_iepa"]
+    max_cycle_iepa = params.flags["max_cycle_pair_iepa"]
+    iepa_schemes = params.flags["iepa_schemes"]
+    # parse integral scheme
+    integral_scheme = params.flags["integral_scheme_iepa"]
+    if integral_scheme is None:
+        integral_scheme = params.flags["integral_scheme"]
+    integral_scheme = integral_scheme.lower()
+    # main loop
+    omega_list = params.flags["omega_list_mp2"]
+    for omega in omega_list:
+        log.info(f"[INFO] Evaluation of IEPA at omega({omega})")
+        # define g_iajb generation
+        if integral_scheme.startswith("ri"):
+            with_df = util.get_with_df_omega(mf_dh.with_df, omega)
+            Y_OV = params.tensors.get(util.pad_omega("Y_OV", omega), None)
+            if Y_OV is None:
+                Y_OV = params.tensors[util.pad_omega("Y_OV", omega)] = util.get_cderi_mo(
+                    with_df, mo_coeff_act, None, (0, nOcc, nOcc, nact),
+                    mol.max_memory - lib.current_memory()[0])
 
-        def gen_g_IJab(i, j):
-            return Y_OV[:, i].T @ Y_OV[:, j]
-    elif flags["integral_scheme"].lower().startswith("conv"):
-        log.warn("Conventional integral of MP2 is not recommended!\n"
-                 "Use density fitting approximation is recommended.")
-        eri_or_mol = mf_dh.scf._eri
-        if eri_or_mol is None:
-            eri_or_mol = mf_dh.mol
-        nVir = mf_dh.nVir
-        mo_coeff_act = mf_dh.mo_coeff_act
-        CO = mo_coeff_act[:, :nOcc]
-        CV = mo_coeff_act[:, nOcc:]
-        g_iajb = ao2mo.general(eri_or_mol, (CO, CV, CO, CV)).reshape(nOcc, nVir, nOcc, nVir)
+            def gen_g_IJab(i, j):
+                return Y_OV[:, i].T @ Y_OV[:, j]
+        elif integral_scheme.startswith("conv"):
+            log.warn("Conventional integral of post-SCF is not recommended!\n"
+                     "Use density fitting approximation is preferred.")
+            eri_or_mol = mf_dh.scf._eri
+            if eri_or_mol is None:
+                eri_or_mol = mf_dh.mol
+            CO = mo_coeff_act[:, :nOcc]
+            CV = mo_coeff_act[:, nOcc:]
+            g_iajb = ao2mo.general(eri_or_mol, (CO, CV, CO, CV)).reshape(nOcc, nVir, nOcc, nVir)
 
-        def gen_g_IJab(i, j):
-            return g_iajb[i, :, j]
-    else:
-        raise NotImplementedError
+            def gen_g_IJab(i, j):
+                return g_iajb[i, :, j]
+        else:
+            raise NotImplementedError
 
-    results = kernel_energy_riepa(
-        mf_dh.params, mo_energy_act, gen_g_IJab, nOcc,
-        screen_func=mf_dh.siepa_screen,
-        verbose=mf_dh.verbose
-    )
-    mf_dh.params.update_results(results)
+        results = kernel_energy_riepa(
+            mo_energy_act, gen_g_IJab, nOcc, iepa_schemes,
+            screen_func=mf_dh.siepa_screen,
+            thresh=1e-10, max_cycle=64,
+            tensors=params.tensors,
+            verbose=mf_dh.verbose
+        )
+        results = {util.pad_omega(key, omega): val for (key, val) in results.items()}
+        results_summary.update(results)
+    return results_summary
 
 
 def kernel_energy_riepa(
-        params, mo_energy, gen_g_IJab, nocc,
+        mo_energy, gen_g_IJab, nocc, iepa_schemes,
         screen_func=erfc,
         thresh=1e-10, max_cycle=64,
+        tensors=None,
         verbose=lib.logger.NOTE):
     """ Kernel of restricted IEPA-like methods.
 
@@ -86,10 +101,6 @@ def kernel_energy_riepa(
 
     Parameters
     ----------
-    params : util.Params
-        (flag and intermediates)
-        Flags will choose how pair energy is evaluated.
-        Tensors will be updated to store pair energies and norms (MP2/cr).
     mo_energy : np.ndarray
         Molecular orbital energy levels.
     gen_g_IJab : callable
@@ -98,17 +109,17 @@ def kernel_energy_riepa(
         with shape of returned array (a, b).
     nocc : int
         Number of occupied molecular orbitals.
+    iepa_schemes : list[str] or str
+        IEPA schemes. Currently MP2, IEPA, SIEPA, MP2cr, MP2cr2 accepted.
 
-    c_os : float
-        MP2 opposite-spin contribution coefficient.
-    c_ss : float
-        MP2 same-spin contribution coefficient.
     screen_func : callable
         Function used in screened IEPA. Default is erfc, as applied in functional ZRPS.
     thresh : float
         Threshold of pair energy convergence for IEPA or sIEPA methods.
     max_cycle : int
         Maximum iteration number of energy convergence for IEPA or sIEPA methods.
+    tensors : HybridDict
+        Storage space for intermediate and output pair-energy. Values will be changed in-place.
     verbose : int
         Verbose level for PySCF.
 
@@ -121,33 +132,36 @@ def kernel_energy_riepa(
     - ``norm_METHOD``: normalization factors of ``MP2CR`` or ``MP2CR2``.
     """
     log = lib.logger.new_logger(verbose=verbose)
+    log.info("[INFO] Start restricted IEPA")
+    
     eo = mo_energy[:nocc]
     ev = mo_energy[nocc:]
+    tensors = tensors if tensors is not None else HybridDict()
 
     # parse IEPA schemes
     # `iepa_schemes` option is either str or list[str]; change to list
-    if not isinstance(params.flags["iepa_scheme"], str):
-        iepa_schemes = [i.upper() for i in params.flags["iepa_scheme"]]
+    if not isinstance(iepa_schemes, str):
+        iepa_schemes = [i.upper() for i in iepa_schemes]
     else:
-        iepa_schemes = [params.flags["iepa_scheme"].upper()]
+        iepa_schemes = [iepa_schemes.upper()]
 
     # check IEPA scheme sanity
     check_iepa_scheme = set(iepa_schemes).difference(["MP2", "MP2CR", "MP2CR2", "DCPT2", "IEPA", "SIEPA"])
     if len(check_iepa_scheme) != 0:
-        raise ValueError("Several schemes are not recognized IEPA schemes: " + ", ".join(check_iepa_scheme))
+        raise ValueError(f"Several schemes are not recognized IEPA schemes: {check_iepa_scheme}")
     log.info("[INFO] Recognized IEPA schemes: " + ", ".join(iepa_schemes))
 
     # allocate pair energies
     for scheme in iepa_schemes:
-        params.tensors.create("pair_{:}_aa".format(scheme), shape=(nocc, nocc))
-        params.tensors.create("pair_{:}_ab".format(scheme), shape=(nocc, nocc))
+        tensors.create(f"pair_{scheme}_aa", shape=(nocc, nocc))
+        tensors.create(f"pair_{scheme}_ab", shape=(nocc, nocc))
         if scheme in ["MP2CR", "MP2CR2"]:
-            if "pair_MP2_aa" not in params.tensors:
-                params.tensors.create("pair_MP2_aa", shape=(nocc, nocc))
-                params.tensors.create("pair_MP2_ab", shape=(nocc, nocc))
-            if "n2_pair_aa" not in params.tensors:
-                params.tensors.create("n2_pair_aa", shape=(nocc, nocc))
-                params.tensors.create("n2_pair_ab", shape=(nocc, nocc))
+            if "pair_MP2_aa" not in tensors:
+                tensors.create("pair_MP2_aa", shape=(nocc, nocc))
+                tensors.create("pair_MP2_ab", shape=(nocc, nocc))
+            if "n2_pair_aa" not in tensors:
+                tensors.create("n2_pair_aa", shape=(nocc, nocc))
+                tensors.create("n2_pair_ab", shape=(nocc, nocc))
 
     # In evaluation of MP2/cr or MP2/cr2, MP2 pair energy is evaluated first.
     schemes_for_pair = set(iepa_schemes)
@@ -159,14 +173,14 @@ def kernel_energy_riepa(
     # main driver
     for I in range(nocc):
         for J in range(I + 1):
-            log.debug("In IEPA kernel, pair ({:}, {:})".format(I, J))
+            log.debug(f"In IEPA kernel, pair {I, J}")
             D_IJab = eo[I] + eo[J] + D_ab
             g_IJab = gen_g_IJab(I, J)  # Y_OV[:, I].T @ Y_OV[:, J]
             g_IJab_asym = g_IJab - g_IJab.T
             # evaluate pair energy for different schemes
             for scheme in schemes_for_pair:
-                pair_aa = params.tensors["pair_{:}_aa".format(scheme)]
-                pair_ab = params.tensors["pair_{:}_ab".format(scheme)]
+                pair_aa = tensors[f"pair_{scheme}_aa"]
+                pair_ab = tensors[f"pair_{scheme}_ab"]
                 if scheme == "MP2":
                     e_pair_os = get_pair_mp2(g_IJab, D_IJab, 1)
                     e_pair_ss = get_pair_mp2(g_IJab_asym, D_IJab, 0.5)
@@ -187,45 +201,45 @@ def kernel_energy_riepa(
                 pair_ab[I, J] = pair_ab[J, I] = e_pair_os
             # MP2/cr methods require norm
             if "MP2CR" in iepa_schemes or "MP2CR2" in iepa_schemes:
-                n2_aa = params.tensors["n2_pair_aa"]
-                n2_ab = params.tensors["n2_pair_ab"]
+                n2_aa = tensors["n2_pair_aa"]
+                n2_ab = tensors["n2_pair_ab"]
                 n2_aa[I, J] = n2_aa[J, I] = ((g_IJab_asym / D_IJab)**2).sum()
                 n2_ab[I, J] = n2_ab[J, I] = ((g_IJab / D_IJab)**2).sum()
 
     # process MP2/cr afterwards
     # MP2/cr I
     if "MP2CR" in iepa_schemes:
-        n2_aa = params.tensors["n2_pair_aa"]
-        n2_ab = params.tensors["n2_pair_ab"]
+        n2_aa = tensors["n2_pair_aa"]
+        n2_ab = tensors["n2_pair_ab"]
         norm = get_rmp2cr_norm(n2_aa, n2_ab)
-        params.tensors["norm_MP2CR"] = norm
-        params.tensors["pair_MP2CR_aa"] = params.tensors["pair_MP2_aa"] / norm
-        params.tensors["pair_MP2CR_ab"] = params.tensors["pair_MP2_ab"] / norm
+        tensors["norm_MP2CR"] = norm
+        tensors["pair_MP2CR_aa"] = tensors["pair_MP2_aa"] / norm
+        tensors["pair_MP2CR_ab"] = tensors["pair_MP2_ab"] / norm
     # MP2/cr II
     if "MP2CR2" in iepa_schemes:
-        n2_aa = params.tensors["n2_pair_aa"]
-        n2_ab = params.tensors["n2_pair_ab"]
+        n2_aa = tensors["n2_pair_aa"]
+        n2_ab = tensors["n2_pair_ab"]
         norm = get_rmp2cr2_norm(n2_aa, n2_ab)
-        params.tensors["norm_MP2CR2"] = norm
-        params.tensors["pair_MP2CR2_aa"] = params.tensors["pair_MP2_aa"] * norm
-        params.tensors["pair_MP2CR2_ab"] = params.tensors["pair_MP2_ab"] * norm
+        tensors["norm_MP2CR2"] = norm
+        tensors["pair_MP2CR2_aa"] = tensors["pair_MP2_aa"] * norm
+        tensors["pair_MP2CR2_ab"] = tensors["pair_MP2_ab"] * norm
 
     # Finalize energy evaluation
     results = dict()
     for scheme in iepa_schemes:
-        eng_aa = 0.5 * params.tensors["pair_{:}_aa".format(scheme)].sum()
-        eng_ab = params.tensors["pair_{:}_ab".format(scheme)].sum()
+        eng_aa = 0.5 * tensors[f"pair_{scheme}_aa"].sum()
+        eng_ab = tensors[f"pair_{scheme}_ab"].sum()
         eng_os = eng_ab
         eng_ss = 2 * eng_aa
         eng_tot = eng_os + eng_ss
-        results["eng_{:}_aa".format(scheme)] = eng_aa
-        results["eng_{:}_ab".format(scheme)] = eng_ab
-        results["eng_{:}_OS".format(scheme)] = eng_os
-        results["eng_{:}_SS".format(scheme)] = eng_ss
-        results["eng_{:}".format(scheme)] = eng_tot
-        log.info("[RESULT] Energy {:}_OS: {:18.10f}".format(scheme, eng_os))
-        log.info("[RESULT] Energy {:}_SS: {:18.10f}".format(scheme, eng_ss))
-        log.info("[RESULT] Energy {:}: {:18.10f}".format(scheme, eng_tot))
+        results[f"eng_corr_{scheme}_aa"] = eng_aa
+        results[f"eng_corr_{scheme}_ab"] = eng_ab
+        results[f"eng_corr_{scheme}_OS"] = eng_os
+        results[f"eng_corr_{scheme}_SS"] = eng_ss
+        results[f"eng_corr_{scheme}"] = eng_tot
+        log.info(f"[RESULT] Energy {scheme}_OS: {eng_os :18.10f}")
+        log.info(f"[RESULT] Energy {scheme}_SS: {eng_ss :18.10f}")
+        log.info(f"[RESULT] Energy {scheme}   : {eng_tot:18.10f}")
     return results
 
 
@@ -317,8 +331,7 @@ def get_pair_siepa(g_ab, D_ab, scale_e, screen_func, thresh=1e-10, max_cycle=64)
         e = scale_e * (g2_ab / (D_ab + sD_ab * e)).sum()
         n_cycle += 1
     if n_cycle >= max_cycle:
-        warnings.warn("[WARN] Maximum cycle {:d} exceeded! Pair energy error: {:12.6e}"
-                      .format(n_cycle, abs(e_old - e)))
+        warnings.warn(f"[WARN] Maximum cycle {n_cycle} exceeded! Pair energy error: {abs(e_old - e):12.6e}")
     return e
 
 
@@ -341,8 +354,7 @@ def get_pair_iepa(g_ab, D_ab, scale_e, thresh=1e-10, max_cycle=64):
         e = scale_e * (g2_ab / (D_ab + e)).sum()
         n_cycle += 1
     if n_cycle >= max_cycle:
-        warnings.warn("[WARN] Maximum cycle {:d} exceeded! Pair energy error: {:12.6e}"
-                      .format(n_cycle, abs(e_old - e)))
+        warnings.warn(f"[WARN] Maximum cycle {n_cycle} exceeded! Pair energy error: {abs(e_old - e):12.6e}")
     return e
 
 

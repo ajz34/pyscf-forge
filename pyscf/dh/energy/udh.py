@@ -1,5 +1,5 @@
 from pyscf.dh.energy import UDHBase
-from pyscf.dh.energy.uiepa import driver_energy_uiepa
+from pyscf.dh.energy.iepa.uiepa import driver_energy_uiepa
 from pyscf.dh.energy.udft import kernel_energy_unrestricted_exactx, kernel_energy_unrestricted_noxc
 
 

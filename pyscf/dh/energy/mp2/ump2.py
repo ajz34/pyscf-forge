@@ -5,7 +5,7 @@ import numpy as np
 
 
 class UMP2ofDH(UDHBase):
-    """ Unestricted MP2 class of doubly-hybrid. """
+    """ Unestricted MP2 class of doubly hybrid. """
 
     def kernel(self, **kwargs):
         with self.params.temporary_flags(kwargs):
@@ -105,8 +105,7 @@ def driver_energy_ump2(mf_dh):
                 max_memory=mol.max_memory - lib.current_memory()[0],
                 Y_OV_2=Y_OV_2
             )
-            if omega != 0:
-                results = {util.pad_omega(key, omega): val for (key, val) in results.items()}
+            results = {util.pad_omega(key, omega): val for (key, val) in results.items()}
             results_summary.update(results)
         else:
             raise NotImplementedError("Not implemented currently!")
