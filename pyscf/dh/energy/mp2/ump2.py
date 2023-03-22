@@ -77,7 +77,7 @@ def driver_energy_ump2(mf_dh):
                     verbose=mf_dh.verbose)
             if omega != 0:
                 results = {util.pad_omega(key, omega): val for (key, val) in results.items()}
-            mf_dh.params.update_results(results)
+            results_summary.update(results)
         elif mf_dh.params.flags["integral_scheme"].lower().startswith("ri"):
             with_df = util.get_with_df_omega(mf_dh.with_df, omega)
             Y_OV = [
@@ -107,10 +107,10 @@ def driver_energy_ump2(mf_dh):
             )
             if omega != 0:
                 results = {util.pad_omega(key, omega): val for (key, val) in results.items()}
-            mf_dh.params.update_results(results)
+            results_summary.update(results)
         else:
             raise NotImplementedError("Not implemented currently!")
-    return mf_dh
+    return results_summary
 
 
 def kernel_energy_ump2_conv_full_incore(
@@ -157,7 +157,7 @@ def kernel_energy_ump2_conv_full_incore(
     log.warn("Conventional integral of MP2 is not recommended!\n"
              "Use density fitting approximation is recommended.")
 
-    if frac_num:
+    if frac_num is not None:
         frac_occ = [frac_num[s][:nocc[s]] for s in (0, 1)]
         frac_vir = [frac_num[s][nocc[s]:] for s in (0, 1)]
     else:
@@ -255,7 +255,7 @@ def kernel_energy_ump2_ri(
     naux, nocc[0], nvir[0] = Y_OV[0].shape
     naux, nocc[1], nvir[1] = Y_OV[1].shape
 
-    if frac_num:
+    if frac_num is not None:
         frac_occ = [frac_num[s][:nocc[s]] for s in (0, 1)]
         frac_vir = [frac_num[s][nocc[s]:] for s in (0, 1)]
     else:
@@ -286,8 +286,8 @@ def kernel_energy_ump2_ri(
             if t_ijab is not None:
                 t_ijab[ss][sI] = t_Ijab
             if frac_num is not None:
-                n_Ijab = frac_occ[s0][sI] * frac_occ[s1][:, None, None] \
-                    * (1 - frac_vir[s0][None, :, None]) * (1 - frac_vir[s1][None, None, :])
+                n_Ijab = frac_occ[s0][sI, None, None, None] * frac_occ[s1][None, :, None, None] \
+                    * (1 - frac_vir[s0][None, None, :, None]) * (1 - frac_vir[s1][None, None, None, :])
                 eng_spin[ss] += lib.einsum("Ijab, Ijab, Ijab, Ijab ->", n_Ijab, t_Ijab.conj(), t_Ijab, D_Ijab)
             else:
                 eng_spin[ss] += lib.einsum("Ijab, Ijab, Ijab ->", t_Ijab.conj(), t_Ijab, D_Ijab)
