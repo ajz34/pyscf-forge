@@ -1,6 +1,6 @@
 from . import riepa, uiepa
 from .riepa import RIEPAofDH
-# from .uiepa import UIEPAofDH
+from .uiepa import UIEPAofDH
 
 
 __doc__ = r"""

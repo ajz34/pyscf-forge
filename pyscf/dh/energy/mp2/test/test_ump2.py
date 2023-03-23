@@ -5,12 +5,12 @@ from pyscf.dh import UMP2ofDH
 import numpy as np
 
 
-def get_mf_h2o_hf():
+def get_mf_h2o_cation_hf():
     mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="cc-pVTZ", spin=1, charge=1).build()
     return scf.UHF(mol).run()
 
 
-def get_mf_h2o_hf_complex():
+def get_mf_h2o_cation_hf_complex():
     mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="cc-pVTZ", spin=1, charge=1).build()
 
     hcore_1_B = - 1j * (
@@ -55,8 +55,8 @@ def get_mf_h2o_hf_complex():
 class TestEngUMP2(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        mf_h2o_hf = get_mf_h2o_hf()
-        mf_h2o_hf_complex, int3c2e_cd, int3c2e_2_cd = get_mf_h2o_hf_complex()
+        mf_h2o_hf = get_mf_h2o_cation_hf()
+        mf_h2o_hf_complex, int3c2e_cd, int3c2e_2_cd = get_mf_h2o_cation_hf_complex()
         cls.mf_h2o_hf = mf_h2o_hf
         cls.mf_h2o_hf_complex = mf_h2o_hf_complex
         cls.int3c2e_cd = int3c2e_cd

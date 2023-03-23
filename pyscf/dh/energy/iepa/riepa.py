@@ -102,8 +102,6 @@ def kernel_energy_riepa(
         verbose=lib.logger.NOTE):
     """ Kernel of restricted IEPA-like methods.
 
-    Parameters of these methods are controled by flags.
-
     Parameters
     ----------
     mo_energy : np.ndarray
@@ -193,13 +191,13 @@ def kernel_energy_riepa(
                     e_pair_os = get_pair_dcpt2(g_IJab, D_IJab, 1)
                     e_pair_ss = get_pair_dcpt2(g_IJab_asym, D_IJab, 0.5)
                 elif scheme == "IEPA":
-                    e_pair_os = get_pair_iepa(g_IJab, D_IJab, 1, thresh=tol, max_cycle=max_cycle)
-                    e_pair_ss = get_pair_iepa(g_IJab_asym, D_IJab, 0.5, thresh=tol, max_cycle=max_cycle)
+                    e_pair_os = get_pair_iepa(g_IJab, D_IJab, 1, tol=tol, max_cycle=max_cycle)
+                    e_pair_ss = get_pair_iepa(g_IJab_asym, D_IJab, 0.5, tol=tol, max_cycle=max_cycle)
                 elif scheme == "SIEPA":
                     e_pair_os = get_pair_siepa(g_IJab, D_IJab, 1,
-                                               screen_func=screen_func, thresh=tol, max_cycle=max_cycle)
+                                               screen_func=screen_func, tol=tol, max_cycle=max_cycle)
                     e_pair_ss = get_pair_siepa(g_IJab_asym, D_IJab, 0.5,
-                                               screen_func=screen_func, thresh=tol, max_cycle=max_cycle)
+                                               screen_func=screen_func, tol=tol, max_cycle=max_cycle)
                 else:
                     assert False
                 pair_aa[I, J] = pair_aa[J, I] = e_pair_ss
@@ -242,9 +240,9 @@ def kernel_energy_riepa(
         results[f"eng_corr_{scheme}_OS"] = eng_os
         results[f"eng_corr_{scheme}_SS"] = eng_ss
         results[f"eng_corr_{scheme}"] = eng_tot
-        log.info(f"[RESULT] Energy {scheme}_OS: {eng_os :18.10f}")
-        log.info(f"[RESULT] Energy {scheme}_SS: {eng_ss :18.10f}")
-        log.info(f"[RESULT] Energy {scheme}   : {eng_tot:18.10f}")
+        log.info(f"[RESULT] Energy corr {scheme}_OS: {eng_os :18.10f}")
+        log.info(f"[RESULT] Energy corr {scheme}_SS: {eng_ss :18.10f}")
+        log.info(f"[RESULT] Energy corr {scheme}   : {eng_tot:18.10f}")
     return results
 
 
@@ -295,7 +293,7 @@ def get_pair_dcpt2(g_ab, D_ab, scale_e):
     return 0.5 * scale_e * (- D_ab - np.sqrt(D_ab**2 + 4 * g_ab**2)).sum()
 
 
-def get_pair_siepa(g_ab, D_ab, scale_e, screen_func, thresh=1e-10, max_cycle=64):
+def get_pair_siepa(g_ab, D_ab, scale_e, screen_func, tol=1e-10, max_cycle=64):
     """ Pair energy evaluation for screened IEPA.
 
     .. math::
@@ -311,7 +309,7 @@ def get_pair_siepa(g_ab, D_ab, scale_e, screen_func, thresh=1e-10, max_cycle=64)
         :math:`s` is scale of MP2.
     screen_func : callable
         Function used in screened IEPA. For example erfc, which is applied in functional ZRPS.
-    thresh : float
+    tol : float
         Threshold of pair energy convergence for IEPA or sIEPA methods.
     max_cycle : int
         Maximum iteration number of energy convergence for IEPA or sIEPA methods.
@@ -331,7 +329,7 @@ def get_pair_siepa(g_ab, D_ab, scale_e, screen_func, thresh=1e-10, max_cycle=64)
     e = (g2_ab / D_ab).sum()
     e_old = 1e8
     n_cycle = 0
-    while abs(e_old - e) > thresh and n_cycle < max_cycle:
+    while abs(e_old - e) > tol and n_cycle < max_cycle:
         e_old = e
         e = scale_e * (g2_ab / (D_ab + sD_ab * e)).sum()
         n_cycle += 1
@@ -340,7 +338,7 @@ def get_pair_siepa(g_ab, D_ab, scale_e, screen_func, thresh=1e-10, max_cycle=64)
     return e
 
 
-def get_pair_iepa(g_ab, D_ab, scale_e, thresh=1e-10, max_cycle=64):
+def get_pair_iepa(g_ab, D_ab, scale_e, tol=1e-10, max_cycle=64):
     """ Pair energy evaluation for IEPA.
 
     This procedure sets screen function to 1.
@@ -354,7 +352,7 @@ def get_pair_iepa(g_ab, D_ab, scale_e, thresh=1e-10, max_cycle=64):
     e = (g2_ab / D_ab).sum()
     e_old = 1e8
     n_cycle = 0
-    while abs(e_old - e) > thresh and n_cycle < max_cycle:
+    while abs(e_old - e) > tol and n_cycle < max_cycle:
         e_old = e
         e = scale_e * (g2_ab / (D_ab + e)).sum()
         n_cycle += 1

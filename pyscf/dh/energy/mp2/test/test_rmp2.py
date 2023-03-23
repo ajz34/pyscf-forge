@@ -103,6 +103,17 @@ class TestEngRMP2(unittest.TestCase):
         self.assertAlmostEqual(mf_dh.params.results["eng_corr_MP2"], REF, 8)
         self.assertTrue("t_ijab" in mf_dh.params.tensors)
 
+    def test_eng_rmp2_conv_fc_by_kernel_option(self):
+        mf_s = self.mf_h2o_hf
+        mf_dh = RMP2ofDH(mf_s)
+        mf_dh.kernel(integral_scheme="conv", frozen_rule="FreezeNobleGasCore")
+        print(mf_dh.params.results)
+        # reference value
+        REF = -0.2602324295391498
+        REF_PYSCF = mp.MP2(mf_s, frozen=[0]).run().e_corr
+        self.assertAlmostEqual(REF, REF_PYSCF, 8)
+        self.assertAlmostEqual(mf_dh.params.results["eng_corr_MP2"], REF, 8)
+
     def test_eng_rmp2_conv_complex(self):
         mf_s = self.mf_h2o_hf_complex
         mf_dh = RMP2ofDH(mf_s)
