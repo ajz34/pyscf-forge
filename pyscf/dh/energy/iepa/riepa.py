@@ -10,6 +10,10 @@ import warnings
 class RIEPAofDH(RDHBase):
     """ Restricted IEPA (independent electron-pair approximation) class of doubly hybrid. """
 
+    def __init__(self, *args, **kwargs):
+        self.siepa_screen = erfc
+        super().__init__(*args, **kwargs)
+
     def kernel(self, **kwargs):
         with self.params.temporary_flags(kwargs):
             results = driver_energy_riepa(self)
@@ -48,7 +52,7 @@ def driver_energy_riepa(mf_dh):
         integral_scheme = params.flags["integral_scheme"]
     integral_scheme = integral_scheme.lower()
     # main loop
-    omega_list = params.flags["omega_list_mp2"]
+    omega_list = params.flags["omega_list_iepa"]
     for omega in omega_list:
         log.info(f"[INFO] Evaluation of IEPA at omega({omega})")
         # define g_iajb generation
@@ -65,12 +69,13 @@ def driver_energy_riepa(mf_dh):
         elif integral_scheme.startswith("conv"):
             log.warn("Conventional integral of post-SCF is not recommended!\n"
                      "Use density fitting approximation is preferred.")
-            eri_or_mol = mf_dh.scf._eri
-            if eri_or_mol is None:
-                eri_or_mol = mf_dh.mol
             CO = mo_coeff_act[:, :nOcc]
             CV = mo_coeff_act[:, nOcc:]
-            g_iajb = ao2mo.general(eri_or_mol, (CO, CV, CO, CV)).reshape(nOcc, nVir, nOcc, nVir)
+            eri_or_mol = mf_dh.scf._eri if omega == 0 else mol
+            if eri_or_mol is None:
+                eri_or_mol = mol
+            with mol.with_range_coulomb(omega):
+                g_iajb = ao2mo.general(eri_or_mol, (CO, CV, CO, CV)).reshape(nOcc, nVir, nOcc, nVir)
 
             def gen_g_IJab(i, j):
                 return g_iajb[i, :, j]
@@ -80,7 +85,7 @@ def driver_energy_riepa(mf_dh):
         results = kernel_energy_riepa(
             mo_energy_act, gen_g_IJab, nOcc, iepa_schemes,
             screen_func=mf_dh.siepa_screen,
-            thresh=1e-10, max_cycle=64,
+            tol=tol_eng_pair_iepa, max_cycle=max_cycle_iepa,
             tensors=params.tensors,
             verbose=mf_dh.verbose
         )
@@ -92,7 +97,7 @@ def driver_energy_riepa(mf_dh):
 def kernel_energy_riepa(
         mo_energy, gen_g_IJab, nocc, iepa_schemes,
         screen_func=erfc,
-        thresh=1e-10, max_cycle=64,
+        tol=1e-10, max_cycle=64,
         tensors=None,
         verbose=lib.logger.NOTE):
     """ Kernel of restricted IEPA-like methods.
@@ -114,7 +119,7 @@ def kernel_energy_riepa(
 
     screen_func : callable
         Function used in screened IEPA. Default is erfc, as applied in functional ZRPS.
-    thresh : float
+    tol : float
         Threshold of pair energy convergence for IEPA or sIEPA methods.
     max_cycle : int
         Maximum iteration number of energy convergence for IEPA or sIEPA methods.
@@ -188,13 +193,13 @@ def kernel_energy_riepa(
                     e_pair_os = get_pair_dcpt2(g_IJab, D_IJab, 1)
                     e_pair_ss = get_pair_dcpt2(g_IJab_asym, D_IJab, 0.5)
                 elif scheme == "IEPA":
-                    e_pair_os = get_pair_iepa(g_IJab, D_IJab, 1, thresh=thresh, max_cycle=max_cycle)
-                    e_pair_ss = get_pair_iepa(g_IJab_asym, D_IJab, 0.5, thresh=thresh, max_cycle=max_cycle)
+                    e_pair_os = get_pair_iepa(g_IJab, D_IJab, 1, thresh=tol, max_cycle=max_cycle)
+                    e_pair_ss = get_pair_iepa(g_IJab_asym, D_IJab, 0.5, thresh=tol, max_cycle=max_cycle)
                 elif scheme == "SIEPA":
                     e_pair_os = get_pair_siepa(g_IJab, D_IJab, 1,
-                                               screen_func=screen_func, thresh=thresh, max_cycle=max_cycle)
+                                               screen_func=screen_func, thresh=tol, max_cycle=max_cycle)
                     e_pair_ss = get_pair_siepa(g_IJab_asym, D_IJab, 0.5,
-                                               screen_func=screen_func, thresh=thresh, max_cycle=max_cycle)
+                                               screen_func=screen_func, thresh=tol, max_cycle=max_cycle)
                 else:
                     assert False
                 pair_aa[I, J] = pair_aa[J, I] = e_pair_ss

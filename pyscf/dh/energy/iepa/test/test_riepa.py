@@ -148,7 +148,41 @@ class TestEngRIEPA(unittest.TestCase):
         self.assertAlmostEqual(0.5 * (eng_corr_MP2 + eng_corr_MP2CR), KNOWN_MP2CR3, delta=DELTA)
         self.assertAlmostEqual(0.5 * (eng_corr_MP2 + eng_corr_MP2CR2), KNOWN_MP2CR4, delta=DELTA)
 
-    def test_eng_rmp2cr_converge(self):
+    def test_eng_riepa_omega(self):
+        # this test is only try to show that omega is correctly evaluated
+        mf_s = self.mf_h2o_hf
+        eri = mf_s._eri.copy()
+        mf_s._eri = None
+        # conventional
+        mf_dh = RIEPAofDH(mf_s)
+        mf_dh.params.flags.update({
+            "integral_scheme_iepa": "conv",
+            "omega_list_iepa": [0.7],
+            "iepa_schemes": "MP2",
+        })
+        mf_dh.run()
+        # reference value of conventional
+        omega = 0.7
+        with mf_s.mol.with_range_coulomb(omega):
+            REF_PYSCF = mp.MP2(mf_s).run().e_corr
+        self.assertAlmostEqual(mf_dh.params.results["eng_corr_MP2_omega(0.700000)"], REF_PYSCF)
+        # ri-mp2
+        mf_dh = RIEPAofDH(mf_s)
+        mf_dh.params.flags.update({
+            "omega_list_iepa": [0.7],
+            "iepa_schemes": "MP2",
+        })
+        mf_dh.run()
+        # reference value of ri-mp2
+        from pyscf.mp.dfmp2 import DFMP2
+        omega = 0.7
+        with mf_s.mol.with_range_coulomb(omega):
+            REF_PYSCF = DFMP2(mf_s).run().e_corr
+        self.assertAlmostEqual(mf_dh.params.results["eng_corr_MP2_omega(0.700000)"], REF_PYSCF)
+
+        mf_s._eri = eri
+
+    def test_eng_riepa_converge(self):
         # coverage only, not testing correctness
         mf_s = self.mf_h2o_hf
 

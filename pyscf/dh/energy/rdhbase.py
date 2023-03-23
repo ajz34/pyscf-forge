@@ -1,6 +1,4 @@
 import numpy as np
-from scipy.special import erfc
-
 from pyscf import lib, gto, dft, df
 from pyscf.dh import util
 from pyscf.dh.energy.rdft import numint_customized
@@ -82,7 +80,6 @@ class RDHBase(lib.StreamObject):
         self.xc = xc
         # parse other objects
         self.with_df_2 = None
-        self.siepa_screen = erfc
         # to be further initialized
         self._mf_or_mol = mf_or_mol
 
