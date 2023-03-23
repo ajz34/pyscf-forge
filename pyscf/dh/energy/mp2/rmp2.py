@@ -28,6 +28,7 @@ def driver_energy_rmp2(mf_dh):
     """
     mf_dh.build()
     mol = mf_dh.mol
+    log = mf_dh.log
     results_summary = dict()
     # parse frozen orbitals
     mask_act = mf_dh.get_mask_act()
@@ -43,6 +44,7 @@ def driver_energy_rmp2(mf_dh):
         integral_scheme = mf_dh.params.flags["integral_scheme"]
     integral_scheme = integral_scheme.lower()
     for omega in omega_list:
+        log.log(f"[INFO] omega in MP2 energy driver: {omega}")
         # prepare t_ijab space
         t_ijab_name = util.pad_omega("t_ijab", omega)
         params = mf_dh.params

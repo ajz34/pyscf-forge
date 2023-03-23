@@ -1,23 +1,21 @@
+from pyscf.dh.energy import RDHBase
 from pyscf.dh import util
 from pyscf import ao2mo, lib
 import numpy as np
-import re
-import typing
 
-if typing.TYPE_CHECKING:
-    from pyscf.dh.energy import RDH
+
+class RRingCCDofDH(RDHBase):
+    """ Restricted MP2 class of doubly hybrid. """
+
+    def kernel(self, **kwargs):
+        with self.params.temporary_flags(kwargs):
+            results = driver_energy_rring_ccd(self)
+        self.params.update_results(results)
+        return results
 
 
 def driver_energy_rring_ccd(mf_dh):
     """ Driver of restricted ring-CCD energy.
-
-    For restricted case, ring-CCD should give direct-RPA (dRPA) energy.
-
-    .. math::
-        \\mathbf{T} &= - \\frac{1}{\\mathbf{\\Delta \\varepsilon}} \\odot (\\mathbf{B} - 2 \\mathbf{B T} - 2
-        \\mathbf{T B} + 4 \\mathbf{T B T})
-
-        E^\\mathrm{dRPA} = - 2 \\mathrm{tr} (\\mathbf{T B})
 
     Parameters
     ----------
@@ -30,16 +28,24 @@ def driver_energy_rring_ccd(mf_dh):
     """
     mf_dh.build()
     mol = mf_dh.mol
-    integral_scheme = mf_dh.params.flags["integral_scheme"].lower()
+    log = mf_dh.log
+    results_summary = dict()
+    # parse integral scheme
+    integral_scheme = mf_dh.params.flags["integral_scheme_ring_ccd"]
+    if integral_scheme is None:
+        integral_scheme = mf_dh.params.flags["integral_scheme"]
+    integral_scheme = integral_scheme.lower()
     # parse frozen orbitals
     nact, nOcc, nVir = mf_dh.nact, mf_dh.nOcc, mf_dh.nVir
     mo_coeff_act = mf_dh.mo_coeff_act
     mo_energy_act = mf_dh.mo_energy_act
+    # other options
     omega_list = mf_dh.params.flags["omega_list_ring_ccd"]
     tol_e = mf_dh.params.flags["tol_eng_ring_ccd"]
     tol_amp = mf_dh.params.flags["tol_amp_ring_ccd"]
     max_cycle = mf_dh.params.flags["max_cycle_ring_ccd"]
     for omega in omega_list:
+        log.log(f"[INFO] omega in ring-CCD energy driver: {omega}")
         if integral_scheme.startswith("conv"):
             eri_or_mol = mf_dh.scf._eri if omega == 0 else mol
             if eri_or_mol is None:
@@ -50,12 +56,11 @@ def driver_energy_rring_ccd(mf_dh):
                     nOcc, nVir,
                     tol_e=tol_e, tol_amp=tol_amp, max_cycle=max_cycle,
                     verbose=mf_dh.verbose)
-            if omega != 0:
-                results = {util.pad_omega(key, omega): val for (key, val) in results.items()}
-            mf_dh.params.update_results(results)
+            results = {util.pad_omega(key, omega): val for (key, val) in results.items()}
+            results_summary.update(results)
         else:
             raise NotImplementedError
-    return mf_dh
+    return results_summary
 
 
 def kernel_energy_rring_ccd_conv(
@@ -91,16 +96,16 @@ def kernel_energy_rring_ccd_conv(
     log = lib.logger.new_logger(verbose=verbose)
     log.warn("Conventional integral of MP2 is not recommended!\n"
              "Use density fitting approximation is recommended.")
-    log.info("[INFO] dRPA (ring-CCD) iteration, tol_e {:9.4e}, tol_amp {:9.4e}, max_cycle {:3d}"
-             .format(tol_e, tol_amp, max_cycle))
+    log.info(f"[INFO] dRPA (ring-CCD) iteration, tol_e {tol_e:9.4e}, tol_amp {tol_amp:9.4e}, max_cycle {max_cycle:3d}")
 
     Co = mo_coeff[:, :nocc]
     Cv = mo_coeff[:, nocc:]
     eo = mo_energy[:nocc]
     ev = mo_energy[nocc:]
-    log.debug("Start ao2mo")
+    log.info("[INFO] Start ao2mo")
     g_iajb = ao2mo.general(eri_or_mol, (Co, Cv, Co, Cv)).reshape(nocc, nvir, nocc, nvir)
     D_iajb = eo[:, None, None, None] - ev[None, :, None, None] + eo[None, None, :, None] - ev[None, None, None, :]
+    log.info("[INFO] Finish ao2mo")
 
     dim_ov = nocc * nvir
     B = g_iajb.reshape(dim_ov, dim_ov)
@@ -125,20 +130,41 @@ def kernel_energy_rring_ccd_conv(
         eng_drpa = eng_os + eng_ss
         err_amp = np.linalg.norm(T_new - T_old)
         err_e = abs(eng_drpa - eng_old)
-        log.info("[INFO] dRPA (ring-CCD) energy in iter {:3d}: {:20.12f}, amplitude L2 error {:9.4e}, eng_err {:9.4e}"
-                 .format(epoch, eng_drpa, err_amp, err_e))
+        log.info(
+            f"[INFO] dRPA (ring-CCD) energy in iter {epoch:3d}: {eng_drpa:20.12f}, "
+            f"amplitude L2 error {err_amp:9.4e}, eng_err {err_e:9.4e}")
         if err_amp < tol_amp and err_e < tol_e:
+            converged = True
             log.info("[INFO] dRPA (ring-CCD) amplitude converges.")
             break
     if not converged:
-        log.warn("dRPA (ring-CCD) not converged!")
+        log.warn(f"dRPA (ring-CCD) not converged in {max_cycle} iterations!")
 
     results = dict()
-    results["eng_RING_CCD_OS"] = eng_os
-    results["eng_RING_CCD_SS"] = eng_ss
-    results["eng_RING_CCD"] = eng_drpa
+    results["eng_corr_RING_CCD_OS"] = eng_os
+    results["eng_corr_RING_CCD_SS"] = eng_ss
+    results["eng_corr_RING_CCD"] = eng_drpa
     results["converged_RING_CCD"] = converged
-    log.info("[RESULT] Energy RING_CCD of same-spin: {:18.10f}".format(eng_ss))
-    log.info("[RESULT] Energy RING_CCD of oppo-spin: {:18.10f}".format(eng_os))
-    log.info("[RESULT] Energy RING_CCD of total: {:18.10f}".format(eng_drpa))
+    log.info(f"[RESULT] Energy corr ring-CCD of same-spin: {eng_os  :18.10f}")
+    log.info(f"[RESULT] Energy corr ring-CCD of oppo-spin: {eng_ss  :18.10f}")
+    log.info(f"[RESULT] Energy corr ring-CCD of total    : {eng_drpa:18.10f}")
     return results
+
+
+driver_energy_rring_ccd.__doc__ += \
+    r"""
+    Notes
+    -----
+
+    For restricted case, ring-CCD should give direct-RPA (dRPA) energy.
+
+    .. math::
+        \mathbf{T} &= - \frac{1}{\mathbf{\Delta \varepsilon}} \odot (\mathbf{B} - 2 \mathbf{B T} - 2
+        \mathbf{T B} + 4 \mathbf{T B T}) \\
+        E^\mathrm{dRPA, OS} = E^\mathrm{dRPA, SS} &= - \mathrm{tr} (\mathbf{T B})
+    
+    Equation here is similar but not the same to 10.1063/1.3043729.
+    The formula of Scuseria's article (eq 9) applies to spin-orbital and thus no coefficients 2 or 4.
+    More over, we evaluate :math:`B_{ia, jb} = (ia|jb)` to match result of direct-RPA (thus, we only evaluate 
+    direct ring-CCD instead of full ring-CCD).
+    """

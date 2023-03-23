@@ -1,7 +1,7 @@
 from pyscf.dh.energy import RDHBase
 from pyscf.dh.energy.driver_energy import driver_energy_dh
 from pyscf.dh.energy.iepa.riepa import driver_energy_riepa
-from pyscf.dh.energy.rrpa import driver_energy_rring_ccd
+from pyscf.dh.energy.ring_ccd.rring_ccd import driver_energy_rring_ccd
 from pyscf.dh.energy.rdft import (
     kernel_energy_restricted_exactx, kernel_energy_restricted_noxc, kernel_energy_vv10,
     kernel_energy_purexc, get_rho)
