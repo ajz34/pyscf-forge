@@ -32,7 +32,7 @@ def _process_energy_exx(mf_dh: "RDH", xc_list: XCList, force_evaluate=False):
         name_eng_exx_HF = util.pad_omega("eng_exx_HF", omega)
         if force_evaluate or name_eng_exx_HF not in mf_dh.params.results:
             log.info(f"[INFO] Evaluate {name_eng_exx_HF}")
-            result.update(mf_dh.kernel_energy_exactx(mf_dh.scf, mf_dh.make_rdm1_scf(), omega=omega))
+            result.update(mf_dh.get_energy_exactx(mf_dh.scf, mf_dh.make_rdm1_scf(), omega=omega))
             eng = result[name_eng_exx_HF]
         else:
             log.info(f"[INFO] {name_eng_exx_HF} is evaluated. Take previous evaluated value.")
@@ -205,7 +205,7 @@ def _process_energy_vdw(mf_dh: "RDH", xc_list: XCList):
             assert len(nlc_pars) == 2
             grids = mf_dh.scf.grids
             nlcgrids = mf_dh.scf.nlcgrids
-            res = mf_dh.kernel_energy_vv10(
+            res = mf_dh.get_energy_vv10(
                 mf_dh.mol, mf_dh.make_rdm1_scf(), nlc_pars, grids, nlcgrids,
                 verbose=mf_dh.verbose)
             result.update(res)
@@ -324,7 +324,7 @@ def _process_energy_low_rung(mf_dh: "RDH", xc_list: XCList, xc_to_parse: XCList 
     # pure part
     grids = mf_dh.scf.grids
     rho = get_rho(mf_dh.mol, grids, mf_dh.make_rdm1_scf())
-    result = mf_dh.kernel_energy_purexc([xc_non_exx.token], rho, grids.weights, mf_dh.restricted, numint=numint)
+    result = mf_dh.get_energy_purexc([xc_non_exx.token], rho, grids.weights, mf_dh.restricted, numint=numint)
     mf_dh.params.update_results(result)
     eng_tot += result["eng_purexc_" + xc_non_exx.token]
     log.note(f"[RESULT] Energy of process_energy_low_rung (non_exx): {result['eng_purexc_' + xc_non_exx.token]}")
@@ -365,7 +365,7 @@ def driver_energy_dh(mf_dh, xc=None):
         xc_low_rung_extracted, eng_low_rung = _process_energy_low_rung(mf_dh, xc_low_rung)
         assert len(xc_low_rung_extracted) == 0
         eng_tot += eng_low_rung
-        result.update(mf_dh.kernel_energy_noxc(mf_dh.scf, mf_dh.make_rdm1_scf()))
+        result.update(mf_dh.get_energy_noxc(mf_dh.scf, mf_dh.make_rdm1_scf()))
         eng_tot += result["eng_noxc"]
 
     # 2. other correlation
@@ -386,5 +386,4 @@ def driver_energy_dh(mf_dh, xc=None):
         raise RuntimeError("Some xc terms not evaluated! Possibly bug of program.")
     result[f"eng_dh_{xc.token}"] = eng_tot
     log.note(f"[RESULT] Energy of {xc.token}: {eng_tot:20.12f}")
-    mf_dh.params.update_results(result)
-    return mf_dh
+    return result

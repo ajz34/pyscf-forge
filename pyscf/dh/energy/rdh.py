@@ -1,8 +1,4 @@
 from pyscf.dh.energy import RDHBase
-from pyscf.dh.energy.driver_energy import driver_energy_dh
-from pyscf.dh.energy.rdft import (
-    kernel_energy_restricted_exactx, kernel_energy_restricted_noxc, kernel_energy_vv10,
-    kernel_energy_purexc, get_rho)
 from typing import Tuple, List
 from pyscf.dh.util import XCList
 
@@ -17,14 +13,11 @@ class RDH(RDHBase):
         self.inherited = []
         super().__init__(mol_or_mf, xc, params=params, flags=flags)
 
-    driver_energy_dh = driver_energy_dh
-    kernel = driver_energy_dh
-
-    kernel_energy_exactx = staticmethod(kernel_energy_restricted_exactx)
-    kernel_energy_noxc = staticmethod(kernel_energy_restricted_noxc)
-    kernel_energy_vv10 = staticmethod(kernel_energy_vv10)
-    kernel_energy_purexc = staticmethod(kernel_energy_purexc)
-    get_rho = staticmethod(get_rho)
+    def kernel(self, **kwargs):
+        with self.params.temporary_flags(kwargs):
+            results = self.driver_energy_dh()
+        self.params.update_results(results)
+        return results
 
     def to_mp2(self):
         from pyscf.dh import RMP2ofDH, UMP2ofDH

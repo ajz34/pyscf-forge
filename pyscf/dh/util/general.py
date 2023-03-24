@@ -300,6 +300,10 @@ class DictWithDefault(dict):
     """
     _default_dict: dict
     """ Default dictionary. """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._default_dict = dict()
+
     def set_default_dict(self, default_dict: dict):
         self._default_dict = default_dict
 
@@ -309,6 +313,11 @@ class DictWithDefault(dict):
         if item in self._default_dict:
             return self._default_dict[item]
         return super().__getitem__(item)
+
+    def __setitem__(self, key, value):
+        if key not in self._default_dict and key not in self:
+            warnings.warn(f"Option {key} is not in the default option list. This option may not have any effect.")
+        return super().__setitem__(key, value)
 
     def copy(self) -> "DictWithDefault":
         copied = DictWithDefault(super().copy())

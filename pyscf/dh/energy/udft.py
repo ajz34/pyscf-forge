@@ -72,16 +72,16 @@ def kernel_energy_unrestricted_noxc(mf, dm):
 
 if __name__ == '__main__':
     from pyscf import gto, dft, df
-    from pyscf.dh.energy.rdft import kernel_energy_restricted_noxc, kernel_energy_restricted_exactx
+    from pyscf.dh.energy.rdft import get_energy_restricted_noxc, get_energy_restricted_exactx
     from pyscf.dh.energy import UDH, RDH
     mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
     mf = dft.RKS(mol, xc="wB97M-V").density_fit(df.aug_etb(mol)).run()
     mf.nlc = "VV10"
     print(mf.energy_tot(dm=mf.make_rdm1()))
 
-    res = kernel_energy_restricted_exactx(mf, dm=mf.make_rdm1())
+    res = get_energy_restricted_exactx(mf, dm=mf.make_rdm1())
     print(res)
-    res = kernel_energy_restricted_noxc(mf, dm=mf.make_rdm1())
+    res = get_energy_restricted_noxc(mf, dm=mf.make_rdm1())
     print(res)
     # mf = mf.to_uks()
     mo_r = mf.mo_coeff
@@ -109,7 +109,7 @@ if __name__ == '__main__':
 
 if __name__ == '__main__':
     from pyscf import gto, dft, df
-    from pyscf.dh.energy.rdft import kernel_energy_restricted_noxc, kernel_energy_restricted_exactx
+    from pyscf.dh.energy.rdft import get_energy_restricted_noxc, get_energy_restricted_exactx
     from pyscf.dh.energy import UDH, RDH
 
     mol = gto.Mole()

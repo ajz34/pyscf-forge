@@ -5,7 +5,7 @@ import numpy as np
 from types import MethodType
 
 
-def kernel_energy_restricted_exactx(mf, dm, omega=None):
+def get_energy_restricted_exactx(mf, dm, omega=None):
     """ Evaluate exact exchange energy (for either HF and long-range).
 
     Parameters
@@ -28,7 +28,7 @@ def kernel_energy_restricted_exactx(mf, dm, omega=None):
     return result
 
 
-def kernel_energy_restricted_noxc(mf, dm):
+def get_energy_restricted_noxc(mf, dm):
     """ Evaluate energy contributions that is not exchange-correlation.
 
     Note that some contributions (such as vdw) is not considered.
@@ -95,7 +95,7 @@ def get_rho(mol, grids, dm):
     return rho
 
 
-def kernel_energy_purexc(xc_list, rho, weights, restricted, numint=None):
+def get_energy_purexc(xc_list, rho, weights, restricted, numint=None):
     """ Evaluate energy contributions of exchange-correlation effects.
 
     Note that this kernel does not count HF, LR_HF and advanced correlation into account.
@@ -133,7 +133,7 @@ def kernel_energy_purexc(xc_list, rho, weights, restricted, numint=None):
     return results
 
 
-def kernel_energy_vv10(mol, dm, nlc_pars, grids=None, nlcgrids=None, verbose=lib.logger.NOTE):
+def get_energy_vv10(mol, dm, nlc_pars, grids=None, nlcgrids=None, verbose=lib.logger.NOTE):
     log = lib.logger.new_logger(verbose=verbose)
     if grids is None:
         log.warn("VV10 grids not found. Use default grids of PySCF for VV10.")

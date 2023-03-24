@@ -3,6 +3,10 @@ from pyscf import lib, gto, dft, df
 from pyscf.dh import util
 from pyscf.dh.energy.rdft import numint_customized
 from pyscf.dh.util import XCDH, Params, HybridDict, XCList
+from pyscf.dh.energy.driver_energy import driver_energy_dh
+from pyscf.dh.energy.rdft import (
+    get_energy_restricted_exactx, get_energy_restricted_noxc, get_energy_vv10,
+    get_energy_purexc, get_rho)
 
 
 class RDHBase(lib.StreamObject):
@@ -224,7 +228,7 @@ class RDHBase(lib.StreamObject):
             self.initialize()
         if not hasattr(self.scf, "xc"):
             self.log.warn("We only accept density functionals here.\n"
-                     "If you pass an HF instance, we convert to KS object naively.")
+                          "If you pass an HF instance, we convert to KS object naively.")
             converged = self.scf.converged
             self._scf = self.scf.to_rks("HF") if self.restricted else self.scf.to_uks("HF")
             self._scf.converged = converged
@@ -378,3 +382,28 @@ class RDHBase(lib.StreamObject):
     def e_tot(self) -> float:
         """ Doubly hybrid total energy (obtained after running ``driver_energy_dh``). """
         return self.params.results["eng_dh_{:}".format(self.xc.xc_eng.token)]
+
+    def make_energy_dh(self, xc=None):
+        """ Obtain doubly hybrid energy evaluated by certain xc code with given reference state.
+
+        Parameters
+        ----------
+        xc : str or XCList
+            Token of exchange and correlation.
+            If doubly hybrid token is parsed, only evaluates the energy functional part (instead of SCF functional).
+        """
+        if xc is None:
+            xc = self.xc.xc_eng
+        elif isinstance(xc, str):
+            xc = XCList(xc, code_scf=False)
+        assert isinstance(xc, XCList)
+        xc = xc.copy()
+        result = self.driver_energy_dh(xc=xc)
+        return result[f"eng_dh_{xc.token}"]
+
+    driver_energy_dh = driver_energy_dh
+    get_energy_exactx = staticmethod(get_energy_restricted_exactx)
+    get_energy_noxc = staticmethod(get_energy_restricted_noxc)
+    get_energy_vv10 = staticmethod(get_energy_vv10)
+    get_energy_purexc = staticmethod(get_energy_purexc)
+    get_rho = staticmethod(get_rho)

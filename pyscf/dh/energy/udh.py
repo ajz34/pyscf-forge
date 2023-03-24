@@ -5,5 +5,5 @@ from pyscf.dh.energy.udft import kernel_energy_unrestricted_exactx, kernel_energ
 
 class UDH(UDHBase, RDH):
 
-    kernel_energy_exactx = staticmethod(kernel_energy_unrestricted_exactx)
-    kernel_energy_noxc = staticmethod(kernel_energy_unrestricted_noxc)
+    get_energy_exactx = staticmethod(kernel_energy_unrestricted_exactx)
+    get_energy_noxc = staticmethod(kernel_energy_unrestricted_noxc)
