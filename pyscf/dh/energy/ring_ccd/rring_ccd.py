@@ -29,12 +29,9 @@ def driver_energy_rring_ccd(mf_dh):
     mf_dh.build()
     mol = mf_dh.mol
     log = mf_dh.log
+    mf_dh._flag_snapshot = mf_dh.params.flags.copy()
     results_summary = dict()
-    # parse integral scheme
-    integral_scheme = mf_dh.params.flags["integral_scheme_ring_ccd"]
-    if integral_scheme is None:
-        integral_scheme = mf_dh.params.flags["integral_scheme"]
-    integral_scheme = integral_scheme.lower()
+    integral_scheme = mf_dh.params.flags.get("integral_scheme_ring_ccd", mf_dh.params.flags["integral_scheme"]).lower()
     # parse frozen orbitals
     nact, nOcc, nVir = mf_dh.nact, mf_dh.nOcc, mf_dh.nVir
     mo_coeff_act = mf_dh.mo_coeff_act

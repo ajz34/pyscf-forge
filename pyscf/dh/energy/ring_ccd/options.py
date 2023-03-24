@@ -1,3 +1,13 @@
+integral_scheme_ring_ccd = None
+""" Flag for ring-CCD integral.
+
+By default, it is set to be the same of ``integral_scheme``.
+
+See Also
+--------
+pyscf.dh.energy.options.integral_scheme
+"""
+
 omega_list_ring_ccd = [0]
 """ Range-separate omega list of ring-CCD.
 

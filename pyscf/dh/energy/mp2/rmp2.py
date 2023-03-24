@@ -29,6 +29,7 @@ def driver_energy_rmp2(mf_dh):
     mf_dh.build()
     mol = mf_dh.mol
     log = mf_dh.log
+    mf_dh._flag_snapshot = mf_dh.params.flags.copy()
     results_summary = dict()
     # parse frozen orbitals
     mask_act = mf_dh.get_mask_act()
@@ -39,12 +40,9 @@ def driver_energy_rmp2(mf_dh):
     frac_num = mf_dh.params.flags["frac_num_mp2"]
     frac_num_f = frac_num[mask_act] if frac_num is not None else None
     omega_list = mf_dh.params.flags["omega_list_mp2"]
-    integral_scheme = mf_dh.params.flags["integral_scheme_mp2"]
-    if integral_scheme is None:
-        integral_scheme = mf_dh.params.flags["integral_scheme"]
-    integral_scheme = integral_scheme.lower()
+    integral_scheme = mf_dh.params.flags.get("integral_scheme_mp2", mf_dh.params.flags["integral_scheme"]).lower()
     for omega in omega_list:
-        log.log(f"[INFO] omega in MP2 energy driver: {omega}")
+        log.info(f"[INFO] omega in MP2 energy driver: {omega}")
         # prepare t_ijab space
         t_ijab_name = util.pad_omega("t_ijab", omega)
         params = mf_dh.params

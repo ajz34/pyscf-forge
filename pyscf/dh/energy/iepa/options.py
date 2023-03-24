@@ -26,7 +26,7 @@ Zero refers to no range-separate. Long/Short range uses posi/negative values.
 """
 
 integral_scheme_iepa = None
-""" Flag for PT2 integral.
+""" Flag for IEPA integral.
 
 By default, it is set to be the same of ``integral_scheme``.
 

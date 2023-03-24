@@ -1,3 +1,4 @@
+import copy
 import tempfile
 import warnings
 
@@ -312,7 +313,7 @@ class DictWithDefault(dict):
     def copy(self) -> "DictWithDefault":
         copied = DictWithDefault(super().copy())
         copied.set_default_dict(self._default_dict)
-        return copied
+        return copy.deepcopy(copied)
 
 
 @dataclass
@@ -414,12 +415,17 @@ class Params:
             keys_interset = set(income_result).intersection(self.results)
             if len(keys_interset) != 0:
                 if not allow_overwrite:
-                    raise KeyError("Overwrite results is not allowed!\n"
-                                   "Repeated keys: [{:}]".format(", ".join(keys_interset)))
+                    raise KeyError(f"Overwrite results is not allowed!\nRepeated keys: {keys_interset}")
                 if warn_overwrite:
                     msg = "Key result overwrited!\n"
                     for key in keys_interset:
-                        msg += "Key: `{:}`, before {:}, after {:}".format(key, income_result[key], self.results[key])
+                        # if results are very close, then warn muted; otherwise, it could be very annoying
+                        try:
+                            if np.allclose(income_result[key], self.results[key], atol=1e-10, rtol=1e-10):
+                                continue
+                        except TypeError:
+                            pass
+                        msg += f"Key: {key}, before {income_result[key]}, after {self.results[key]}\n"
                         warnings.warn(msg)
         self.results.update(income_result)
         return self

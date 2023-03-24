@@ -1,13 +1,8 @@
-import typing
-from types import MethodType
-
 from pyscf.dh import util
+from pyscf.dh.util import DictWithDefault, XCList, XCType
 from pyscf import dft, lib
 import numpy as np
-from pyscf.dh.util import DictWithDefault, XCList, XCType
-
-if typing.TYPE_CHECKING:
-    pass
+from types import MethodType
 
 
 def kernel_energy_restricted_exactx(mf, dm, omega=None):
@@ -28,10 +23,8 @@ def kernel_energy_restricted_exactx(mf, dm, omega=None):
     ex = util.check_real(ex)
     # results
     result = dict()
-    if omega is None:
-        result["eng_exx_HF"] = ex
-    else:
-        result["eng_exx_LR_HF({:})".format(omega)] = ex
+    omega = omega if omega is not None else 0
+    result[util.pad_omega("eng_exx_HF", omega)] = ex
     return result
 
 
@@ -219,6 +212,7 @@ def numint_customized(flags, xc):
     gen_lists = [eval_xc_eff_parsable]
 
     # append xc_eff generators
+    # for any other types of xc, add codes here
     for xc_info in xc_remains:
         if XCType.SSR in xc_info.type:
             if XCType.EXCH in xc_info.type:
@@ -236,7 +230,7 @@ def numint_customized(flags, xc):
                 generator = multiply_factor_on_eval_xc_eff(generator, xc_info.fac)
                 gen_lists.append(generator)
             else:
-                assert False
+                assert False, "Scaled short-range functional must be explicitly defined as exchange or correlation."
         else:
             raise ValueError("Some type of xc is not available!")
 

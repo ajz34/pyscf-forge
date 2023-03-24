@@ -34,8 +34,11 @@ class RDHBase(lib.StreamObject):
 
     # protected attributes
     _mf_or_mol: gto.Mole or dft.rks.RKS
+    """ Only for instantiate. """
+    _flag_snapshot: dict
+    """ Snapshot of flags when computation conducted. """
 
-    def __init__(self, mf_or_mol=None, xc=None, params=None):
+    def __init__(self, mf_or_mol=None, xc=None, params=None, flags=None):
         """ Initialize DH.
 
         In ``__init__`` function, we do not handle parameter-specific initialization.
@@ -50,16 +53,18 @@ class RDHBase(lib.StreamObject):
         xc : str or tuple or XCDH or None
             Exchange-correlation string.
         params : Params
-            Additional parameters
+            Additional parameters (with flags, tensors and results).
+        flags : dict
+            Additional flags (will be updated to ``params``).
         """
         base = None
         if mf_or_mol is None:
             return
         if xc is None:
             xc = "HF"
-        self.instantiate(mf_or_mol, xc, params)
+        self.instantiate(mf_or_mol, xc, params, flags)
 
-    def instantiate(self, mf_or_mol, xc=None, params=None):
+    def instantiate(self, mf_or_mol, xc=None, params=None, flags=None):
         """ Initialize class objects.
 
         This function is a replacement of __init__ in general case.
@@ -70,6 +75,8 @@ class RDHBase(lib.StreamObject):
             self.params = params
         else:
             self.params = Params({}, HybridDict(), {})
+        if flags:
+            self.params.flags.update(flags)
         self.params.flags.set_default_dict(util.get_default_options())
         # set molecule
         mol = mf_or_mol if isinstance(mf_or_mol, gto.Mole) else mf_or_mol.mol
@@ -371,20 +378,3 @@ class RDHBase(lib.StreamObject):
     def e_tot(self) -> float:
         """ Doubly hybrid total energy (obtained after running ``driver_energy_dh``). """
         return self.params.results["eng_dh_{:}".format(self.xc.xc_eng.token)]
-
-    def get_Y_OV(self, regenerate=False) -> np.ndarray:
-        """ Get cholesky decomposed ERI in MO basis (occ-vir part with frozen core).
-
-        Dimension: (naux, nOcc, nVir)
-        """
-        nact, nOcc = self.nact, self.nOcc
-        if regenerate or "Y_OV" not in self.params.tensors:
-            self.log.info("[INFO] Generating `Y_OV` ...")
-            Y_OV = util.get_cderi_mo(
-                self.with_df, self.mo_coeff_act, None, (0, nOcc, nOcc, nact),
-                self.mol.max_memory - lib.current_memory()[0])
-            self.params.tensors["Y_OV"] = Y_OV
-            self.log.info("[INFO] Generating `Y_OV` Done")
-        else:
-            Y_OV = self.params.tensors["Y_OV"]
-        return Y_OV

@@ -1,8 +1,8 @@
-import typing
 from pyscf import dft
 from pyscf.dh import util
 from pyscf.dh.energy.rdft import get_rho, numint_customized
 from pyscf.dh.util import XCType, XCList
+import typing
 
 if typing.TYPE_CHECKING:
     from pyscf.dh import RDH
@@ -14,70 +14,89 @@ def _process_energy_exx(mf_dh: "RDH", xc_list: XCList, force_evaluate=False):
     if len(xc_exx) == 0:
         return xc_list, 0
     xc_extracted = xc_list.remove(xc_exx, inplace=False)
-    log.info("[INFO] XCList extracted by process_energy_exx: {:}".format(xc_exx.token))
-    log.info("[INFO] XCList remains   by process_energy_exx: {:}".format(xc_extracted.token))
+    log.info(f"[INFO] XCList extracted by process_energy_exx: {xc_exx.token}")
+    log.info(f"[INFO] XCList remains   by process_energy_exx: {xc_extracted.token}")
     result = dict()
     eng_tot = 0
     for info in xc_exx:
-        log.info("[INFO] EXX to be evaluated: {:}".format(info.token))
-        if info.name == "HF":
-            if force_evaluate or "eng_exx_HF" not in mf_dh.params.results:
-                result.update(mf_dh.kernel_energy_exactx(mf_dh.scf, mf_dh.make_rdm1_scf()))
-                eng = result["eng_exx_HF"]
-            else:
-                log.info("[INFO] eng_exx_HF is evaluated. Take previous evaluated value.")
-                eng = mf_dh.params.results["eng_exx_HF"]
-            log.note("[RESULT] eng_exx_HF {:20.12f}".format(eng))
-            eng_tot += info.fac * eng
-        else:
-            assert info.name == "LR_HF"
+        log.info(f"[INFO] EXX to be evaluated: {info.token}")
+        # determine omega
+        omega = 0
+        if info.name == "LR_HF":
             assert len(info.parameters) == 1
             omega = info.parameters[0]
-            if force_evaluate or "eng_exx_LR_HF({:})".format(omega) not in mf_dh.params.results:
-                result.update(mf_dh.kernel_energy_exactx(mf_dh.scf, mf_dh.make_rdm1_scf(), omega))
-                eng = result["eng_exx_LR_HF({:})".format(omega)]
-            else:
-                log.info("[INFO] eng_exx_LR_HF({:}) is evaluated. Take previous evaluated value.".format(omega))
-                eng = mf_dh.params.results["eng_exx_LR_HF({:})".format(omega)]
-            log.note("[RESULT] eng_exx_LR_HF({:}) {:20.12f}".format(omega, eng))
-            eng_tot += info.fac * eng
+        elif info.name == "HF":
+            omega = 0
+        else:
+            assert False, "Only accept LR_HF or HF, no SR_HF or anything else like second-order exchange, etc"
+        name_eng_exx_HF = util.pad_omega("eng_exx_HF", omega)
+        if force_evaluate or name_eng_exx_HF not in mf_dh.params.results:
+            log.info(f"[INFO] Evaluate {name_eng_exx_HF}")
+            result.update(mf_dh.kernel_energy_exactx(mf_dh.scf, mf_dh.make_rdm1_scf(), omega=omega))
+            eng = result[name_eng_exx_HF]
+        else:
+            log.info(f"[INFO] {name_eng_exx_HF} is evaluated. Take previous evaluated value.")
+            eng = mf_dh.params.results[name_eng_exx_HF]
+        eng = info.fac * eng
+        log.note(f"[RESULT] Energy of exchange {info.token}: {eng:20.12f}")
+        eng_tot += eng
     mf_dh.params.update_results(result)
     return xc_extracted, eng_tot
 
 
-def _process_energy_iepa(mf_dh: "RDH", xc_list: XCList):
+def _process_energy_iepa(mf_dh: "RDH", xc_list: XCList, force_evaluate=False):
     log = mf_dh.log
     xc_iepa = xc_list.extract_by_xctype(XCType.IEPA)
     if len(xc_iepa) == 0:
         return xc_list, 0
+
     # run MP2 while in IEPA if found
     xc_iepa = xc_list.extract_by_xctype(XCType.IEPA | XCType.MP2)
     xc_extracted = xc_list.remove(xc_iepa, inplace=False)
-    log.info("[INFO] XCList extracted by process_energy_iepa: {:}".format(xc_iepa.token))
-    log.info("[INFO] XCList remains   by process_energy_iepa: {:}".format(xc_extracted.token))
-    eng_tot = 0
-    iepa_scheme = [info.name for info in xc_iepa]
-    log.info("[INFO] Detected IEPAs: {:}".format(str(iepa_scheme)))
-    with mf_dh.params.temporary_flags({"iepa_scheme": iepa_scheme}):
-        mf_dh.driver_energy_iepa()
-    for info in xc_iepa:
-        eng = info.fac * (
-            + info.parameters[0] * mf_dh.params.results["eng_{:}_OS".format(info.name)]
-            + info.parameters[1] * mf_dh.params.results["eng_{:}_SS".format(info.name)])
-        log.info("[RESULT] energy of {:} correlation: {:20.12f}".format(info.name, eng))
-        eng_tot += eng
+    log.info(f"[INFO] XCList extracted by process_energy_iepa: {xc_iepa.token}")
+    log.info(f"[INFO] XCList remains   by process_energy_iepa: {xc_extracted.token}")
+
+    # prepare IEPA
+    iepa_schemes = [info.name for info in xc_iepa]
+    log.info(f"[INFO] Detected IEPAs: {iepa_schemes}")
+
+    def comput_iepa():
+        eng_tot = 0
+        results = mf_dh.params.results
+        for info in xc_iepa:
+            eng = info.fac * (
+                + info.parameters[0] * results[f"eng_corr_{info.name}_OS"]
+                + info.parameters[1] * results[f"eng_corr_{info.name}_SS"])
+            log.note(f"[RESULT] Energy of correlation {info.token}: {eng:20.12f}")
+            eng_tot += eng
+        return eng_tot
+
+    def force_comput_iepa():
+        mf_iepa = mf_dh.to_iepa()
+        mf_iepa.kernel(iepa_schemes=iepa_schemes)
+        eng_tot = comput_iepa()
+        mf_dh.inherited.append((mf_iepa, xc_iepa))
+        return eng_tot
+
+    if force_evaluate:
+        eng_tot = force_comput_iepa()
+    else:
+        try:
+            eng_tot = comput_iepa()
+        except KeyError:
+            eng_tot = force_comput_iepa()
+
     return xc_extracted, eng_tot
 
 
-def _process_energy_mp2(mf_dh: "RDH", xc_list: XCList):
+def _process_energy_mp2(mf_dh: "RDH", xc_list: XCList, force_evaluate=False):
     log = mf_dh.log
     xc_mp2 = xc_list.extract_by_xctype(XCType.MP2 | XCType.RSMP2)
     if len(xc_mp2) == 0:
         return xc_list, 0
     xc_extracted = xc_list.remove(xc_mp2, inplace=False)
-    log.info("[INFO] XCList extracted by process_energy_mp2: {:}".format(xc_mp2.token))
-    log.info("[INFO] XCList remains   by process_energy_mp2: {:}".format(xc_extracted.token))
-    eng_tot = 0
+    log.info(f"[INFO] XCList extracted by process_energy_mp2: {xc_mp2.token}")
+    log.info(f"[INFO] XCList remains   by process_energy_mp2: {xc_extracted.token}")
     log.info("[INFO] MP2 detected")
     # generate omega list
     # parameter of RSMP2: omega, c_os, c_ss
@@ -89,50 +108,84 @@ def _process_energy_mp2(mf_dh: "RDH", xc_list: XCList):
             assert XCType.RSMP2 in info.type
             omega_list.append(info.parameters[0])
     assert len(set(omega_list)) == len(omega_list)
-    # run mp2
-    with mf_dh.params.temporary_flags({"omega_list_mp2": omega_list}):
-        mf_dh.driver_energy_mp2()
-    # parse results
-    for info in xc_mp2:
-        if XCType.MP2 in info.type:
-            c_os, c_ss = info.parameters
-            omega = 0
-        else:
-            omega, c_os, c_ss = info.parameters
-        eng = info.fac * (
-            + c_os * mf_dh.params.results[util.pad_omega("eng_MP2_OS", omega)]
-            + c_ss * mf_dh.params.results[util.pad_omega("eng_MP2_SS", omega)])
-        log.info("[RESULT] energy of {:} correlation: {:20.12f}".format(util.pad_omega("MP2", omega), eng))
-        eng_tot += eng
+
+    def comput_mp2():
+        eng_tot = 0
+        results = mf_dh.params.results
+        for info in xc_mp2:
+            if XCType.MP2 in info.type:
+                c_os, c_ss = info.parameters
+                omega = 0
+            else:
+                omega, c_os, c_ss = info.parameters
+            eng = info.fac * (
+                + c_os * results[util.pad_omega("eng_corr_MP2_OS", omega)]
+                + c_ss * results[util.pad_omega("eng_corr_MP2_SS", omega)])
+            log.note(f"[RESULT] Energy of correlation {info.token}: {eng:20.12f}")
+            eng_tot += eng
+        return eng_tot
+
+    def force_comput_mp2():
+        mf_mp2 = mf_dh.to_mp2()
+        mf_mp2.kernel(omega_list_mp2=omega_list)
+        eng_tot = comput_mp2()
+        mf_dh.inherited.append((mf_mp2, xc_mp2))
+        return eng_tot
+
+    if force_evaluate:
+        eng_tot = force_comput_mp2()
+    else:
+        try:
+            eng_tot = comput_mp2()
+        except KeyError:
+            eng_tot = force_comput_mp2()
+
     return xc_extracted, eng_tot
 
 
-def _process_energy_drpa(mf_dh: "RDH", xc_list: XCList):
+def _process_energy_drpa(mf_dh: "RDH", xc_list: XCList, force_evaluate=False):
     log = mf_dh.log
-    eng_tot = 0
     xc_ring_ccd = xc_list.extract_by_xctype(XCType.RS_RING_CCD)
-    xc_list = xc_list.remove(xc_ring_ccd, inplace=False)
-    if len(xc_ring_ccd) > 0:
-        log.info("[INFO] XCList extracted by process_energy_drpa (RS_RING_CCD): {:}".format(xc_ring_ccd.token))
-        log.info("[INFO] XCList remains   by process_energy_drpa (RS_RING_CCD): {:}".format(xc_list.token))
-        log.info("[INFO] Ring-CCD detected")
-        # generate omega list
-        # parameter of RSMP2: omega, c_os, c_ss
-        omega_list = []
-        for xc_info in xc_ring_ccd:
-            omega_list.append(xc_info.parameters[0])
-        # run ring-CCD
-        with mf_dh.params.temporary_flags({"omega_list_ring_ccd": omega_list}):
-            mf_dh.driver_energy_ring_ccd()
-        # summarize energies
+    xc_extracted = xc_list.remove(xc_ring_ccd, inplace=False)
+    if len(xc_ring_ccd) == 0:
+        return xc_list, 0
+    log.info(f"[INFO] XCList extracted by process_energy_drpa (RS_RING_CCD): {xc_ring_ccd.token}")
+    log.info(f"[INFO] XCList remains   by process_energy_drpa (RS_RING_CCD): {xc_extracted.token}")
+    log.info(f"[INFO] Ring-CCD detected")
+
+    # generate omega list
+    # parameter of RSMP2: omega, c_os, c_ss
+    omega_list = []
+    for xc_info in xc_ring_ccd:
+        omega_list.append(xc_info.parameters[0])
+
+    def comput_ring_ccd():
+        eng_tot = 0
         for xc_info in xc_ring_ccd:
             omega, c_os, c_ss = xc_info.parameters
             eng = xc_info.fac * (
-                + c_os * mf_dh.params.results[util.pad_omega("eng_RING_CCD_OS", omega)]
-                + c_ss * mf_dh.params.results[util.pad_omega("eng_RING_CCD_SS", omega)])
-            log.info("[RESULT] energy of {:} correlation: {:20.12f}".format(util.pad_omega("RING_CCD", omega), eng))
+                + c_os * mf_dh.params.results[util.pad_omega("eng_corr_RING_CCD_OS", omega)]
+                + c_ss * mf_dh.params.results[util.pad_omega("eng_corr_RING_CCD_SS", omega)])
+            log.note(f"[RESULT] Energy of correlation {xc_info.token}: {eng:20.12f}")
             eng_tot += eng
-    return xc_list, eng_tot
+        return eng_tot
+
+    def force_comput_ring_ccd():
+        mf_ring_ccd = mf_dh.to_ring_ccd()
+        mf_ring_ccd.kernel(omega_list_ring_ccd=omega_list)
+        eng_tot = comput_ring_ccd()
+        mf_dh.inherited.append((mf_ring_ccd, xc_ring_ccd))
+        return eng_tot
+
+    if force_evaluate:
+        eng_tot = force_comput_ring_ccd()
+    else:
+        try:
+            eng_tot = comput_ring_ccd()
+        except KeyError:
+            eng_tot = force_comput_ring_ccd()
+
+    return xc_extracted, eng_tot
 
 
 def _process_energy_vdw(mf_dh: "RDH", xc_list: XCList):
@@ -178,6 +231,7 @@ def _process_energy_low_rung(mf_dh: "RDH", xc_list: XCList, xc_to_parse: XCList 
     if xc_to_parse is None:
         xc_to_parse = xc_list.extract_by_xctype(XCType.RUNG_LOW)
     xc_extracted = xc_list.remove(xc_to_parse, inplace=False)
+    log.info(f"[INFO] XCList to be parsed in process_energy_low_rung: {xc_to_parse.token}")
 
     if len(xc_to_parse) == 0:
         return xc_list, 0
@@ -187,18 +241,25 @@ def _process_energy_low_rung(mf_dh: "RDH", xc_list: XCList, xc_to_parse: XCList 
             "Low-rung DFT has different values of omega found for RSH functional.\n"
             "We evaluate EXX and pure DFT in separate.\n"
             "This may cause problem that if some pure DFT components is omega-dependent "
-            "and our program currently could not handle it.")
+            "and our program currently could not handle it.\n"
+            "Anyway, this is purely experimental and use with caution.")
         eng_tot = 0
         xc_exx = xc_to_parse.extract_by_xctype(XCType.EXX)
         xc_non_exx = xc_to_parse.remove(xc_exx, inplace=False)
+        log.info(f"[INFO] XCList extracted by process_energy_low_rung (handle_multiple_omega, "
+                 f"exx): {xc_exx.token}")
+        log.info(f"[INFO] XCList extracted by process_energy_low_rung (handle_multiple_omega, "
+                 f"non_exx): {xc_non_exx.token}")
         if len(xc_exx) != 0:
             xc_exx_extracted, eng_exx = _process_energy_exx(mf_dh, xc_exx)
             xc_non_exx_extracted, eng_non_exx = _process_energy_low_rung(mf_dh, xc_non_exx)
             assert len(xc_exx_extracted) == 0
             if len(xc_non_exx_extracted) != 0:
-                raise RuntimeError("Finally left some xc not parsed: {:}. This is probably bug.".format(
-                    xc_non_exx_extracted.token))
+                raise RuntimeError(
+                    f"Finally left some xc not parsed: {xc_non_exx_extracted.token}. "
+                    f"This is probably bug.")
             eng_tot += eng_exx + eng_non_exx
+            log.note(f"[RESULT] Energy of process_energy_low_rung (handle_multiple_omega): {eng_tot}")
             return xc_extracted, eng_tot
         else:
             log.warn(
@@ -210,6 +271,7 @@ def _process_energy_low_rung(mf_dh: "RDH", xc_list: XCList, xc_to_parse: XCList 
                 xc_item_extracted, eng_item = _process_energy_low_rung(mf_dh, xc_non_exx_item)
                 assert len(xc_item_extracted) == 0
                 eng_tot += eng_item
+            log.note(f"[RESULT] Energy of process_energy_low_rung (handle_multiple_omega): {eng_tot}")
             return xc_extracted, eng_tot
 
     numint = None
@@ -239,6 +301,8 @@ def _process_energy_low_rung(mf_dh: "RDH", xc_list: XCList, xc_to_parse: XCList 
     # exx part
     xc_exx = xc_to_parse.extract_by_xctype(XCType.EXX)
     xc_non_exx = xc_to_parse.remove(xc_exx, inplace=False)
+    log.info(f"[INFO] XCList extracted by process_energy_low_rung (exx): {xc_exx.token}")
+    log.info(f"[INFO] XCList extracted by process_energy_low_rung (non_exx): {xc_non_exx.token}")
     xc_exx_extracted, eng_exx = _process_energy_exx(mf_dh, xc_exx)
     eng_tot += eng_exx
     assert len(xc_exx_extracted) == 0
@@ -246,14 +310,15 @@ def _process_energy_low_rung(mf_dh: "RDH", xc_list: XCList, xc_to_parse: XCList 
     if not (hasattr(numint, "custom") and numint.custom):
         omega, alpha, hyb = numint.rsh_and_hybrid_coeff(xc_non_exx.token)
     else:
-        log.info("[INFO] Custom numint detected. We assume exx has already evaluated.")
+        log.info("[INFO] Custom numint detected. We assume exx has already evaluated and no hybrid parameters.")
         omega, alpha, hyb = 0, 0, 0
     hyb_token = ""
     if abs(hyb) > 1e-10:
-        hyb_token += "+{:}*HF".format(hyb)
+        hyb_token += f"+{hyb}*HF"
     if abs(omega) > 1e-10:
-        hyb_token += "+{:}*LR_HF({:})".format(alpha - hyb, omega)
+        hyb_token += f"+{alpha - hyb}*LR_HF({omega})"
     if len(hyb_token) > 0:
+        log.info(f"[INFO] Evaluate exx token {hyb_token} from functional {xc_non_exx.token}.")
         _, eng_add_exx = _process_energy_exx(mf_dh, XCList().build_from_token(hyb_token, code_scf=True))
         eng_tot += eng_add_exx
     # pure part
@@ -262,27 +327,36 @@ def _process_energy_low_rung(mf_dh: "RDH", xc_list: XCList, xc_to_parse: XCList 
     result = mf_dh.kernel_energy_purexc([xc_non_exx.token], rho, grids.weights, mf_dh.restricted, numint=numint)
     mf_dh.params.update_results(result)
     eng_tot += result["eng_purexc_" + xc_non_exx.token]
+    log.note(f"[RESULT] Energy of process_energy_low_rung (non_exx): {result['eng_purexc_' + xc_non_exx.token]}")
+    log.note(f"[RESULT] Energy of process_energy_low_rung (total): {eng_tot}")
     return xc_extracted, eng_tot
 
 
-def driver_energy_dh(mf_dh):
+def driver_energy_dh(mf_dh, xc=None):
     """ Driver of multiple exchange-correlation energy component evaluation.
 
     Parameters
     ----------
     mf_dh : RDH
         Object of doubly hybrid (restricted).
+    xc : XCList or str
+        Token of exchange and correlation.
     """
-    mf_dh.build()
-    xc = mf_dh.xc
     log = mf_dh.log
+    mf_dh.build()
+    if xc is None:
+        xc = mf_dh.xc.xc_eng
+    elif isinstance(xc, str):
+        xc = XCList(xc, code_scf=False)
+    assert isinstance(xc, XCList)
+    xc = xc.copy()
     result = dict()
     eng_tot = 0.
     # 1. general xc
-    xc_extracted = xc.xc_eng.copy()
+    xc_extracted = xc.copy()
     xc_low_rung = xc_extracted.extract_by_xctype(XCType.RUNG_LOW)
     xc_extracted = xc_extracted.remove(xc_low_rung)
-    if xc_low_rung == xc.xc_scf and not mf_dh.params.flags["debug_force_eng_low_rung_revaluate"]:
+    if xc_low_rung == mf_dh.xc.xc_scf and not mf_dh.params.flags["debug_force_eng_low_rung_revaluate"]:
         # If low-rung of xc_eng and xc_scf shares the same xc formula,
         # then we just use the SCF energy to evaluate low-rung part of total doubly hybrid energy.
         log.info("[INFO] xc of SCF is the same to xc of energy in rung-low part. Add SCF energy to total energy.")
@@ -310,7 +384,7 @@ def driver_energy_dh(mf_dh):
     # finalize
     if len(xc_extracted) > 0:
         raise RuntimeError("Some xc terms not evaluated! Possibly bug of program.")
-    result["eng_dh_{:}".format(xc.xc_eng.token)] = eng_tot
-    log.note("[RESULT] Energy of xc {:}: {:20.12f}".format(xc.xc_eng.token, eng_tot))
+    result[f"eng_dh_{xc.token}"] = eng_tot
+    log.note(f"[RESULT] Energy of {xc.token}: {eng_tot:20.12f}")
     mf_dh.params.update_results(result)
     return mf_dh

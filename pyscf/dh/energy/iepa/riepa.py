@@ -34,9 +34,10 @@ def driver_energy_riepa(mf_dh):
     dict
     """
     mf_dh.build()
-    results_summary = dict()
     log = mf_dh.log
     params = mf_dh.params
+    mf_dh._flag_snapshot = mf_dh.params.flags.copy()
+    results_summary = dict()
     # some results from mf_dh
     mol = mf_dh.mol
     mo_coeff_act = mf_dh.mo_coeff_act
@@ -46,11 +47,7 @@ def driver_energy_riepa(mf_dh):
     tol_eng_pair_iepa = params.flags["tol_eng_pair_iepa"]
     max_cycle_iepa = params.flags["max_cycle_pair_iepa"]
     iepa_schemes = params.flags["iepa_schemes"]
-    # parse integral scheme
-    integral_scheme = params.flags["integral_scheme_iepa"]
-    if integral_scheme is None:
-        integral_scheme = params.flags["integral_scheme"]
-    integral_scheme = integral_scheme.lower()
+    integral_scheme = mf_dh.params.flags.get("integral_scheme_iepa", mf_dh.params.flags["integral_scheme"]).lower()
     # main loop
     omega_list = params.flags["omega_list_iepa"]
     for omega in omega_list:

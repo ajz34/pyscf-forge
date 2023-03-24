@@ -31,10 +31,8 @@ def kernel_energy_unrestricted_exactx(mf, dm, omega=None):
     ex = util.check_real(ex)
     # results
     result = dict()
-    if omega is None:
-        result["eng_exx_HF"] = ex
-    else:
-        result["eng_exx_LR_HF({:})".format(omega)] = ex
+    omega = omega if omega is not None else 0
+    result[util.pad_omega("eng_exx_HF", omega)] = ex
     return result
 
 
