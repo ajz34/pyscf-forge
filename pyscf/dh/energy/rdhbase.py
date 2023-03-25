@@ -6,7 +6,7 @@ from pyscf.dh.util import XCDH, Params, HybridDict, XCList
 from pyscf.dh.energy.driver_energy import driver_energy_dh
 from pyscf.dh.energy.rdft import (
     get_energy_restricted_exactx, get_energy_restricted_noxc, get_energy_vv10,
-    get_energy_purexc, get_rho)
+    get_energy_purexc, get_rho, make_energy_purexc)
 
 
 class RDHBase(lib.StreamObject):
@@ -407,3 +407,4 @@ class RDHBase(lib.StreamObject):
     get_energy_vv10 = staticmethod(get_energy_vv10)
     get_energy_purexc = staticmethod(get_energy_purexc)
     get_rho = staticmethod(get_rho)
+    make_energy_purexc = make_energy_purexc
