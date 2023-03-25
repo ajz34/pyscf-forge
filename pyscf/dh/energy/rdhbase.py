@@ -61,7 +61,7 @@ class RDHBase(lib.StreamObject):
         flags : dict
             Additional flags (will be updated to ``params``).
         """
-        base = None
+        self.base = NotImplemented
         if mf_or_mol is None:
             return
         if xc is None:
