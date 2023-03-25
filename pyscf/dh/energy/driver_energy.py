@@ -285,7 +285,7 @@ def _process_energy_low_rung(mf_dh: "RDH", xc_list: XCList, xc_to_parse: XCList 
                 or isinstance(err, ValueError) and "too many values to unpack" in err.args[0]:
             log.info("[INFO] Unknown functional to PySCF. Try build custom numint.")
             try:
-                numint = numint_customized(mf_dh.params.flags, xc_to_parse)
+                numint = numint_customized(xc_to_parse, mf_dh.params.flags)
             except ValueError as err_numint:
                 if "Different values of omega" in err_numint.args[0]:
                     log.warn("We first resolve different omegas, and we later move on numint.")

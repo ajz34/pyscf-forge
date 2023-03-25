@@ -1,5 +1,5 @@
 from pyscf.dh import util
-from pyscf.dh.util import DictWithDefault, XCList, XCType
+from pyscf.dh.util import DictWithDefault, XCList, XCType, XCInfo
 from pyscf import dft, lib
 import numpy as np
 from types import MethodType
@@ -95,7 +95,7 @@ def get_rho(mol, grids, dm):
     return rho
 
 
-def get_energy_purexc(xc_list, rho, weights, restricted, numint=None):
+def get_energy_purexc(xc_lists, rho, weights, restricted, numint=None, flags=None):
     """ Evaluate energy contributions of exchange-correlation effects.
 
     Note that this kernel does not count HF, LR_HF and advanced correlation into account.
@@ -103,7 +103,7 @@ def get_energy_purexc(xc_list, rho, weights, restricted, numint=None):
 
     Parameters
     ----------
-    xc_list : list
+    xc_lists : str or XCInfo or XCList or list[str or XCInfo or XCList]
         List of xc codes.
     rho : np.ndarray
         Full list of density grids. Dimension (>1, ngrid) or (nset, >1, ngrid).
@@ -113,23 +113,45 @@ def get_energy_purexc(xc_list, rho, weights, restricted, numint=None):
         Indicator of restricted or unrestricted of incoming rho.
     numint : dft.numint.NumInt
         Special numint item if required.
+    flags : DictWithDefault
+        Flags (customizable parameters) for this computation. If not given, it is set to be default options.
 
     See Also
     --------
     kernel_energy_restricted_exactx
     """
-    if isinstance(xc_list, str):
-        xc_list = [xc_list]
-    results = {}
-    ni = dft.numint.NumInt() if numint is None else numint
-    if restricted:
-        wrho0 = rho[0] * weights
-    else:
-        wrho0 = rho[:, 0].sum(axis=0) * weights
+    if not isinstance(xc_lists, list):
+        xc_lists = [xc_lists]
+    # parse xc_lists
+    xc_lists, xc_lists_ = [], xc_lists
+    for xc_list in xc_lists_:
+        if isinstance(xc_list, str):
+            xc_lists.append(XCList(xc_list, code_scf=False))
+        elif isinstance(xc_list, XCInfo):
+            xc_lists.append((XCList.build_from_list([xc_list])))
+        elif isinstance(xc_list, XCList):
+            xc_lists.append(xc_list)
+        else:
+            assert False, "Type of input must be str, XCInfo or XCList."
 
-    for xc in xc_list:
-        exc = ni.eval_xc_eff(xc, rho, deriv=0)[0]
-        results["eng_purexc_" + xc] = exc @ wrho0
+    results = {}
+    for xc_list in xc_lists:
+        if numint is None:
+            ni = dft.numint.NumInt()
+            try:
+                ni._xc_type(xc_list.token)
+            except (ValueError, KeyError):
+                ni = numint_customized(xc_list, flags)
+        else:
+            ni = numint
+
+        if restricted:
+            wrho0 = rho[0] * weights
+        else:
+            wrho0 = rho[:, 0].sum(axis=0) * weights
+
+        exc = ni.eval_xc_eff(xc_list.token, rho, deriv=0)[0]
+        results[f"eng_purexc_{xc_list.token}"] = exc @ wrho0
     return results
 
 
@@ -156,13 +178,13 @@ def get_energy_vv10(mol, dm, nlc_pars, grids=None, nlcgrids=None, verbose=lib.lo
     return result
 
 
-def numint_customized(flags, xc):
+def numint_customized(xc, flags=None):
     """ Customized (specialized) numint for a certain given xc.
 
     Parameters
     ----------
     flags : DictWithDefault
-        Flags (customizable parameters) for this computation.
+        Flags (customizable parameters) for this computation. If not given, it is set to be default options.
     xc : XCList
         xc list evaluation. Currently only accept low-rung (without VV10) and scaled short-range functionals.
 
@@ -171,6 +193,11 @@ def numint_customized(flags, xc):
     dft.numint.NumInt
         A customized numint object that only evaluates dft grids on given xc.
     """
+    # set flags
+    if flags is None:
+        flags = DictWithDefault()
+        flags.set_default_dict(util.get_default_options())
+
     # extract the functionals that is parsable by PySCF
     ni_custom = dft.numint.NumInt()  # customized numint, to be returned
     ni_original = dft.numint.NumInt()  # original numint

@@ -201,7 +201,7 @@ class RDHBase(lib.StreamObject):
             ni = mf._numint
             ni._xc_type(xc_token)
         except (KeyError, ValueError):
-            mf._numint = numint_customized(self.params.flags, xc_list)
+            mf._numint = numint_customized(xc_list, self.params.flags)
         # handle ri in scf
         integral_scheme_scf = self.params.flags["integral_scheme_scf"].replace("-", "").lower()
         is_ri_scf = integral_scheme_scf.startswith("ri")
