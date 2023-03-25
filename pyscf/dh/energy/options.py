@@ -118,7 +118,7 @@ ssr_c_sr = "LDA_C_PW_ERF"
 
 # region Debug options
 
-debug_force_eng_low_rung_revaluate = False
+force_eng_low_rung_revaluate = False
 """ Re-evaluate all low-rung components in xc_eng functional. """
 
 # endregion

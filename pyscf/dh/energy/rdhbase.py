@@ -1,4 +1,5 @@
 import numpy as np
+from abc import ABC, abstractmethod
 from pyscf import lib, gto, dft, df
 from pyscf.dh import util
 from pyscf.dh.energy.rdft import numint_customized
@@ -6,10 +7,10 @@ from pyscf.dh.util import XCDH, Params, HybridDict, XCList
 from pyscf.dh.energy.driver_energy import driver_energy_dh
 from pyscf.dh.energy.rdft import (
     get_energy_restricted_exactx, get_energy_restricted_noxc, get_energy_vv10,
-    get_energy_purexc, get_rho, make_energy_purexc)
+    get_energy_purexc, get_rho)
 
 
-class RDHBase(lib.StreamObject):
+class RDHBase(lib.StreamObject, ABC):
     """ Restricted doubly hybrid class. """
 
     # basic attributes
@@ -383,6 +384,29 @@ class RDHBase(lib.StreamObject):
         """ Doubly hybrid total energy (obtained after running ``driver_energy_dh``). """
         return self.params.results["eng_dh_{:}".format(self.xc.xc_eng.token)]
 
+    def make_energy_purexc(self, xc_lists, numint=None, dm=None):
+        """ Evaluate energy contributions of pure (DFT) exchange-correlation effects.
+
+        Parameters
+        ----------
+        xc_lists : str or XCInfo or XCList or list[str or XCInfo or XCList]
+            List of xc codes.
+        numint : dft.numint.NumInt
+            Special numint item if required.
+        dm : np.ndarray
+            Density matrix in AO basis.
+
+        See Also
+        --------
+        get_energy_purexc
+        """
+        grids = self.scf.grids
+        if dm is None:
+            dm = self.make_rdm1_scf()
+        rho = self.get_rho(self.mol, grids, dm)
+        return self.get_energy_purexc(
+            xc_lists, rho, grids.weights, self.restricted, numint=numint, flags=self.params.flags)
+
     def make_energy_dh(self, xc=None):
         """ Obtain doubly hybrid energy evaluated by certain xc code with given reference state.
 
@@ -399,7 +423,12 @@ class RDHBase(lib.StreamObject):
         assert isinstance(xc, XCList)
         xc = xc.copy()
         result = self.driver_energy_dh(xc=xc)
+        self.params.results.update(result)
         return result[f"eng_dh_{xc.token}"]
+
+    @abstractmethod
+    def kernel(self, *args, **kwargs):
+        pass
 
     driver_energy_dh = driver_energy_dh
     get_energy_exactx = staticmethod(get_energy_restricted_exactx)

@@ -165,32 +165,6 @@ def get_energy_purexc(xc_lists, rho, weights, restricted, numint=None, flags=Non
     return results
 
 
-def make_energy_purexc(mf_dh, xc_lists, numint=None, dm=None):
-    """ Evaluate energy contributions of pure (DFT) exchange-correlation effects.
-
-    Parameters
-    ----------
-    mf_dh : RDHBase
-        RDH instance.
-    xc_lists : str or XCInfo or XCList or list[str or XCInfo or XCList]
-        List of xc codes.
-    numint : dft.numint.NumInt
-        Special numint item if required.
-    dm : np.ndarray
-        Density matrix in AO basis.
-
-    See Also
-    --------
-    get_energy_purexc
-    """
-    grids = mf_dh.scf.grids
-    if dm is None:
-        dm = mf_dh.make_rdm1_scf()
-    rho = mf_dh.get_rho(mf_dh.mol, grids, dm)
-    return mf_dh.get_energy_purexc(
-        xc_lists, rho, grids.weights, mf_dh.restricted, numint=numint, flags=mf_dh.params.flags)
-
-
 def get_energy_vv10(mol, dm, nlc_pars, grids=None, nlcgrids=None, verbose=lib.logger.NOTE):
     log = lib.logger.new_logger(verbose=verbose)
     if grids is None:

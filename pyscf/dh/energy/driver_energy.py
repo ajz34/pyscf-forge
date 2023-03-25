@@ -356,7 +356,7 @@ def driver_energy_dh(mf_dh, xc=None):
     xc_extracted = xc.copy()
     xc_low_rung = xc_extracted.extract_by_xctype(XCType.RUNG_LOW)
     xc_extracted = xc_extracted.remove(xc_low_rung)
-    if xc_low_rung == mf_dh.xc.xc_scf and not mf_dh.params.flags["debug_force_eng_low_rung_revaluate"]:
+    if xc_low_rung == mf_dh.xc.xc_scf and not mf_dh.params.flags["force_eng_low_rung_revaluate"]:
         # If low-rung of xc_eng and xc_scf shares the same xc formula,
         # then we just use the SCF energy to evaluate low-rung part of total doubly hybrid energy.
         log.info("[INFO] xc of SCF is the same to xc of energy in rung-low part. Add SCF energy to total energy.")

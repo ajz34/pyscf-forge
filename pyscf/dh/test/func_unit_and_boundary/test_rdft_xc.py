@@ -20,7 +20,7 @@ class TestRDFTXC(unittest.TestCase):
         mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
         xc_scf_token = "0.25*HF + 0.65*LR_HF(0.7) + 0.27*SR_HF(0.7) + 0.4*B3LYPg + 0.2*PBE0 - 0.5*B88, 0.6*LYP"
         mf_dh = dh.RDH(mol, xc=xc_scf_token)
-        mf_dh.params.flags["debug_force_eng_low_rung_revaluate"] = True
+        mf_dh.params.flags["force_eng_low_rung_revaluate"] = True
         mf_dh.run()
         mf_scf = dft.RKS(mol, xc=xc_scf_token).density_fit(df.aug_etb(mol)).run()
         self.assertAlmostEqual(mf_dh.scf.e_tot, mf_dh.e_tot, 8)

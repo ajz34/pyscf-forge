@@ -68,3 +68,12 @@ jupyter_execute_notebooks = "off"
 
 numpydoc_show_inherited_class_members = False
 autosummary_generate = True
+
+myst_enable_extensions = [
+    "amsmath",
+    "colon_fence",
+    "deflist",
+    "dollarmath",
+    "html_image",
+]
+
