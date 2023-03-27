@@ -160,7 +160,14 @@ def get_energy_purexc(xc_lists, rho, weights, restricted, numint=None, flags=Non
         else:
             wrho0 = rho[:, 0].sum(axis=0) * weights
 
-        exc = ni.eval_xc_eff(xc_list.token, rho, deriv=0)[0]
+        rho_to_eval = rho
+        if ni._xc_type(xc_list.token) == "LDA":
+            if restricted:
+                rho_to_eval = rho[0]
+            else:
+                rho_to_eval = rho[:, 0]
+
+        exc = ni.eval_xc_eff(xc_list.token, rho_to_eval, deriv=0)[0]
         results[f"eng_purexc_{xc_list.token}"] = exc @ wrho0
     return results
 
