@@ -319,6 +319,12 @@ class DictWithDefault(dict):
             warnings.warn(f"Option {key} is not in the default option list. This option may not have any effect.")
         return super().__setitem__(key, value)
 
+    def update(self, other):
+        for key in other.keys():
+            if key not in self._default_dict and key not in self:
+                warnings.warn(f"Option {key} is not in the default option list. This option may not have any effect.")
+        return super().update(other)
+
     def copy(self) -> "DictWithDefault":
         copied = DictWithDefault(super().copy())
         copied.set_default_dict(self._default_dict)

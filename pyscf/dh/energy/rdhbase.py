@@ -80,9 +80,9 @@ class RDHBase(lib.StreamObject, ABC):
             self.params = params
         else:
             self.params = Params({}, HybridDict(), {})
+        self.params.flags.set_default_dict(util.get_default_options())
         if flags:
             self.params.flags.update(flags)
-        self.params.flags.set_default_dict(util.get_default_options())
         # set molecule
         mol = mf_or_mol if isinstance(mf_or_mol, gto.Mole) else mf_or_mol.mol
         self.mol = mol
