@@ -2,9 +2,9 @@ from typing import List
 
 import numpy as np
 
-from pyscf import lib
 from pyscf.dh import util
 from pyscf.dh.energy import RDHBase
+from pyscf.dh.energy.udft import get_energy_unrestricted_exactx, get_energy_unrestricted_noxc
 
 
 class UDHBase(RDHBase):
@@ -112,3 +112,6 @@ class UDHBase(RDHBase):
     @property
     def mo_energy_act(self) -> List[np.ndarray]:
         return [self.mo_energy[s][self.nCore[s]:self.nCore[s]+self.nact[s]].copy() for s in (0, 1)]
+
+    get_energy_exactx = staticmethod(get_energy_unrestricted_exactx)
+    get_energy_noxc = staticmethod(get_energy_unrestricted_noxc)

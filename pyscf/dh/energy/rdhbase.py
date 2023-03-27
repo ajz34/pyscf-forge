@@ -403,6 +403,9 @@ class RDHBase(lib.StreamObject, ABC):
         grids = self.scf.grids
         if dm is None:
             dm = self.make_rdm1_scf()
+        dm = np.asarray(dm)
+        if (self.restricted and dm.ndim != 2) or (not self.restricted and (dm.ndim != 3 or dm.shape[0] != 2)):
+            raise ValueError("Dimension of input density matrix is not correct.")
         rho = self.get_rho(self.mol, grids, dm)
         return self.get_energy_purexc(
             xc_lists, rho, grids.weights, self.restricted, numint=numint, flags=self.params.flags)

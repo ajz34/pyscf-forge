@@ -9,7 +9,7 @@ if typing.TYPE_CHECKING:
     from pyscf import gto
 
 
-def kernel_energy_unrestricted_exactx(mf, dm, omega=None):
+def get_energy_unrestricted_exactx(mf, dm, omega=None):
     """ Evaluate exact exchange energy (for either HF and long-range).
 
     Parameters
@@ -36,7 +36,7 @@ def kernel_energy_unrestricted_exactx(mf, dm, omega=None):
     return result
 
 
-def kernel_energy_unrestricted_noxc(mf, dm):
+def get_energy_unrestricted_noxc(mf, dm):
     """ Evaluate energy contributions that is not exchange-correlation.
 
     Note that some contributions (such as vdw) is not considered.
@@ -68,74 +68,3 @@ def kernel_energy_unrestricted_noxc(mf, dm):
     results["eng_j"] = eng_j
     results["eng_noxc"] = eng_noxc
     return results
-
-
-if __name__ == '__main__':
-    from pyscf import gto, dft, df
-    from pyscf.dh.energy.rdft import get_energy_restricted_noxc, get_energy_restricted_exactx
-    from pyscf.dh.energy import UDH, RDH
-    mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
-    mf = dft.RKS(mol, xc="wB97M-V").density_fit(df.aug_etb(mol)).run()
-    mf.nlc = "VV10"
-    print(mf.energy_tot(dm=mf.make_rdm1()))
-
-    res = get_energy_restricted_exactx(mf, dm=mf.make_rdm1())
-    print(res)
-    res = get_energy_restricted_noxc(mf, dm=mf.make_rdm1())
-    print(res)
-    # mf = mf.to_uks()
-    mo_r = mf.mo_coeff
-    mf = dft.UKS(mol, xc="wB97M_V").density_fit(df.aug_etb(mol)).run()
-    # mf.mo_coeff[0] = mf.mo_coeff[1] = mo_r
-    res = kernel_energy_unrestricted_exactx(mf, dm=mf.make_rdm1())
-    print(res)
-    res = kernel_energy_unrestricted_noxc(mf, dm=mf.make_rdm1())
-    print(res)
-
-    mf_dh = UDH(mol, xc="wB97M_V + VV10(6.0; 0.01)").run()
-    print(mf_dh.e_tot)
-    # mf_dh = UDH(mf, xc="B3LYPg").run()
-    # print(mf_dh.e_tot)
-
-    mf_dh = RDH(mol, xc="XYG3").run()
-    print(mf_dh.e_tot)
-    mf_dh = UDH(mol, xc="XYG3").run()
-    print(mf_dh.e_tot)
-
-    mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G", charge=1, spin=1).build()
-    mf_dh = UDH(mol, xc="XYG3").run()
-    print(mf_dh.e_tot)
-
-
-if __name__ == '__main__':
-    from pyscf import gto, dft, df
-    from pyscf.dh.energy.rdft import get_energy_restricted_noxc, get_energy_restricted_exactx
-    from pyscf.dh.energy import UDH, RDH
-
-    mol = gto.Mole()
-    mol.atom = """
-    O  0.0  0.0  0.0
-    O  0.0  0.0  1.5
-    H  1.0  0.0  0.0
-    H  0.0  0.7  1.0
-    """
-    mol.basis = "6-31G"
-    mol.verbose = 0
-    mol.build()
-    mf = dft.UKS(mol, xc="B3LYPg").run()
-    mf_dh = UDH(mol, xc="XYG3")
-    mf_dh.params.flags["integral_scheme"] = "ri"
-    mf_dh.run()
-    print(mf_dh.e_tot)
-
-    mf_dh = UDH(mol, xc="XYG3")
-    mf_dh.params.flags["integral_scheme"] = "conv"
-    mf_dh.run()
-    print(mf_dh.e_tot)
-
-    mf_dh = UDH(mf, xc="XYG3")
-    mf_dh.params.flags["integral_scheme"] = "conv"
-    mf_dh.run()
-    print(mf_dh.e_tot)
-
-

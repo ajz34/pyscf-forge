@@ -49,8 +49,10 @@ def eval_xc_eff_ssr_generator(name_code, name_fr, name_sr, omega=0.7, cutoff=1e-
         if xctype is None:
             xctype = numint._xc_type(xc_code)
         if xctype == "LDA":
+            assert rho.ndim == 1
             rho0 = rho.copy()
         else:
+            assert rho.ndim == 2
             rho0 = rho[0].copy()
         # if the xc type concern is LDA, then only extract the density grid (instead of its derivatives)
         if xc_type_code == "LDA":
@@ -93,10 +95,37 @@ def eval_xc_eff_ssr_generator(name_code, name_fr, name_sr, omega=0.7, cutoff=1e-
             )
             fxc[:, :, mask] = 0
         if deriv >= 3:
-            raise NotImplemented("fxc and kxc for scaled short-range functionals are not implemented.")
+            raise NotImplementedError("kxc for scaled short-range functionals is not implemented.")
         return exc, vxc, fxc, kxc
 
     def eval_xc_eff_spin_polarized(numint, xc_code, rho, deriv=1, omega=omega, xctype=None, *_args, **_kwargs):
-        raise NotImplementedError("Spin-polarized is still not implemented!")
-
+        # the xc type of the whole numint object
+        if xctype is None:
+            xctype = numint._xc_type(xc_code)
+        if xctype == "LDA":
+            assert rho.ndim == 2
+            rho0 = rho.copy()
+        else:
+            assert rho.ndim == 3
+            rho0 = rho[:, 0].copy()
+        # if the xc type concern is LDA, then only extract the density grid (instead of its derivatives)
+        if xc_type_code == "LDA":
+            rho = rho0
+        # evaluate xc grids by original numint object
+        exc_code, vxc_code, fxc_code, kxc_code = ni.eval_xc_eff(name_code, rho, deriv=deriv)
+        exc_fr, vxc_fr, fxc_fr, kxc_fr = ni.eval_xc_eff(name_fr, rho0, deriv=deriv)
+        exc_sr, vxc_sr, fxc_sr, kxc_sr = ni.eval_xc_eff(name_sr, rho0, deriv=deriv, omega=omega)
+        # avoid too small denominator (must set grid values to zero on these masks)
+        mask = abs(exc_fr) < cutoff
+        exc_fr[mask] = cutoff
+        rho0[:, mask] = cutoff
+        # handle exc, vxc, fxc, kxc
+        ratio = exc_sr / exc_fr
+        exc = vxc = fxc = kxc = None
+        if deriv >= 0:
+            exc = exc_code * ratio
+            exc[mask] = 0
+        else:
+            raise NotImplementedError("vxc, fxc and kxc for scaled short-range functionals are not implemented.")
+        return exc, vxc, fxc, kxc
     return eval_xc_eff
