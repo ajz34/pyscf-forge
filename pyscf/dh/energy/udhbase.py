@@ -1,5 +1,5 @@
 from typing import List
-
+from abc import ABC
 import numpy as np
 
 from pyscf.dh import util
@@ -7,7 +7,7 @@ from pyscf.dh.energy import RDHBase
 from pyscf.dh.energy.udft import get_energy_unrestricted_exactx, get_energy_unrestricted_noxc
 
 
-class UDHBase(RDHBase):
+class UDHBase(RDHBase, ABC):
     """ Unrestricted doubly hybrid class. """
 
     @property
