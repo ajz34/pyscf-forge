@@ -240,23 +240,25 @@ class HybridDict(dict):
 
         Parameters
         ----------
-        h5_path : str
-            h5py data path, involving copy operation
-        dat_path : str
-            non-h5py data path, dumped by pickle
+        h5_path : str or None
+            h5py data path, involving copy operation. No dump if set to None.
+        dat_path : str or None
+            Non-h5py data path, dumped by pickle. No dump if set to None.
         """
-        dct = {}
-        for key, val in self.items():
-            if not isinstance(val, h5py.Dataset):
-                dct[key] = val
-        with open(dat_path, "wb") as f:
-            pickle.dump(dct, f)
-        self.chkfile.close()
-        shutil.copy(self.chkfile_name, h5_path)
-        self.chkfile = h5py.File(self.chkfile_name, "r+")
-        # re-update keys stored on disk
-        for key in HybridDict.get_dataset_keys(self.chkfile):
-            self[key] = self.chkfile[key]
+        if dat_path is not None:
+            dct = {}
+            for key, val in self.items():
+                if not isinstance(val, h5py.Dataset):
+                    dct[key] = val
+            with open(dat_path, "wb") as f:
+                pickle.dump(dct, f)
+        if h5_path is not None:
+            self.chkfile.close()
+            shutil.copy(self.chkfile_name, h5_path)
+            self.chkfile = h5py.File(self.chkfile_name, "r+")
+            # re-update keys stored on disk
+            for key in HybridDict.get_dataset_keys(self.chkfile):
+                self[key] = self.chkfile[key]
 
     @staticmethod
     def pick(h5_path="tensors.h5", dat_path="tensors.dat", **kwargs):
