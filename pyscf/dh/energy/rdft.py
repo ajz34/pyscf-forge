@@ -22,7 +22,10 @@ def get_energy_restricted_exactx(mf, dm, omega=None):
         Parameter of long-range ERI integral :math:`\\mathrm{erfc} (\\omega r_{12}) / r_{12}`.
     """
     hermi = 1 if np.allclose(dm, dm.T.conj()) else 0
-    vk = mf.get_k(dm=dm, hermi=hermi, omega=omega)
+    if omega == 0:
+        vk = mf.get_k(dm=dm, hermi=hermi)
+    else:
+        vk = mf.get_k(dm=dm, hermi=hermi, omega=omega)
     ex = - 0.25 * np.einsum('ij, ji ->', dm, vk)
     ex = util.check_real(ex)
     # results

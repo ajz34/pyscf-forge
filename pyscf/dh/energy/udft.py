@@ -26,7 +26,10 @@ def get_energy_unrestricted_exactx(mf, dm, omega=None):
     pyscf.dh.energy.rdft.kernel_energy_restricted_exactx
     """
     hermi = 1 if np.allclose(dm, dm.swapaxes(-1, -2).conj()) else 0
-    vk = mf.get_k(dm=dm, hermi=hermi, omega=omega)
+    if omega == 0:
+        vk = mf.get_k(dm=dm, hermi=hermi)
+    else:
+        vk = mf.get_k(dm=dm, hermi=hermi, omega=omega)
     ex = - 0.5 * np.einsum('sij, sji ->', dm, vk)
     ex = util.check_real(ex)
     # results
