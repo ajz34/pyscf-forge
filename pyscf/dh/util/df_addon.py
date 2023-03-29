@@ -39,7 +39,10 @@ def get_cderi_mo(with_df, mo_coeff, Y_mo=None, pqslice=None, max_memory=2000):
     p0, p1 = 0, 0
     preflop = 0 if not isinstance(Y_mo, np.ndarray) else Y_mo.size
     nbatch = calc_batch_size(2*nump*numq, max_memory, preflop)
-    aosym = "s2" if len(with_df._cderi.shape) == 2 else "s1"
+    if hasattr(with_df._cderi, "shape"):  # array alike
+        aosym = "s2" if len(with_df._cderi.shape) == 2 else "s1"
+    else:  # assert pyscf when memory is low
+        aosym = "s2"
     for Y_ao in with_df.loop(nbatch):
         p1 = p0 + Y_ao.shape[0]
         if Y_ao.dtype == np.double and mo_coeff.dtype == np.double:
