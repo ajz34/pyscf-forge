@@ -75,6 +75,8 @@ def get_with_df_omega(with_df, omega):
         Density fitting object with specified omega.
     """
     if omega == 0:
+        if with_df._cderi is None:
+            with_df.build()
         return with_df
     omega_str = "{:.6f}".format(omega)
     if omega_str in with_df._rsh_df:
