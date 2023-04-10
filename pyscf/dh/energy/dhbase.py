@@ -25,8 +25,8 @@ class EngPostSCFBase(lib.StreamObject, ABC):
         Range-separate parameter. Currently only erf type is accepted.
     with_df : df.DF
         Density fitting object.
-    _results : dict
-        Saved results during computation.
+    results : dict
+        Saved results during computation. Not for modification.
     _tensors : dict
         Saved intermediate matrices and tensors.
     _tmpfile : lib.misc.H5TmpFile
@@ -54,12 +54,12 @@ class EngPostSCFBase(lib.StreamObject, ABC):
         self.verbose = self.mol.verbose
         self.max_memory = self.mol.max_memory
         self.omega = 0
-        self._results = dict()
+        self.results = dict()
         self._tensors = dict()
         self._tmpfile = lib.H5TmpFile()
 
-    @abstractmethod
     @property
+    @abstractmethod
     def restricted(self):
         # type: () -> bool
         raise NotImplemented
@@ -76,17 +76,32 @@ class EngPostSCFBase(lib.StreamObject, ABC):
         """ Molecular orbital coefficient. """
         return self.scf.mo_coeff
 
+    @mo_coeff.setter
+    def mo_coeff(self, mo_coeff):
+        if not np.allclose(mo_coeff, self.scf.mo_coeff):
+            raise ValueError()
+
     @property
     def mo_occ(self):
         # type: () -> np.ndarray
         """ Molecular orbital occupation number. """
         return self.scf.mo_occ
 
+    @mo_occ.setter
+    def mo_occ(self, mo_occ):
+        if not np.allclose(mo_occ, self.scf.mo_occ):
+            raise ValueError()
+
     @property
     def mo_energy(self):
         # type: () -> np.ndarray
         """ Molecular orbital energy. """
         return self.scf.mo_energy
+
+    @mo_energy.setter
+    def mo_energy(self, mo_energy):
+        if not np.allclose(mo_energy, self.scf.mo_energy):
+            raise ValueError()
 
     @property
     def nmo(self):
@@ -113,18 +128,6 @@ class EngPostSCFBase(lib.StreamObject, ABC):
         return nvir
 
     @property
-    def results(self):
-        # type: () -> dict
-        """ Saved results during computation. """
-        return self._results
-
-    @abstractmethod
-    @property
-    def e_corr(self):
-        # type: () -> float
-        raise NotImplementedError
-
-    @property
     def e_tot(self):
         # type: () -> float
         return self.scf.e_tot + self.e_corr
@@ -144,5 +147,5 @@ class EngPostSCFBase(lib.StreamObject, ABC):
                 frozen = np.arange(self.frozen)
             else:
                 frozen = self.frozen
-            frozen_core = dh.util.FrozenCore(self.mol, self.mo_occ, frozen=frozen)
+            frozen_core = dh.util.FrozenCore(self.mol, self.mo_occ, rule=frozen)
             return frozen_core.mask

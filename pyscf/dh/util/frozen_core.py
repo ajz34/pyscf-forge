@@ -377,7 +377,7 @@ FrozenRules = {
 class FrozenCore:
     def __init__(
             self, mol, mo_occ,
-            rule=None, frozen=None, active=None, ecp_only=False, mo_energy=None):
+            rule=None, ecp_only=False, mo_energy=None):
         """
         Parameters
         ----------
@@ -385,13 +385,8 @@ class FrozenCore:
             Molecular object.
         mo_occ : np.ndarray
             Molecular orbital occupation numbers.
-        rule : str or int or tuple or dict
+        rule : str or int or tuple or dict or list
             Rules of frozen core.
-        frozen : list[int] or list[list[int]] or np.ndarray
-            List of frozen core orbitals. If this option is given, then defined rule will be ignored.
-        active : list[int] or list[list[int]]
-            List of active orbitals. If this option is given, then defined rule will be ignored.
-            This option is not compatiable with `frz`.
         ecp_only : bool
             True if not counting additional frozen occupied electrons when atom have ECP electrons.
             This option is only applied for rule-based frozen electron selection. If total number is given by
@@ -402,25 +397,21 @@ class FrozenCore:
         Notes
         -----
         Format of rules accepted here is
-        - String rule that applies a complete resolution (such as ORCA, FreezeNobleGasCore, etc.)
-        - Number of electrons of occupied and virtual (**not spacial orbitals**)
-        - Element-wise string rule or tuple of integers
-        - Molecular orbital energy window selection
+        - list: Index of frozen orbitals (the same convention to PySCF)
+        - string: String rule that applies a complete resolution (such as ORCA, FreezeNobleGasCore, etc.)
+        - int, tuple[int, int]: Number of electrons of occupied and virtual (**not spacial orbitals**)
+        - dict[int or str, Any]: Element-wise string rule or tuple of integers
+        - ``("EnergyWindow", (eng_min, eng_max))``: Molecular orbital energy window selection
         """
         # input attributes
         self.mol = mol
         self.mo_occ = mo_occ
         self.mo_energy = mo_energy
         self.rule = rule
-        self.frozen = frozen
-        self.active = active
         self.ecp_only = ecp_only
         # derived attributes
         self._mask = NotImplemented
         self._frozen = NotImplemented
-
-        if frozen is not None and active is not None:
-            raise ValueError("Option active is not compatiable with frozen.")
 
     def reset(self):
         self._mask = NotImplemented
@@ -452,6 +443,7 @@ class FrozenCore:
         ----------
         mol : gto.Mole
         rule : str or int or tuple[int, int] or dict
+        ecp_only : bool
 
         Returns
         -------
@@ -579,10 +571,10 @@ class FrozenCore:
 
         mask = np.ones((nset, nmo), dtype=bool)
 
-        if self.frozen or self.active is not None:
+        if isinstance(self.rule, list or np.ndarray):
             # 1. case of frozen/active list defined, highest priority
             # first perform mask; if self.act, then reverse mask in order to make active orbitals to be True
-            arr = self.frozen if self.frozen is not None else self.active
+            arr = self.rule
             if not hasattr(arr[0], "__iter__"):
                 # one list of frozen orbitals:
                 mask[:, arr] = False
@@ -591,8 +583,6 @@ class FrozenCore:
                 assert len(arr) == nset, "Number of frozen lists is not the same to number of occupation sets."
                 for i, arr_i in enumerate(arr):
                     mask[i, arr_i] = False
-            if self.active is not None:
-                mask = ~mask
         elif isinstance(self.rule, tuple) and isinstance(self.rule[0], "str"):
             # 2. case of special treatments
             assert len(self.rule)
@@ -644,4 +634,5 @@ if __name__ == '__main__':
     mol = gto.Mole(atom="I 0 0 0; H 0 0 1; O 0 1 0", basis="def2-TZVP", ecp="def2-TZVP").build()
     mf = scf.RHF(mol).run()
     fc = FrozenCore(mol, mf.mo_occ, rule="FreezeNobleGasCore", ecp_only=False)
+    fc = FrozenCore(mol, mf.mo_occ, rule=[1, 2], ecp_only=False)
     print(fc.mask)
