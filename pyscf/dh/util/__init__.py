@@ -30,3 +30,4 @@ from .helper_pyscf import (
 from .xccode.xccode import XCInfo, XCList, XCDH
 from .xccode.xctype import XCType
 from .numint_addon import eval_xc_eff_ssr_generator
+from .frozen_core import FrozenCore, FrozenRules, FrozenRuleNone

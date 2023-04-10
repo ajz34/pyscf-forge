@@ -387,7 +387,7 @@ class FrozenCore:
             Molecular orbital occupation numbers.
         rule : str or int or tuple or dict
             Rules of frozen core.
-        frozen : list[int] or list[list[int]]
+        frozen : list[int] or list[list[int]] or np.ndarray
             List of frozen core orbitals. If this option is given, then defined rule will be ignored.
         active : list[int] or list[list[int]]
             List of active orbitals. If this option is given, then defined rule will be ignored.
@@ -417,12 +417,14 @@ class FrozenCore:
         self.ecp_only = ecp_only
         # derived attributes
         self._mask = NotImplemented
+        self._frozen = NotImplemented
 
         if frozen is not None and active is not None:
             raise ValueError("Option active is not compatiable with frozen.")
 
     def reset(self):
         self._mask = NotImplemented
+        self._frozen = NotImplemented
 
     def check_sanity(self):
         # check dimensions
@@ -613,9 +615,21 @@ class FrozenCore:
 
     @property
     def mask(self):
+        """ Mask of molecular occupied orbitals. """
         if self._mask is NotImplemented:
             self._mask = self.get_active_mask()
         return self._mask
+
+    def frozen(self):
+        """ Index of frozen core orbitals. """
+        if self._frozen is NotImplemented:
+            if self.mask.ndim == 1:
+                frozen = np.arange(self.mask.shape[0])[self.mask]
+            else:
+                nset, nmo = self.mask.shape
+                frozen = [np.arange(nmo)[self.mask[n]] for n in range(nset)]
+            self._frozen = frozen
+        return self._frozen
 
 
 if __name__ == '__main__':
