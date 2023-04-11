@@ -21,16 +21,16 @@ class EngPostSCFBase(lib.StreamObject, ABC):
         Print level.
     max_memory : float or int
         Allowed memory in MB.
-    omega : float
-        Range-separate parameter. Currently only erf type is accepted.
     with_df : df.DF
         Density fitting object.
     results : dict
         Saved results during computation. Not for modification.
-    _tensors : dict
+    tensors : dict
         Saved intermediate matrices and tensors.
     _tmpfile : lib.misc.H5TmpFile
         Temporary file for storing large tensors.
+    e_corr : float
+        Evaluated post-SCF correlation energy.
 
     Notes
     -----
@@ -53,10 +53,10 @@ class EngPostSCFBase(lib.StreamObject, ABC):
         self.frozen = 0
         self.verbose = self.mol.verbose
         self.max_memory = self.mol.max_memory
-        self.omega = 0
         self.results = dict()
-        self._tensors = dict()
+        self.tensors = dict()
         self._tmpfile = lib.H5TmpFile()
+        self.e_corr = NotImplemented
 
     @property
     @abstractmethod

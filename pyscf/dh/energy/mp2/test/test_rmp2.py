@@ -1,6 +1,6 @@
 import unittest
 from pyscf import gto, scf, mp, df
-from pyscf.dh import RMP2ofDH
+from pyscf.dh.energy.mp2 import RMP2RI, RMP2Conv, RMP2ConvPySCF, RMP2RIPySCF
 import numpy as np
 
 
@@ -63,96 +63,75 @@ class TestEngRMP2(unittest.TestCase):
 
     def test_eng_rmp2_conv(self):
         mf_s = self.mf_h2o_hf
-        mf_dh = RMP2ofDH(mf_s)
-        mf_dh.params.flags.update({"integral_scheme": "conv"})
+        mf_dh = RMP2Conv(mf_s)
         mf_dh.run()
-        print(mf_dh.params.results)
+        print(mf_dh.results)
         # reference value
         REF = -0.273944755130888
         REF_PYSCF = mp.MP2(mf_s).run().e_corr
         self.assertAlmostEqual(REF, REF_PYSCF, 8)
-        self.assertAlmostEqual(mf_dh.params.results["eng_corr_MP2"], REF, 8)
+        self.assertAlmostEqual(mf_dh.results["eng_corr_MP2"], REF, 8)
 
     def test_eng_rmp2_ri(self):
         mf_s = self.mf_h2o_hf
         mol = mf_s.mol
-        mf_dh = RMP2ofDH(mf_s).run()
-        print(mf_dh.params.results)
+        mf_dh = RMP2RI(mf_s).run(with_df=df.DF(mol, df.aug_etb(mol)))
+        print(mf_dh.results)
         # reference value
         REF = -0.2739374133400274
         mf_s.with_df = df.DF(mol, auxbasis=df.aug_etb(mol))
         REF_PYSCF = mp.dfmp2.DFMP2(mf_s).run().e_corr
         print(REF_PYSCF)
         self.assertAlmostEqual(REF, REF_PYSCF, 8)
-        self.assertAlmostEqual(mf_dh.params.results["eng_corr_MP2"], REF, 8)
+        self.assertAlmostEqual(mf_dh.results["eng_corr_MP2"], REF, 8)
 
     def test_eng_rmp2_conv_fc(self):
         mf_s = self.mf_h2o_hf
-        mf_dh = RMP2ofDH(mf_s)
-        mf_dh.params.flags.update({
-            "integral_scheme": "conv",
-            "frozen_rule": "FreezeNobleGasCore",
-            "incore_t_ijab_mp2": True,
-        })
+        mf_dh = RMP2Conv(mf_s).run(frozen="FreezeNobleGasCore", incore_t_oovv_mp2=True)
         mf_dh.run()
-        print(mf_dh.params.results)
+        print(mf_dh.results)
         # reference value
         REF = -0.2602324295391498
         REF_PYSCF = mp.MP2(mf_s, frozen=[0]).run().e_corr
         self.assertAlmostEqual(REF, REF_PYSCF, 8)
-        self.assertAlmostEqual(mf_dh.params.results["eng_corr_MP2"], REF, 8)
-        self.assertTrue("t_ijab" in mf_dh.params.tensors)
-
-    def test_eng_rmp2_conv_fc_by_kernel_option(self):
-        mf_s = self.mf_h2o_hf
-        mf_dh = RMP2ofDH(mf_s)
-        mf_dh.kernel(integral_scheme="conv", frozen_rule="FreezeNobleGasCore")
-        print(mf_dh.params.results)
-        # reference value
-        REF = -0.2602324295391498
-        REF_PYSCF = mp.MP2(mf_s, frozen=[0]).run().e_corr
-        self.assertAlmostEqual(REF, REF_PYSCF, 8)
-        self.assertAlmostEqual(mf_dh.params.results["eng_corr_MP2"], REF, 8)
+        self.assertAlmostEqual(mf_dh.results["eng_corr_MP2"], REF, 8)
+        self.assertAlmostEqual(mf_dh.e_corr, REF, 8)
+        self.assertTrue("t_oovv" in mf_dh.tensors)
 
     def test_eng_rmp2_conv_complex(self):
         mf_s = self.mf_h2o_hf_complex
-        mf_dh = RMP2ofDH(mf_s)
-        mf_dh.params.flags.update({"integral_scheme": "conv"})
-        mf_dh.run()
+        mf_dh = RMP2Conv(mf_s).run()
         REF = -0.27425584824874516
         REF_PYSCF = mp.MP2(mf_s).run().e_corr
         self.assertAlmostEqual(REF, REF_PYSCF, 8)
-        self.assertAlmostEqual(mf_dh.params.results["eng_corr_MP2"], REF, 8)
+        self.assertAlmostEqual(mf_dh.results["eng_corr_MP2"], REF, 8)
 
     def test_eng_rmp2_ri_fc_1(self):
         mf_s = self.mf_h2o_hf
         mol = mf_s.mol
-        mf_dh = RMP2ofDH(mf_s)
-        mf_dh.params.flags.update({"frozen_rule": "FreezeNobleGasCore"})
-        mf_dh.run()
-        print(mf_dh.params.results)
+        mf_dh = RMP2RI(mf_s).run(frozen="FreezeNobleGasCore", with_df=df.DF(mol, auxbasis=df.aug_etb(mol)))
+        print(mf_dh.results)
         # reference value
         REF = -0.2602250917785774
         mf_s.with_df = df.DF(mol, auxbasis=df.aug_etb(mol))
         REF_PYSCF = mp.dfmp2.DFMP2(mf_s, frozen=[0]).run().e_corr
         print(REF_PYSCF)
         self.assertAlmostEqual(REF, REF_PYSCF, 8)
-        self.assertAlmostEqual(mf_dh.params.results["eng_corr_MP2"], REF, 8)
+        self.assertAlmostEqual(mf_dh.results["eng_corr_MP2"], REF, 8)
 
     def test_eng_rmp2_ri_fc_2(self):
         mf_s = self.mf_h2o_hf
         mol = mf_s.mol
-        mf_dh = RMP2ofDH(mf_s)
-        mf_dh.params.flags.update({"frozen_list": [0, 2]})
+        mf_dh = RMP2RI(mf_s).run(frozen=[0, 2], with_df=df.DF(mol, auxbasis=df.aug_etb(mol)))
         mf_dh.run()
-        print(mf_dh.params.results)
+        print(mf_dh.results)
         # reference value
         REF = -0.13839934020349923
         mf_s.with_df = df.DF(mol, auxbasis=df.aug_etb(mol))
         REF_PYSCF = mp.dfmp2.DFMP2(mf_s, frozen=[0, 2]).run().e_corr
         print(REF_PYSCF)
         self.assertAlmostEqual(REF, REF_PYSCF, 8)
-        self.assertAlmostEqual(mf_dh.params.results["eng_corr_MP2"], REF, 8)
+        self.assertAlmostEqual(mf_dh.results["eng_corr_MP2"], REF, 8)
 
     def test_eng_rmp2_ri_complex(self):
         mf_s = self.mf_h2o_hf_complex
@@ -160,10 +139,8 @@ class TestEngRMP2(unittest.TestCase):
         int3c2e_cd = self.int3c2e_cd
         int3c2e_2_cd = self.int3c2e_2_cd
 
-        mf_dh = RMP2ofDH(mf_s)
-        mf_dh.params.flags.update({"incore_t_ijab_mp2": True})
-        mf_dh.build()
-        mf_dh.with_df()
+        mf_dh = RMP2RI(mf_s)
+        mf_dh.incore_t_oovv_mp2 = True
         mf_dh.with_df = df.DF(mol, df.aug_etb(mol))
         mf_dh.with_df._cderi = int3c2e_cd
         mf_dh.with_df_2 = df.DF(mol, df.aug_etb(mol))
@@ -173,26 +150,27 @@ class TestEngRMP2(unittest.TestCase):
         # generated reference value
         REF = -0.27424683619063206
         #     -0.27425584824874516 in test_eng_rmp2_conv_complex
-        self.assertAlmostEqual(mf_dh.params.results["eng_corr_MP2"], REF, 8)
+        self.assertAlmostEqual(mf_dh.results["eng_corr_MP2"], REF, 8)
+
+    def test_eng_rmp2_conv_pyscf(self):
+        mf_s = self.mf_h2o_hf
+        mf_dh = RMP2ConvPySCF(mf_s).run(frozen=[0])
+        REF = -0.2602324295391498
+        self.assertAlmostEqual(mf_dh.results["eng_corr_MP2"], REF, 8)
+
+    def test_eng_rmp2_ri_pyscf(self):
+        mf_s = self.mf_h2o_hf
+        mol = mf_s.mol
+        mf_dh = RMP2RIPySCF(mf_s).run(frozen=[0], with_df=df.DF(mol, auxbasis=df.aug_etb(mol)))
+        REF = -0.2602250917785774
+        self.assertAlmostEqual(mf_dh.results["eng_corr_MP2"], REF, 8)
 
     def test_eng_rmp2_coverage(self):
         # coverage only, not testing correctness
         mf_s = self.mf_h2o_hf
         eri = mf_s._eri.copy()
-        mf_s._eri = None
-        mf_dh = RMP2ofDH(mf_s)
-        mf_dh.params.flags.update({
-            "omega_list_mp2": [0, 0.7, -0.7],
-            "frac_num_mp2": np.random.randn(len(mf_s.mo_occ))
-        })
-        mf_dh.run()
-        mf_dh.run()
-        mf_dh = RMP2ofDH(mf_s)
-        mf_dh.params.flags.update({
-            "integral_scheme_mp2": "conv",
-            "omega_list_mp2": [0, 0.7, -0.7],
-            "frac_num_mp2": np.random.randn(len(mf_s.mo_occ))
-        })
-        mf_dh.run()
 
+        mf_s._eri = None
+        mf_dh = RMP2Conv(mf_s).run(frac_num_mp2=np.random.randn(len(mf_s.mo_occ))).run()
+        mf_dh = RMP2RI(mf_s).run(frac_num_mp2=np.random.randn(len(mf_s.mo_occ))).run()
         mf_s._eri = eri

@@ -74,7 +74,7 @@ def get_with_df_omega(with_df, omega):
     df.DF
         Density fitting object with specified omega.
     """
-    if omega == 0:
+    if omega == 0 or omega is None:
         if with_df._cderi is None:
             with_df.build()
         return with_df
