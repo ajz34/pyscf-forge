@@ -249,7 +249,7 @@ def allocate_array(incore, shape, max_memory,
         return None
     elif incore is True:
         if zero_init:
-            return np.zero(shape, dtype=dtype)
+            return np.zeros(shape, dtype=dtype)
         else:
             return np.empty(shape, dtype=dtype)
     else:

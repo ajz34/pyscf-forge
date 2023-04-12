@@ -382,10 +382,10 @@ class RMP2RI(EngPostSCFBase):
         omega = self.omega
         with_df = util.get_with_df_omega(self.with_df, omega)
         max_memory = self.max_memory - lib.current_memory()[0]
-        cderi_uov = self.tensors.get(util.pad_omega("cderi_uov", omega), None)
+        cderi_uov = self.tensors.get("cderi_uov", None)
         if cderi_uov is None:
             cderi_uov = util.get_cderi_mo(with_df, mo_coeff_act, None, (0, nOcc, nOcc, nact), max_memory)
-            self.tensors[util.pad_omega("cderi_uov", omega)] = cderi_uov
+            self.tensors["cderi_uov"] = cderi_uov
         # cderi_uov_2 is rarely called, so do not try to build omega for this special case
         cderi_uov_2 = None
         max_memory = self.max_memory - lib.current_memory()[0]
@@ -411,34 +411,32 @@ class RMP2RI(EngPostSCFBase):
 # endregion
 
 
-def __main_1__():
-    from pyscf import gto, scf
-    mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
-    mf_scf = scf.RHF(mol).run()
-    mf_mp = RMP2ConvPySCF(mf_scf, frozen=[1, 2]).run()
-    print(mf_mp.e_tot)
-    print(mf_mp.results)
-
-
-def __main_2__():
-    from pyscf import gto, scf
-    mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
-    mf_scf = scf.RHF(mol).run()
-    mf_mp = RMP2Conv(mf_scf, frozen=[1, 2]).run()
-    print(mf_mp.e_tot)
-    print(mf_mp.results)
-
-
-def __main_3__():
-    from pyscf import gto, scf
-    mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
-    mf_scf = scf.RHF(mol).run()
-    mf_mp = RMP2RI(mf_scf, frozen=[1, 2]).run()
-    print(mf_mp.e_tot)
-    print(mf_mp.results)
-
-
 if __name__ == '__main__':
-    __main_1__()
-    __main_2__()
-    __main_3__()
+
+    def main_1():
+        from pyscf import gto, scf
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
+        mf_scf = scf.RHF(mol).run()
+        mf_mp = RMP2ConvPySCF(mf_scf, frozen=[1, 2]).run()
+        print(mf_mp.e_tot)
+        print(mf_mp.results)
+
+    def main_2():
+        from pyscf import gto, scf
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
+        mf_scf = scf.RHF(mol).run()
+        mf_mp = RMP2Conv(mf_scf, frozen=[1, 2]).run()
+        print(mf_mp.e_tot)
+        print(mf_mp.results)
+
+    def main_3():
+        from pyscf import gto, scf
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
+        mf_scf = scf.RHF(mol).run()
+        mf_mp = RMP2RI(mf_scf, frozen=[1, 2]).run()
+        print(mf_mp.e_tot)
+        print(mf_mp.results)
+
+    main_1()
+    main_2()
+    main_3()

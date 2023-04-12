@@ -171,6 +171,6 @@ class TestEngRMP2(unittest.TestCase):
         eri = mf_s._eri.copy()
 
         mf_s._eri = None
-        mf_dh = RMP2Conv(mf_s).run(frac_num_mp2=np.random.randn(len(mf_s.mo_occ))).run()
-        mf_dh = RMP2RI(mf_s).run(frac_num_mp2=np.random.randn(len(mf_s.mo_occ))).run()
+        mf_dh = RMP2Conv(mf_s).run(frac_num=np.random.randn(len(mf_s.mo_occ))).run()
+        mf_dh = RMP2RI(mf_s).run(frac_num=np.random.randn(len(mf_s.mo_occ))).run()
         mf_s._eri = eri
