@@ -1,7 +1,6 @@
 import unittest
-from pyscf import gto, scf, mp, df, dft
-from pyscf.dh import RIEPAofDH
-import numpy as np
+from pyscf import gto, scf, mp, df, df
+from pyscf.dh import RIEPARI, RIEPAConv
 
 
 def get_mf_h2o_hf():
@@ -95,52 +94,40 @@ class TestEngRIEPA(unittest.TestCase):
 
     def test_eng_riepa_conv_by_mp2(self):
         mf_s = self.mf_h2o_hf
-        mf_dh = RIEPAofDH(mf_s)
-        mf_dh.params.flags.update({
-            "integral_scheme": "conv",
-            "iepa_schemes": "MP2"
-        })
-        mf_dh.run()
-        print(mf_dh.params.results)
+        mf_dh = RIEPAConv(mf_s).run(iepa_schemes=["MP2"])
+        print(mf_dh.results)
         # reference value
         REF = -0.273944755130888
         REF_PYSCF = mp.MP2(mf_s).run().e_corr
         self.assertAlmostEqual(REF, REF_PYSCF, 8)
-        self.assertAlmostEqual(mf_dh.params.results["eng_corr_MP2"], REF, 8)
+        self.assertAlmostEqual(mf_dh.results["eng_corr_MP2"], REF, 8)
 
     def test_eng_riepa_ri_by_mp2(self):
         mf_s = self.mf_h2o_hf
         mol = mf_s.mol
-        mf_dh = RIEPAofDH(mf_s)
-        mf_dh.params.flags.update({"iepa_schemes": "MP2"})
-        mf_dh.run()
-        print(mf_dh.params.results)
+        mf_dh = RIEPARI(mf_s).run(iepa_schemes=["MP2"], with_df=df.DF(mol, df.aug_etb(mol)))
+        print(mf_dh.results)
         # reference value
         REF = -0.2739374133400274
         mf_s.with_df = df.DF(mol, auxbasis=df.aug_etb(mol))
         REF_PYSCF = mp.dfmp2.DFMP2(mf_s).run().e_corr
         print(REF_PYSCF)
         self.assertAlmostEqual(REF, REF_PYSCF, 8)
-        self.assertAlmostEqual(mf_dh.params.results["eng_corr_MP2"], REF, 8)
+        self.assertAlmostEqual(mf_dh.results["eng_corr_MP2"], REF, 8)
 
     def test_eng_rmp2cr_conv(self):
         mf_s = self.mf_hf_hf
-        mf_dh = RIEPAofDH(mf_s)
-        mf_dh.params.flags.update({
-            "integral_scheme": "conv",
-            "iepa_schemes": ["MP2", "MP2cr", "MP2cr2"]
-        })
-        mf_dh.run()
-        print(mf_dh.params.results)
+        mf_dh = RIEPAConv(mf_s).run(iepa_schemes=["MP2", "MP2cr", "MP2cr2"])
+        print(mf_dh.results)
         # reference value from 10.1002/(SICI)1097-461X(2000)78:4<226::AID-QUA4>3.0.CO;2-N
         KNOWN_MP2 = -0.3523338
         KNOWN_MP2CR1 = -0.3362996
         KNOWN_MP2CR2 = -0.3250326
         KNOWN_MP2CR3 = -0.3443167
         KNOWN_MP2CR4 = -0.3386832
-        eng_corr_MP2 = mf_dh.params.results["eng_corr_MP2"]
-        eng_corr_MP2CR = mf_dh.params.results["eng_corr_MP2CR"]
-        eng_corr_MP2CR2 = mf_dh.params.results["eng_corr_MP2CR2"]
+        eng_corr_MP2 = mf_dh.results["eng_corr_MP2"]
+        eng_corr_MP2CR = mf_dh.results["eng_corr_MP2CR"]
+        eng_corr_MP2CR2 = mf_dh.results["eng_corr_MP2CR2"]
         DELTA = 1e-5
         self.assertAlmostEqual(eng_corr_MP2, KNOWN_MP2, delta=DELTA)
         self.assertAlmostEqual(eng_corr_MP2CR, KNOWN_MP2CR1, delta=DELTA)
@@ -151,34 +138,28 @@ class TestEngRIEPA(unittest.TestCase):
     def test_eng_riepa_omega(self):
         # this test is only try to show that omega is correctly evaluated
         mf_s = self.mf_h2o_hf
+        mol = mf_s.mol
         eri = mf_s._eri.copy()
         mf_s._eri = None
         # conventional
-        mf_dh = RIEPAofDH(mf_s)
-        mf_dh.params.flags.update({
-            "integral_scheme_iepa": "conv",
-            "omega_list_iepa": [0.7],
-            "iepa_schemes": "MP2",
-        })
-        mf_dh.run()
+        mf_dh = RIEPAConv(mf_s).run(omega=0.7, iepa_schemes=["MP2"])
         # reference value of conventional
         omega = 0.7
         with mf_s.mol.with_range_coulomb(omega):
             REF_PYSCF = mp.MP2(mf_s).run().e_corr
-        self.assertAlmostEqual(mf_dh.params.results["eng_corr_MP2_omega(0.700000)"], REF_PYSCF)
+        REF = -0.024328429878736478
+        self.assertAlmostEqual(mf_dh.results["eng_corr_MP2"], REF_PYSCF)
+        self.assertAlmostEqual(mf_dh.results["eng_corr_MP2"], REF)
         # ri-mp2
-        mf_dh = RIEPAofDH(mf_s)
-        mf_dh.params.flags.update({
-            "omega_list_iepa": [0.7],
-            "iepa_schemes": "MP2",
-        })
-        mf_dh.run()
+        mf_dh = RIEPARI(mf_s).run(omega=0.7, iepa_schemes=["MP2"], with_df=df.DF(mol, df.aug_etb(mol)))
         # reference value of ri-mp2
         from pyscf.mp.dfmp2 import DFMP2
         omega = 0.7
         with mf_s.mol.with_range_coulomb(omega):
             REF_PYSCF = DFMP2(mf_s).run().e_corr
-        self.assertAlmostEqual(mf_dh.params.results["eng_corr_MP2_omega(0.700000)"], REF_PYSCF)
+        REF = -0.024328452034606485
+        self.assertAlmostEqual(mf_dh.results["eng_corr_MP2"], REF_PYSCF)
+        self.assertAlmostEqual(mf_dh.results["eng_corr_MP2"], REF)
 
         mf_s._eri = eri
 
@@ -186,25 +167,16 @@ class TestEngRIEPA(unittest.TestCase):
         # coverage only, not testing correctness
         mf_s = self.mf_h2o_hf
 
-        mf_dh = RIEPAofDH(mf_s)
-        mf_dh.params.flags.update({
-            "iepa_schemes": ["MP2", "MP2cr", "MP2cr2", "IEPA", "sIEPA", "DCPT2"],
-            "omega_list_iepa": [0, 0.7, -0.7],
-        })
-        mf_dh.run().run()
+        mf_dh = RIEPAConv(mf_s).run(iepa_schemes=["MP2", "MP2cr", "MP2cr2", "IEPA", "sIEPA", "DCPT2"]).run()
+        mf_dh = RIEPAConv(mf_s).run(iepa_schemes="MP2cr").run()
 
         eri = mf_s._eri.copy()
         mf_s._eri = None
 
-        mf_dh = RIEPAofDH(mf_s)
-        mf_dh.params.flags.update({
-            "integral_scheme_iepa": "conv",
-            "iepa_schemes": ["MP2cr", "IEPA", "sIEPA"],
-        })
-        mf_dh.run()
+        mf_dh = RIEPARI(mf_s).run(iepa_schemes=["MP2", "MP2cr", "MP2cr2", "IEPA", "sIEPA", "DCPT2"]).run()
+        mf_dh = RIEPARI(mf_s).run()
 
         with self.assertRaises(ValueError):
-            mf_dh.params.flags.update({"iepa_schemes": ["RPA"]})
-            mf_dh.run()
+            mf_dh = RIEPARI(mf_s).run(iepa_schemes="RPA").run()
 
         mf_s._eri = eri

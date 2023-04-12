@@ -1,102 +1,23 @@
-from pyscf.dh.energy import RDHBase
+r""" Restricted IEPA-like methods. """
+
+from pyscf.dh.energy import EngPostSCFBase
 from pyscf.dh import util
-from pyscf.dh.util import HybridDict
-from pyscf import lib, ao2mo
+from pyscf import lib, ao2mo, __config__, df
 import numpy as np
 from scipy.special import erfc
 import warnings
 
-
-class RIEPAofDH(RDHBase):
-    """ Restricted IEPA (independent electron-pair approximation) class of doubly hybrid. """
-
-    def __init__(self, *args, **kwargs):
-        self.siepa_screen = erfc
-        super().__init__(*args, **kwargs)
-
-    def kernel(self, **kwargs):
-        with self.params.temporary_flags(kwargs):
-            results = driver_energy_riepa(self)
-        self.params.update_results(results)
-        return results
-
-
-def driver_energy_riepa(mf_dh):
-    """ Driver of restricted IEPA energy.
-
-    Parameters
-    ----------
-    mf_dh : RDH
-        Restricted doubly hybrid object.
-
-    Returns
-    -------
-    dict
-    """
-    mf_dh.build()
-    log = mf_dh.log
-    params = mf_dh.params
-    mf_dh._flag_snapshot = mf_dh.params.flags.copy()
-    results_summary = dict()
-    # some results from mf_dh
-    mol = mf_dh.mol
-    mo_coeff_act = mf_dh.mo_coeff_act
-    mo_energy_act = mf_dh.mo_energy_act
-    nOcc, nVir, nact = mf_dh.nOcc, mf_dh.nVir, mf_dh.nact
-    # some flags
-    tol_eng_pair_iepa = params.flags["tol_eng_pair_iepa"]
-    max_cycle_iepa = params.flags["max_cycle_pair_iepa"]
-    iepa_schemes = params.flags["iepa_schemes"]
-    integral_scheme = mf_dh.params.flags.get("integral_scheme_iepa", mf_dh.params.flags["integral_scheme"]).lower()
-    # main loop
-    omega_list = params.flags["omega_list_iepa"]
-    for omega in omega_list:
-        log.info(f"[INFO] Evaluation of IEPA at omega({omega})")
-        # define g_iajb generation
-        if integral_scheme.startswith("ri"):
-            with_df = util.get_with_df_omega(mf_dh.with_df, omega)
-            Y_OV = params.tensors.get(util.pad_omega("Y_OV", omega), None)
-            if Y_OV is None:
-                Y_OV = params.tensors[util.pad_omega("Y_OV", omega)] = util.get_cderi_mo(
-                    with_df, mo_coeff_act, None, (0, nOcc, nOcc, nact),
-                    mol.max_memory - lib.current_memory()[0])
-
-            def gen_g_IJab(i, j):
-                return Y_OV[:, i].T @ Y_OV[:, j]
-        elif integral_scheme.startswith("conv"):
-            log.warn("Conventional integral of post-SCF is not recommended!\n"
-                     "Use density fitting approximation is preferred.")
-            CO = mo_coeff_act[:, :nOcc]
-            CV = mo_coeff_act[:, nOcc:]
-            eri_or_mol = mf_dh.scf._eri if omega == 0 else mol
-            if eri_or_mol is None:
-                eri_or_mol = mol
-            with mol.with_range_coulomb(omega):
-                g_iajb = ao2mo.general(eri_or_mol, (CO, CV, CO, CV)).reshape(nOcc, nVir, nOcc, nVir)
-
-            def gen_g_IJab(i, j):
-                return g_iajb[i, :, j]
-        else:
-            raise NotImplementedError
-
-        results = kernel_energy_riepa(
-            mo_energy_act, gen_g_IJab, nOcc, iepa_schemes,
-            screen_func=mf_dh.siepa_screen,
-            tol=tol_eng_pair_iepa, max_cycle=max_cycle_iepa,
-            tensors=params.tensors,
-            verbose=mf_dh.verbose
-        )
-        results = {util.pad_omega(key, omega): val for (key, val) in results.items()}
-        results_summary.update(results)
-    return results_summary
+CONFIG_tol_eng_pair_iepa = getattr(__config__, "tol_eng_pair_iepa", 1e-10)
+CONFIG_max_cycle_pair_iepa = getattr(__config__, "max_cycle_pair_iepa", 64)
+CONFIG_iepa_schemes = getattr(__config__, "iepa_schemes", ["MP2", "IEPA", "sIEPA", "MP2cr"])
 
 
 def kernel_energy_riepa(
-        mo_energy, gen_g_IJab, nocc, iepa_schemes,
-        screen_func=erfc,
-        tol=1e-10, max_cycle=64,
-        tensors=None,
-        verbose=lib.logger.NOTE):
+    mo_energy, gen_g_IJab, mo_occ, iepa_schemes,
+    screen_func=erfc,
+    tol=1e-10, max_cycle=64,
+    tensors=None,
+    verbose=lib.logger.NOTE):
     """ Kernel of restricted IEPA-like methods.
 
     Parameters
@@ -107,8 +28,8 @@ def kernel_energy_riepa(
         Generate ERI block :math:`(ij|ab)` where :math:`i, j` is specified.
         Function signature should be ``gen_g_IJab(i: int, j: int) -> np.ndarray``
         with shape of returned array (a, b).
-    nocc : int
-        Number of occupied molecular orbitals.
+    mo_occ : mp.ndarray
+        Molecular orbitals occupation numbers.
     iepa_schemes : list[str] or str
         IEPA schemes. Currently MP2, IEPA, SIEPA, MP2cr, MP2cr2 accepted.
 
@@ -133,10 +54,13 @@ def kernel_energy_riepa(
     """
     log = lib.logger.new_logger(verbose=verbose)
     log.info("[INFO] Start restricted IEPA")
-    
-    eo = mo_energy[:nocc]
-    ev = mo_energy[nocc:]
-    tensors = tensors if tensors is not None else HybridDict()
+
+    mask_occ = mo_occ != 0
+    mask_vir = mo_occ == 0
+    eo = mo_energy[mask_occ]
+    ev = mo_energy[mask_vir]
+    nocc = mask_occ.sum()
+    tensors = tensors if tensors is not None else dict()
 
     # parse IEPA schemes
     # `iepa_schemes` option is either str or list[str]; change to list
@@ -153,15 +77,15 @@ def kernel_energy_riepa(
 
     # allocate pair energies
     for scheme in iepa_schemes:
-        tensors.create(f"pair_{scheme}_aa", shape=(nocc, nocc))
-        tensors.create(f"pair_{scheme}_ab", shape=(nocc, nocc))
+        tensors[f"pair_{scheme}_aa"] = np.zeros(shape=(nocc, nocc))
+        tensors[f"pair_{scheme}_ab"] = np.zeros(shape=(nocc, nocc))
         if scheme in ["MP2CR", "MP2CR2"]:
             if "pair_MP2_aa" not in tensors:
-                tensors.create("pair_MP2_aa", shape=(nocc, nocc))
-                tensors.create("pair_MP2_ab", shape=(nocc, nocc))
+                tensors["pair_MP2_aa"] = np.zeros(shape=(nocc, nocc))
+                tensors["pair_MP2_ab"] = np.zeros(shape=(nocc, nocc))
             if "n2_pair_aa" not in tensors:
-                tensors.create("n2_pair_aa", shape=(nocc, nocc))
-                tensors.create("n2_pair_ab", shape=(nocc, nocc))
+                tensors["n2_pair_aa"] = np.zeros(shape=(nocc, nocc))
+                tensors["n2_pair_ab"] = np.zeros(shape=(nocc, nocc))
 
     # In evaluation of MP2/cr or MP2/cr2, MP2 pair energy is evaluated first.
     schemes_for_pair = set(iepa_schemes)
@@ -203,8 +127,8 @@ def kernel_energy_riepa(
             if "MP2CR" in iepa_schemes or "MP2CR2" in iepa_schemes:
                 n2_aa = tensors["n2_pair_aa"]
                 n2_ab = tensors["n2_pair_ab"]
-                n2_aa[I, J] = n2_aa[J, I] = ((g_IJab_asym / D_IJab)**2).sum()
-                n2_ab[I, J] = n2_ab[J, I] = ((g_IJab / D_IJab)**2).sum()
+                n2_aa[I, J] = n2_aa[J, I] = ((g_IJab_asym / D_IJab) ** 2).sum()
+                n2_ab[I, J] = n2_ab[J, I] = ((g_IJab / D_IJab) ** 2).sum()
 
     # process MP2/cr afterwards
     # MP2/cr I
@@ -287,7 +211,7 @@ def get_pair_dcpt2(g_ab, D_ab, scale_e):
     --------
     get_pair_mp2
     """
-    return 0.5 * scale_e * (- D_ab - np.sqrt(D_ab**2 + 4 * g_ab**2)).sum()
+    return 0.5 * scale_e * (- D_ab - np.sqrt(D_ab ** 2 + 4 * g_ab ** 2)).sum()
 
 
 def get_pair_siepa(g_ab, D_ab, scale_e, screen_func, tol=1e-10, max_cycle=64):
@@ -383,3 +307,141 @@ def get_rmp2cr2_norm(n2_aa, n2_ab):
         norm[i, i] -= n2_ab[i, i] + 0.5 * n2_aa[i, i]
     norm = norm / norm2 + 1
     return norm
+
+
+class RIEPAConv(EngPostSCFBase):
+    """ Restricted IEPA-like class of doubly hybrid with conventional integral. """
+
+    @property
+    def restricted(self):  # type: () -> bool
+        return True
+
+    def __init__(self, mf, frozen=None, omega=0, **kwargs):
+        super().__init__(mf)
+        self.omega = omega
+        self.frozen = frozen if frozen is not None else 0
+        self.frac_num = None
+        self.conv_tol = CONFIG_tol_eng_pair_iepa
+        self.max_cycle = CONFIG_max_cycle_pair_iepa
+        self.iepa_schemes = CONFIG_iepa_schemes
+        self.siepa_screen = erfc
+        self.set(**kwargs)
+
+    kernel_energy_riepa = kernel_energy_riepa
+
+    def driver_eng_riepa(self, **_kwargs):
+        mask = self.get_frozen_mask()
+        mask_occ = mask & (self.mo_occ != 0)
+        mask_vir = mask & (self.mo_occ == 0)
+        mo_occ_act = self.mo_occ[mask]
+        mol = self.mol
+        nocc_act = mask_occ.sum()
+        nvir_act = mask_vir.sum()
+        occ_coeff_act = self.mo_coeff[:, mask_occ]
+        vir_coeff_act = self.mo_coeff[:, mask_vir]
+        mo_energy_act = self.mo_energy[mask]
+        # eri generator
+        eri_or_mol = self.scf._eri if self.omega == 0 else mol
+        eri_or_mol = eri_or_mol if eri_or_mol is not None else mol
+        with mol.with_range_coulomb(self.omega):
+            g_iajb = ao2mo.general(
+                eri_or_mol, (occ_coeff_act, vir_coeff_act, occ_coeff_act, vir_coeff_act)) \
+                .reshape(nocc_act, nvir_act, nocc_act, nvir_act)
+
+        def gen_g_IJab(i, j):
+            return g_iajb[i, :, j]
+
+        results = kernel_energy_riepa(
+            mo_energy_act, gen_g_IJab, mo_occ_act,
+            iepa_schemes=self.iepa_schemes,
+            screen_func=self.siepa_screen,
+            tol=self.conv_tol,
+            max_cycle=self.max_cycle,
+            tensors=self.tensors,
+            verbose=self.verbose
+        )
+
+        self.results.update(results)
+        return results
+
+    kernel = driver_eng_riepa
+
+
+class RIEPARI(EngPostSCFBase):
+    """ Restricted IEPA-like class of doubly hybrid with RI integral. """
+
+    @property
+    def restricted(self):  # type: () -> bool
+        return True
+
+    def __init__(self, mf, frozen=None, omega=0, with_df=None, **kwargs):
+        super().__init__(mf)
+        self.omega = omega
+        if with_df is None:
+            with_df = getattr(self.scf, "with_df", None)
+        if with_df is None:
+            with_df = df.DF(self.mol, auxbasis=df.make_auxbasis(self.mol, mp2fit=True))
+        self.with_df = with_df
+        self.frozen = frozen if frozen is not None else 0
+        self.frac_num = None
+        self.conv_tol = CONFIG_tol_eng_pair_iepa
+        self.max_cycle = CONFIG_max_cycle_pair_iepa
+        self.iepa_schemes = CONFIG_iepa_schemes
+        self.siepa_screen = erfc
+        self.set(**kwargs)
+
+    kernel_energy_riepa = kernel_energy_riepa
+
+    def driver_eng_riepa(self, **_kwargs):
+        mask = self.get_frozen_mask()
+        mask_occ = mask & (self.mo_occ != 0)
+        mo_occ_act = self.mo_occ[mask]
+        nocc_act = mask_occ.sum()
+        nact = mask.sum()
+        mo_coeff_act = self.mo_coeff[:, mask]
+        mo_energy_act = self.mo_energy[mask]
+        # eri generator
+        omega = self.omega
+        with_df = util.get_with_df_omega(self.with_df, omega)
+        max_memory = self.max_memory - lib.current_memory()[0]
+        cderi_uov = self.tensors.get("cderi_uov", None)
+        if cderi_uov is None:
+            cderi_uov = util.get_cderi_mo(with_df, mo_coeff_act, None, (0, nocc_act, nocc_act, nact), max_memory)
+            self.tensors["cderi_uov"] = cderi_uov
+
+        def gen_g_IJab(i, j):
+            return cderi_uov[:, i].T @ cderi_uov[:, j]
+
+        results = kernel_energy_riepa(
+            mo_energy_act, gen_g_IJab, mo_occ_act,
+            iepa_schemes=self.iepa_schemes,
+            screen_func=self.siepa_screen,
+            tol=self.conv_tol,
+            max_cycle=self.max_cycle,
+            tensors=self.tensors,
+            verbose=self.verbose,
+        )
+
+        self.results.update(results)
+        return results
+
+    kernel = driver_eng_riepa
+
+
+if __name__ == '__main__':
+    def main_1():
+        from pyscf import gto, scf
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
+        mf_scf = scf.RHF(mol).run()
+        mf_mp = RIEPAConv(mf_scf, frozen=[1, 2]).run()
+        print(mf_mp.results)
+
+    def main_2():
+        from pyscf import gto, scf
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
+        mf_scf = scf.RHF(mol).run()
+        mf_mp = RIEPARI(mf_scf, frozen=[1, 2]).run()
+        print(mf_mp.results)
+
+    main_1()
+    main_2()

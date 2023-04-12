@@ -1,5 +1,5 @@
 from . import riepa, uiepa
-from .riepa import RIEPAofDH
+from .riepa import RIEPAConv, RIEPARI
 from .uiepa import UIEPAofDH
 
 
