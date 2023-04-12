@@ -65,12 +65,14 @@ class RMP2ConvPySCF(mp.mp2.RMP2, EngPostSCFBase):
     def get_frozen_mask(self):  # type: () -> np.ndarray
         return EngPostSCFBase.get_frozen_mask(self)
 
-    def kernel(self, *args, **kwargs):
+    def driver_eng_mp2(self, *args, **kwargs):
         kernel_output = super().kernel(*args, **kwargs)
         self.results["eng_corr_MP2_OS"] = self.e_corr_os
         self.results["eng_corr_MP2_SS"] = self.e_corr_ss
         self.results["eng_corr_MP2"] = self.e_corr
         return kernel_output
+
+    kernel = driver_eng_mp2
 
 # endregion
 
@@ -97,12 +99,14 @@ class RMP2RIPySCF(mp.dfmp2.DFMP2, EngPostSCFBase):
     def get_frozen_mask(self):  # type: () -> np.ndarray
         return EngPostSCFBase.get_frozen_mask(self)
 
-    def kernel(self, *args, **kwargs):
+    def driver_eng_mp2(self, *args, **kwargs):
         kernel_output = super().kernel(*args, **kwargs)
         self.results["eng_corr_MP2_OS"] = self.e_corr_os
         self.results["eng_corr_MP2_SS"] = self.e_corr_ss
         self.results["eng_corr_MP2"] = self.e_corr
         return kernel_output
+
+    kernel = driver_eng_mp2
 
 
 # region RMP2Conv
@@ -211,7 +215,7 @@ class RMP2Conv(EngPostSCFBase):
 
     kernel_energy_rmp2_conv = staticmethod(kernel_energy_rmp2_conv_full_incore)
 
-    def kernel(self, **kwargs):
+    def driver_eng_mp2(self, **kwargs):
         mask = self.get_frozen_mask()
         nOcc = (mask & (self.mo_occ != 0)).sum()
         nVir = (mask & (self.mo_occ == 0)).sum()
@@ -238,6 +242,8 @@ class RMP2Conv(EngPostSCFBase):
         self.e_corr = results["eng_corr_MP2"]
         self.results.update(results)
         return results
+
+    kernel = driver_eng_mp2
 
 # endregion
 
@@ -356,7 +362,7 @@ class RMP2RI(EngPostSCFBase):
 
     kernel_energy_rmp2_ri = staticmethod(kernel_energy_rmp2_ri_incore)
 
-    def kernel(self, **kwargs):
+    def driver_eng_mp2(self, **kwargs):
         mask = self.get_frozen_mask()
         nOcc = (mask & (self.mo_occ != 0)).sum()
         nVir = (mask & (self.mo_occ == 0)).sum()
@@ -393,11 +399,14 @@ class RMP2RI(EngPostSCFBase):
             frac_num=frac_num_act,
             verbose=self.verbose,
             max_memory=max_memory,
-            cderi_uov_2=cderi_uov_2)
+            cderi_uov_2=cderi_uov_2,
+            **kwargs)
         
         self.e_corr = results["eng_corr_MP2"]
         self.results.update(results)
         return results
+
+    kernel = driver_eng_mp2
 
 # endregion
 
