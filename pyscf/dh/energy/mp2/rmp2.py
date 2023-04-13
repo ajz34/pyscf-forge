@@ -58,10 +58,6 @@ class RMP2ConvPySCF(mp.mp2.RMP2, EngPostSCFBase):
         EngPostSCFBase.__init__(self, mf)
         super().__init__(mf, *args, **kwargs)
 
-    @property
-    def restricted(self):  # type: () -> bool
-        return True
-
     def get_frozen_mask(self):  # type: () -> np.ndarray
         return EngPostSCFBase.get_frozen_mask(self)
 
@@ -91,10 +87,6 @@ class RMP2RIPySCF(mp.dfmp2.DFMP2, EngPostSCFBase):
     def __init__(self, mf, *args, **kwargs):
         EngPostSCFBase.__init__(self, mf)
         super().__init__(mf, *args, **kwargs)
-
-    @property
-    def restricted(self):  # type: () -> bool
-        return True
 
     def get_frozen_mask(self):  # type: () -> np.ndarray
         return EngPostSCFBase.get_frozen_mask(self)
@@ -201,9 +193,6 @@ def kernel_energy_rmp2_conv_full_incore(
 
 class RMP2Conv(EngPostSCFBase):
     """ Restricted MP2 class of doubly hybrid with conventional integral. """
-    @property
-    def restricted(self):  # type: () -> bool
-        return True
 
     def __init__(self, mf, frozen=None, omega=0, **kwargs):
         super().__init__(mf)
@@ -212,8 +201,6 @@ class RMP2Conv(EngPostSCFBase):
         self.frozen = frozen if frozen is not None else 0
         self.frac_num = None
         self.set(**kwargs)
-
-    kernel_energy_rmp2_conv = staticmethod(kernel_energy_rmp2_conv_full_incore)
 
     def driver_eng_mp2(self, **kwargs):
         mask = self.get_frozen_mask()
@@ -236,13 +223,14 @@ class RMP2Conv(EngPostSCFBase):
         with self.mol.with_range_coulomb(self.omega):
             eri_or_mol = self.scf._eri if self.omega == 0 else self.mol
             eri_or_mol = eri_or_mol if eri_or_mol is not None else self.mol
-            results = self.kernel_energy_rmp2_conv(
+            results = self.kernel_energy_mp2(
                 mo_energy_act, mo_coeff_act, eri_or_mol, nOcc, nVir,
                 t_oovv=t_oovv, frac_num=frac_num_act, verbose=self.verbose, **kwargs)
         self.e_corr = results["eng_corr_MP2"]
         self.results.update(results)
         return results
 
+    kernel_energy_mp2 = staticmethod(kernel_energy_rmp2_conv_full_incore)
     kernel = driver_eng_mp2
 
 # endregion
@@ -342,9 +330,6 @@ def kernel_energy_rmp2_ri_incore(
 
 class RMP2RI(EngPostSCFBase):
     """ Restricted MP2 class of doubly hybrid with RI integral. """
-    @property
-    def restricted(self):  # type: () -> bool
-        return True
 
     def __init__(self, mf, frozen=None, omega=0, with_df=None, **kwargs):
         super().__init__(mf)
@@ -359,8 +344,6 @@ class RMP2RI(EngPostSCFBase):
         self.with_df = with_df
         self.with_df_2 = None
         self.set(**kwargs)
-
-    kernel_energy_rmp2_ri = staticmethod(kernel_energy_rmp2_ri_incore)
 
     def driver_eng_mp2(self, **kwargs):
         mask = self.get_frozen_mask()
@@ -393,7 +376,7 @@ class RMP2RI(EngPostSCFBase):
             cderi_uov_2 = util.get_cderi_mo(self.with_df_2, mo_coeff_act, None, (0, nOcc, nOcc, nact), max_memory)
         # kernel
         max_memory = self.max_memory - lib.current_memory()[0]
-        results = self.kernel_energy_rmp2_ri(
+        results = self.kernel_energy_mp2(
             mo_energy_act, cderi_uov,
             t_oovv=t_oovv,
             frac_num=frac_num_act,
@@ -406,6 +389,7 @@ class RMP2RI(EngPostSCFBase):
         self.results.update(results)
         return results
 
+    kernel_energy_mp2 = staticmethod(kernel_energy_rmp2_ri_incore)
     kernel = driver_eng_mp2
 
 # endregion

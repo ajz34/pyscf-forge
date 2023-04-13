@@ -59,12 +59,6 @@ class EngPostSCFBase(lib.StreamObject, ABC):
         self.e_corr = NotImplemented
 
     @property
-    @abstractmethod
-    def restricted(self):
-        # type: () -> bool
-        raise NotImplemented
-
-    @property
     def scf(self):
         # type: () -> dft.rks.RKS or dft.uks.UKS or dft.rks.KohnShamDFT
         """ A more linting favourable replacement of attribute ``_scf``. """

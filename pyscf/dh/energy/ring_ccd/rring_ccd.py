@@ -1,3 +1,21 @@
+r""" Restricted Ring-CCD.
+
+Notes
+-----
+
+For restricted case, ring-CCD should give direct-RPA (dRPA) energy.
+
+.. math::
+    \mathbf{T} &= - \frac{1}{\mathbf{\Delta \varepsilon}} \odot (\mathbf{B} - 2 \mathbf{B T} - 2
+    \mathbf{T B} + 4 \mathbf{T B T}) \\
+    E^\mathrm{dRPA, OS} = E^\mathrm{dRPA, SS} &= - \mathrm{tr} (\mathbf{T B})
+
+Equation here is similar but not the same to 10.1063/1.3043729.
+The formula of Scuseria's article (eq 9) applies to spin-orbital and thus no coefficients 2 or 4.
+More over, we evaluate :math:`B_{ia, jb} = (ia|jb)` to match result of direct-RPA (thus, we only evaluate
+direct ring-CCD instead of full ring-CCD).
+"""
+
 from pyscf.dh.energy import RDHBase
 from pyscf.dh import util
 from pyscf import ao2mo, lib
@@ -147,21 +165,3 @@ def kernel_energy_rring_ccd_conv(
     log.info(f"[RESULT] Energy corr ring-CCD of total    : {eng_drpa:18.10f}")
     return results
 
-
-driver_energy_rring_ccd.__doc__ += \
-    r"""
-    Notes
-    -----
-
-    For restricted case, ring-CCD should give direct-RPA (dRPA) energy.
-
-    .. math::
-        \mathbf{T} &= - \frac{1}{\mathbf{\Delta \varepsilon}} \odot (\mathbf{B} - 2 \mathbf{B T} - 2
-        \mathbf{T B} + 4 \mathbf{T B T}) \\
-        E^\mathrm{dRPA, OS} = E^\mathrm{dRPA, SS} &= - \mathrm{tr} (\mathbf{T B})
-    
-    Equation here is similar but not the same to 10.1063/1.3043729.
-    The formula of Scuseria's article (eq 9) applies to spin-orbital and thus no coefficients 2 or 4.
-    More over, we evaluate :math:`B_{ia, jb} = (ia|jb)` to match result of direct-RPA (thus, we only evaluate 
-    direct ring-CCD instead of full ring-CCD).
-    """

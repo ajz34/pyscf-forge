@@ -1,8 +1,8 @@
 r""" Unrestricted MP2.
 """
 
-from pyscf.dh.energy import UDHBase, EngPostSCFBase
 from pyscf.dh import util
+from pyscf.dh.energy.mp2.rmp2 import RMP2ConvPySCF, RMP2Conv, RMP2RI
 from pyscf import ao2mo, lib, mp, __config__, df
 import numpy as np
 
@@ -27,27 +27,9 @@ None
 
 # region UMP2ConvPySCF
 
-class UMP2ConvPySCF(mp.ump2.UMP2, EngPostSCFBase):
+class UMP2ConvPySCF(mp.ump2.UMP2, RMP2ConvPySCF):
     """ Unrestricted MP2 class of doubly hybrid with conventional integral evaluated by PySCF. """
-    def __init__(self, mf, *args, **kwargs):
-        EngPostSCFBase.__init__(self, mf)
-        super().__init__(mf, *args, **kwargs)
-
-    @property
-    def restricted(self):  # type: () -> bool
-        return False
-
-    def get_frozen_mask(self):  # type: () -> np.ndarray
-        return EngPostSCFBase.get_frozen_mask(self)
-
-    def driver_eng_mp2(self, *args, **kwargs):
-        kernel_output = super().kernel(*args, **kwargs)
-        self.results["eng_corr_MP2_OS"] = self.e_corr_os
-        self.results["eng_corr_MP2_SS"] = self.e_corr_ss
-        self.results["eng_corr_MP2"] = self.e_corr
-        return kernel_output
-
-    kernel = driver_eng_mp2
+    pass
 
 # endregion
 
@@ -150,21 +132,8 @@ def kernel_energy_ump2_conv_full_incore(
     return results
 
 
-class UMP2Conv(EngPostSCFBase):
+class UMP2Conv(RMP2Conv):
     """ Unrestricted MP2 class of doubly hybrid with conventional integral. """
-    @property
-    def restricted(self):  # type: () -> bool
-        return False
-
-    def __init__(self, mf, frozen=None, omega=0, **kwargs):
-        super().__init__(mf)
-        self.omega = omega
-        self.incore_t_oovv_mp2 = CONFIG_incore_t_oovv_mp2
-        self.frozen = frozen if frozen is not None else 0
-        self.frac_num = None
-        self.set(**kwargs)
-
-    kernel_energy_rmp2_conv = staticmethod(kernel_energy_ump2_conv_full_incore)
 
     def driver_eng_mp2(self, **kwargs):
         mask = self.get_frozen_mask()
@@ -196,13 +165,14 @@ class UMP2Conv(EngPostSCFBase):
         with self.mol.with_range_coulomb(self.omega):
             eri_or_mol = self.scf._eri if self.omega == 0 else self.mol
             eri_or_mol = eri_or_mol if eri_or_mol is not None else self.mol
-            results = self.kernel_energy_rmp2_conv(
+            results = self.kernel_energy_mp2(
                 mo_energy_act, mo_coeff_act, eri_or_mol, nOcc, nVir,
                 t_oovv=t_oovv, frac_num=frac_num_act, verbose=self.verbose, **kwargs)
         self.e_corr = results["eng_corr_MP2"]
         self.results.update(results)
         return results
 
+    kernel_energy_mp2 = staticmethod(kernel_energy_ump2_conv_full_incore)
     kernel = driver_eng_mp2
 
 # endregion
@@ -308,27 +278,8 @@ def kernel_energy_ump2_ri_incore(
     return results
 
 
-class UMP2RI(EngPostSCFBase):
+class UMP2RI(RMP2RI):
     """ Unrestricted MP2 class of doubly hybrid with RI integral. """
-    @property
-    def restricted(self):  # type: () -> bool
-        return False
-
-    def __init__(self, mf, frozen=None, omega=0, with_df=None, **kwargs):
-        super().__init__(mf)
-        self.omega = omega
-        self.incore_t_oovv_mp2 = CONFIG_incore_t_oovv_mp2
-        self.frozen = frozen if frozen is not None else 0
-        self.frac_num = None
-        if with_df is None:
-            with_df = getattr(self.scf, "with_df", None)
-        if with_df is None:
-            with_df = df.DF(self.mol, auxbasis=df.make_auxbasis(self.mol, mp2fit=True))
-        self.with_df = with_df
-        self.with_df_2 = None
-        self.set(**kwargs)
-
-    kernel_energy_ump2_ri = staticmethod(kernel_energy_ump2_ri_incore)
 
     def driver_eng_mp2(self, **kwargs):
         mask = self.get_frozen_mask()
@@ -378,7 +329,7 @@ class UMP2RI(EngPostSCFBase):
                     self.with_df_2, mo_coeff_act[s], None, (0, nOcc[s], nOcc[s], nact[s]), max_memory)
         # kernel
         max_memory = self.max_memory - lib.current_memory()[0]
-        results = self.kernel_energy_ump2_ri(
+        results = self.kernel_energy_mp2(
             mo_energy_act, cderi_uov,
             t_oovv=t_oovv,
             frac_num=frac_num_act,
@@ -391,6 +342,7 @@ class UMP2RI(EngPostSCFBase):
         self.results.update(results)
         return results
 
+    kernel_energy_mp2 = staticmethod(kernel_energy_ump2_ri_incore)
     kernel = driver_eng_mp2
 
 
