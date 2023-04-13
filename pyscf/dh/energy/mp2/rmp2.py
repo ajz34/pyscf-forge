@@ -104,7 +104,7 @@ class RMP2RIPySCF(mp.dfmp2.DFMP2, EngPostSCFBase):
 # region RMP2Conv
 
 def kernel_energy_rmp2_conv_full_incore(
-        mo_energy, mo_coeff, eri_or_mol, nocc, nvir,
+        mo_energy, mo_coeff, eri_or_mol, mo_occ,
         t_oovv=None, frac_num=None, verbose=lib.logger.NOTE, **_kwargs):
     """ Kernel of restricted MP2 energy by conventional method.
 
@@ -116,11 +116,8 @@ def kernel_energy_rmp2_conv_full_incore(
         Molecular coefficients.
     eri_or_mol : np.ndarray or gto.Mole
         ERI that is recognized by ``pyscf.ao2mo.general``.
-
-    nocc : int
-        Number of occupied orbitals.
-    nvir : int
-        Number of virtual orbitals.
+    mo_occ : np.ndarray
+        Molecular orbital occupation numbers.
 
     t_oovv : np.ndarray
         Store space for ``t_oovv``
@@ -142,16 +139,21 @@ def kernel_energy_rmp2_conv_full_incore(
     log.warn("Conventional integral of MP2 is not recommended!\n"
              "Use density fitting approximation is recommended.")
 
+    mask_occ = mo_occ != 0
+    mask_vir = mo_occ == 0
+    eo = mo_energy[mask_occ]
+    ev = mo_energy[mask_vir]
+    Co = mo_coeff[:, mask_occ]
+    Cv = mo_coeff[:, mask_vir]
+    nocc = mask_occ.sum()
+    nvir = mask_vir.sum()
+
     if frac_num is not None:
         frac_occ, frac_vir = frac_num[:nocc], frac_num[nocc:]
     else:
         frac_occ = frac_vir = None
 
     # ERI conversion
-    Co = mo_coeff[:, :nocc]
-    Cv = mo_coeff[:, nocc:]
-    eo = mo_energy[:nocc]
-    ev = mo_energy[nocc:]
     log.info("[INFO] Start ao2mo")
     g_iajb = ao2mo.general(eri_or_mol, (Co, Cv, Co, Cv)).reshape(nocc, nvir, nocc, nvir)
 
@@ -204,18 +206,19 @@ class RMP2Conv(EngPostSCFBase):
 
     def driver_eng_mp2(self, **kwargs):
         mask = self.get_frozen_mask()
-        nOcc = (mask & (self.mo_occ != 0)).sum()
-        nVir = (mask & (self.mo_occ == 0)).sum()
+        nocc_act = (mask & (self.mo_occ != 0)).sum()
+        nvir_act = (mask & (self.mo_occ == 0)).sum()
         mo_coeff_act = self.mo_coeff[:, mask]
         mo_energy_act = self.mo_energy[mask]
+        mo_occ_act = self.mo_occ[mask]
         frac_num_act = self.frac_num
         if frac_num_act is not None:
             frac_num_act = frac_num_act[mask]
         # prepare t_oovv
         max_memory = self.max_memory - lib.current_memory()[0]
         t_oovv = util.allocate_array(
-            self.incore_t_oovv_mp2, (nOcc, nOcc, nVir, nVir), max_memory,
-            h5file=self._tmpfile, name="t_oovv_mp2", zero_init=False, chunk=(1, 1, nVir, nVir),
+            self.incore_t_oovv_mp2, (nocc_act, nocc_act, nvir_act, nvir_act), max_memory,
+            h5file=self._tmpfile, name="t_oovv_mp2", zero_init=False, chunk=(1, 1, nvir_act, nvir_act),
             dtype=mo_coeff_act.dtype)
         if t_oovv is not None:
             self.tensors["t_oovv"] = t_oovv
@@ -224,7 +227,7 @@ class RMP2Conv(EngPostSCFBase):
             eri_or_mol = self.scf._eri if self.omega == 0 else self.mol
             eri_or_mol = eri_or_mol if eri_or_mol is not None else self.mol
             results = self.kernel_energy_mp2(
-                mo_energy_act, mo_coeff_act, eri_or_mol, nOcc, nVir,
+                mo_energy_act, mo_coeff_act, eri_or_mol, mo_occ_act,
                 t_oovv=t_oovv, frac_num=frac_num_act, verbose=self.verbose, **kwargs)
         self.e_corr = results["eng_corr_MP2"]
         self.results.update(results)
@@ -347,9 +350,9 @@ class RMP2RI(EngPostSCFBase):
 
     def driver_eng_mp2(self, **kwargs):
         mask = self.get_frozen_mask()
-        nOcc = (mask & (self.mo_occ != 0)).sum()
-        nVir = (mask & (self.mo_occ == 0)).sum()
-        nact = nOcc + nVir
+        nocc_act = (mask & (self.mo_occ != 0)).sum()
+        nvir_act = (mask & (self.mo_occ == 0)).sum()
+        nact = nocc_act + nvir_act
         mo_coeff_act = self.mo_coeff[:, mask]
         mo_energy_act = self.mo_energy[mask]
         frac_num_act = self.frac_num
@@ -358,8 +361,8 @@ class RMP2RI(EngPostSCFBase):
         # prepare t_oovv
         max_memory = self.max_memory - lib.current_memory()[0]
         t_oovv = util.allocate_array(
-            self.incore_t_oovv_mp2, (nOcc, nOcc, nVir, nVir), max_memory,
-            h5file=self._tmpfile, name="t_oovv_mp2", zero_init=False, chunk=(1, 1, nVir, nVir),
+            self.incore_t_oovv_mp2, (nocc_act, nocc_act, nvir_act, nvir_act), max_memory,
+            h5file=self._tmpfile, name="t_oovv_mp2", zero_init=False, chunk=(1, 1, nvir_act, nvir_act),
             dtype=mo_coeff_act.dtype)
         # generate cderi_uov
         omega = self.omega
@@ -367,13 +370,15 @@ class RMP2RI(EngPostSCFBase):
         max_memory = self.max_memory - lib.current_memory()[0]
         cderi_uov = self.tensors.get("cderi_uov", None)
         if cderi_uov is None:
-            cderi_uov = util.get_cderi_mo(with_df, mo_coeff_act, None, (0, nOcc, nOcc, nact), max_memory)
+            cderi_uov = util.get_cderi_mo(
+                with_df, mo_coeff_act, None, (0, nocc_act, nocc_act, nact), max_memory)
             self.tensors["cderi_uov"] = cderi_uov
         # cderi_uov_2 is rarely called, so do not try to build omega for this special case
         cderi_uov_2 = None
         max_memory = self.max_memory - lib.current_memory()[0]
         if self.with_df_2 is not None:
-            cderi_uov_2 = util.get_cderi_mo(self.with_df_2, mo_coeff_act, None, (0, nOcc, nOcc, nact), max_memory)
+            cderi_uov_2 = util.get_cderi_mo(
+                self.with_df_2, mo_coeff_act, None, (0, nocc_act, nocc_act, nact), max_memory)
         # kernel
         max_memory = self.max_memory - lib.current_memory()[0]
         results = self.kernel_energy_mp2(

@@ -37,7 +37,7 @@ class UMP2ConvPySCF(mp.ump2.UMP2, RMP2ConvPySCF):
 # region UMP2Conv
 
 def kernel_energy_ump2_conv_full_incore(
-        mo_energy, mo_coeff, eri_or_mol, nocc, nvir,
+        mo_energy, mo_coeff, eri_or_mol, mo_occ,
         t_oovv=None, frac_num=None, verbose=lib.logger.NOTE):
     """ Kernel of unrestricted MP2 energy by conventional method.
 
@@ -52,10 +52,8 @@ def kernel_energy_ump2_conv_full_incore(
 
     t_oovv : list[np.ndarray]
         Store space for ``t_oovv``
-    nocc : list[int]
-        Number of occupied orbitals.
-    nvir : list[int]
-        Number of virtual orbitals.
+    mo_occ : list[np.ndarray]
+        Molecular orbitals occupation numbers.
 
     frac_num : list[np.ndarray]
         Fractional occupation number list.
@@ -78,6 +76,15 @@ def kernel_energy_ump2_conv_full_incore(
     log.warn("Conventional integral of MP2 is not recommended!\n"
              "Use density fitting approximation is recommended.")
 
+    mask_occ = [mo_occ[s] != 0 for s in (0, 1)]
+    mask_vir = [mo_occ[s] == 0 for s in (0, 1)]
+    nocc = tuple([mask_occ[s].sum() for s in (0, 1)])
+    nvir = tuple([mask_vir[s].sum() for s in (0, 1)])
+    Co = [mo_coeff[s][:, :nocc[s]] for s in (0, 1)]
+    Cv = [mo_coeff[s][:, nocc[s]:] for s in (0, 1)]
+    eo = [mo_energy[s][:nocc[s]] for s in (0, 1)]
+    ev = [mo_energy[s][nocc[s]:] for s in (0, 1)]
+
     if frac_num is not None:
         frac_occ = [frac_num[s][:nocc[s]] for s in (0, 1)]
         frac_vir = [frac_num[s][nocc[s]:] for s in (0, 1)]
@@ -85,10 +92,6 @@ def kernel_energy_ump2_conv_full_incore(
         frac_occ = frac_vir = None
 
     # ERI conversion
-    Co = [mo_coeff[s][:, :nocc[s]] for s in (0, 1)]
-    Cv = [mo_coeff[s][:, nocc[s]:] for s in (0, 1)]
-    eo = [mo_energy[s][:nocc[s]] for s in (0, 1)]
-    ev = [mo_energy[s][nocc[s]:] for s in (0, 1)]
     log.info("[INFO] Start ao2mo")
     g_iajb = [np.array([])] * 3
     for s0, s1, ss in zip((0, 0, 1), (0, 1, 1), (0, 1, 2)):
@@ -137,17 +140,18 @@ class UMP2Conv(RMP2Conv):
 
     def driver_eng_mp2(self, **kwargs):
         mask = self.get_frozen_mask()
-        nOcc = tuple((mask & (self.mo_occ != 0)).sum(axis=-1))
-        nVir = tuple((mask & (self.mo_occ == 0)).sum(axis=-1))
+        nocc_act = tuple((mask & (self.mo_occ != 0)).sum(axis=-1))
+        nvir_act = tuple((mask & (self.mo_occ == 0)).sum(axis=-1))
         mo_coeff_act = [self.mo_coeff[s][:, mask[s]] for s in (0, 1)]
         mo_energy_act = [self.mo_energy[s][mask[s]] for s in (0, 1)]
+        mo_occ_act = [self.mo_occ[s][mask[s]] for s in (0, 1)]
         frac_num_act = self.frac_num
         if frac_num_act is not None:
             frac_num_act = [frac_num_act[s][mask[s]] for s in (0, 1)]
         # prepare t_oovv
         max_memory = self.max_memory - lib.current_memory()[0]
         incore_t_oovv = util.parse_incore_flag(
-            self.incore_t_oovv_mp2, 3 * max(nOcc) ** 2 * max(nVir) ** 2,
+            self.incore_t_oovv_mp2, 3 * max(nocc_act) ** 2 * max(nvir_act) ** 2,
             max_memory, dtype=mo_coeff_act[0].dtype)
         if incore_t_oovv is None:
             t_oovv = None
@@ -155,7 +159,7 @@ class UMP2Conv(RMP2Conv):
             t_oovv = [np.zeros(0)] * 3  # IDE type cheat
             for s0, s1, ss, ssn in ((0, 0, 0, "aa"), (0, 1, 1, "ab"), (1, 1, 2, "bb")):
                 t_oovv[ss] = util.allocate_array(
-                    incore_t_oovv, shape=(nOcc[s0], nOcc[s1], nVir[s0], nVir[s1]),
+                    incore_t_oovv, shape=(nocc_act[s0], nocc_act[s1], nvir_act[s0], nvir_act[s1]),
                     max_memory=max_memory,
                     h5file=self._tmpfile,
                     name=f"t_oovv_{ssn}",
@@ -166,7 +170,7 @@ class UMP2Conv(RMP2Conv):
             eri_or_mol = self.scf._eri if self.omega == 0 else self.mol
             eri_or_mol = eri_or_mol if eri_or_mol is not None else self.mol
             results = self.kernel_energy_mp2(
-                mo_energy_act, mo_coeff_act, eri_or_mol, nOcc, nVir,
+                mo_energy_act, mo_coeff_act, eri_or_mol, mo_occ_act,
                 t_oovv=t_oovv, frac_num=frac_num_act, verbose=self.verbose, **kwargs)
         self.e_corr = results["eng_corr_MP2"]
         self.results.update(results)
@@ -283,8 +287,8 @@ class UMP2RI(RMP2RI):
 
     def driver_eng_mp2(self, **kwargs):
         mask = self.get_frozen_mask()
-        nOcc = tuple((mask & (self.mo_occ != 0)).sum(axis=-1))
-        nVir = tuple((mask & (self.mo_occ == 0)).sum(axis=-1))
+        nocc_act = tuple((mask & (self.mo_occ != 0)).sum(axis=-1))
+        nvir_act = tuple((mask & (self.mo_occ == 0)).sum(axis=-1))
         nact = tuple(mask.sum(axis=-1))
         mo_coeff_act = [self.mo_coeff[s][:, mask[s]] for s in (0, 1)]
         mo_energy_act = [self.mo_energy[s][mask[s]] for s in (0, 1)]
@@ -294,7 +298,7 @@ class UMP2RI(RMP2RI):
         # prepare t_oovv
         max_memory = self.max_memory - lib.current_memory()[0]
         incore_t_oovv = util.parse_incore_flag(
-            self.incore_t_oovv_mp2, 3 * max(nOcc) ** 2 * max(nVir) ** 2,
+            self.incore_t_oovv_mp2, 3 * max(nocc_act) ** 2 * max(nvir_act) ** 2,
             max_memory, dtype=mo_coeff_act[0].dtype)
         if incore_t_oovv is None:
             t_oovv = None
@@ -302,7 +306,7 @@ class UMP2RI(RMP2RI):
             t_oovv = [np.zeros(0)] * 3  # IDE type cheat
             for s0, s1, ss, ssn in ((0, 0, 0, "aa"), (0, 1, 1, "ab"), (1, 1, 2, "bb")):
                 t_oovv[ss] = util.allocate_array(
-                    incore_t_oovv, shape=(nOcc[s0], nOcc[s1], nVir[s0], nVir[s1]),
+                    incore_t_oovv, shape=(nocc_act[s0], nocc_act[s1], nvir_act[s0], nvir_act[s1]),
                     max_memory=max_memory,
                     h5file=self._tmpfile,
                     name=f"t_oovv_{ssn}",
@@ -317,7 +321,7 @@ class UMP2RI(RMP2RI):
             cderi_uov = [np.zeros(0)] * 2  # IDE type cheat
             for s in (0, 1):
                 cderi_uov[s] = util.get_cderi_mo(
-                    with_df, mo_coeff_act[s], None, (0, nOcc[s], nOcc[s], nact[s]), max_memory)
+                    with_df, mo_coeff_act[s], None, (0, nocc_act[s], nocc_act[s], nact[s]), max_memory)
             self.tensors["cderi_uov"] = cderi_uov
         # cderi_uov_2 is rarely called, so do not try to build omega for this special case
         cderi_uov_2 = None
@@ -326,7 +330,7 @@ class UMP2RI(RMP2RI):
             cderi_uov_2 = [np.zeros(0)] * 2  # IDE type cheat
             for s in (0, 1):
                 cderi_uov_2[s] = util.get_cderi_mo(
-                    self.with_df_2, mo_coeff_act[s], None, (0, nOcc[s], nOcc[s], nact[s]), max_memory)
+                    self.with_df_2, mo_coeff_act[s], None, (0, nocc_act[s], nocc_act[s], nact[s]), max_memory)
         # kernel
         max_memory = self.max_memory - lib.current_memory()[0]
         results = self.kernel_energy_mp2(
