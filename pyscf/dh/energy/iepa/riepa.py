@@ -327,9 +327,7 @@ class RIEPAConv(EngPostSCFBase):
         self.siepa_screen = erfc
         self.set(**kwargs)
 
-    kernel_energy_riepa = kernel_energy_riepa
-
-    def driver_eng_riepa(self, **_kwargs):
+    def driver_eng_iepa(self, **_kwargs):
         mask = self.get_frozen_mask()
         mask_occ = mask & (self.mo_occ != 0)
         mask_vir = mask & (self.mo_occ == 0)
@@ -351,7 +349,7 @@ class RIEPAConv(EngPostSCFBase):
         def gen_g_IJab(i, j):
             return g_iajb[i, :, j]
 
-        results = kernel_energy_riepa(
+        results = self.kernel_energy_iepa(
             mo_energy_act, gen_g_IJab, mo_occ_act,
             iepa_schemes=self.iepa_schemes,
             screen_func=self.siepa_screen,
@@ -364,7 +362,8 @@ class RIEPAConv(EngPostSCFBase):
         self.results.update(results)
         return results
 
-    kernel = driver_eng_riepa
+    kernel_energy_iepa = staticmethod(kernel_energy_riepa)
+    kernel = driver_eng_iepa
 
 
 class RIEPARI(EngPostSCFBase):
@@ -390,9 +389,7 @@ class RIEPARI(EngPostSCFBase):
         self.siepa_screen = erfc
         self.set(**kwargs)
 
-    kernel_energy_riepa = kernel_energy_riepa
-
-    def driver_eng_riepa(self, **_kwargs):
+    def driver_eng_iepa(self, **_kwargs):
         mask = self.get_frozen_mask()
         mask_occ = mask & (self.mo_occ != 0)
         mo_occ_act = self.mo_occ[mask]
@@ -412,7 +409,7 @@ class RIEPARI(EngPostSCFBase):
         def gen_g_IJab(i, j):
             return cderi_uov[:, i].T @ cderi_uov[:, j]
 
-        results = kernel_energy_riepa(
+        results = self.kernel_energy_iepa(
             mo_energy_act, gen_g_IJab, mo_occ_act,
             iepa_schemes=self.iepa_schemes,
             screen_func=self.siepa_screen,
@@ -425,7 +422,8 @@ class RIEPARI(EngPostSCFBase):
         self.results.update(results)
         return results
 
-    kernel = driver_eng_riepa
+    kernel_energy_iepa = staticmethod(kernel_energy_riepa)
+    kernel = driver_eng_iepa
 
 
 if __name__ == '__main__':
