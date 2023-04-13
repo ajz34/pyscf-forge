@@ -49,6 +49,8 @@ None
     If tensor size exceeds this size (in MBytes), then store in disk.
 """
 
+CONFIG_etb_first = getattr(__config__, "etb_first", False)
+
 
 # region RMP2ConvPySCF
 
@@ -343,7 +345,9 @@ class RMP2RI(EngBase):
         if with_df is None:
             with_df = getattr(self.scf, "with_df", None)
         if with_df is None:
-            with_df = df.DF(self.mol, auxbasis=df.make_auxbasis(self.mol, mp2fit=True))
+            mol = self.mol
+            auxbasis = df.aug_etb(mol) if CONFIG_etb_first else df.make_auxbasis(mol, mp2fit=True)
+            with_df = df.DF(self.mol, auxbasis=auxbasis)
         self.with_df = with_df
         self.with_df_2 = None
         self.set(**kwargs)

@@ -10,6 +10,7 @@ import warnings
 CONFIG_tol_eng_pair_iepa = getattr(__config__, "tol_eng_pair_iepa", 1e-10)
 CONFIG_max_cycle_iepa = getattr(__config__, "max_cycle_iepa", 64)
 CONFIG_iepa_schemes = getattr(__config__, "iepa_schemes", ["MP2", "IEPA", "sIEPA", "MP2cr"])
+CONFIG_etb_first = getattr(__config__, "etb_first", False)
 
 
 def kernel_energy_riepa(
@@ -370,7 +371,9 @@ class RIEPARI(EngBase):
         if with_df is None:
             with_df = getattr(self.scf, "with_df", None)
         if with_df is None:
-            with_df = df.DF(self.mol, auxbasis=df.make_auxbasis(self.mol, mp2fit=True))
+            mol = self.mol
+            auxbasis = df.aug_etb(mol) if CONFIG_etb_first else df.make_auxbasis(mol, mp2fit=True)
+            with_df = df.DF(self.mol, auxbasis=auxbasis)
         self.with_df = with_df
         self.frozen = frozen if frozen is not None else 0
         self.conv_tol = CONFIG_tol_eng_pair_iepa
