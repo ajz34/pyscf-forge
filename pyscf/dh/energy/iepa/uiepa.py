@@ -180,10 +180,6 @@ def get_ump2cr_norm(n2_aa, n2_ab, n2_bb):
 class UIEPAConv(RIEPAConv):
     """ Unrestricted IEPA-like class of doubly hybrid with conventional integral. """
 
-    @property
-    def restricted(self):  # type: () -> bool
-        return False
-
     def driver_eng_iepa(self, **_kwargs):
         log = lib.logger.new_logger(verbose=self.verbose)
         mask = self.get_frozen_mask()
@@ -239,10 +235,6 @@ class UIEPAConv(RIEPAConv):
 
 class UIEPARI(RIEPARI):
     """ Unrestricted IEPA-like class of doubly hybrid with RI integral. """
-
-    @property
-    def restricted(self):  # type: () -> bool
-        return False
 
     def driver_eng_iepa(self, **_kwargs):
         log = lib.logger.new_logger(verbose=self.verbose)

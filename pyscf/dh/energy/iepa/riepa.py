@@ -8,7 +8,7 @@ from scipy.special import erfc
 import warnings
 
 CONFIG_tol_eng_pair_iepa = getattr(__config__, "tol_eng_pair_iepa", 1e-10)
-CONFIG_max_cycle_pair_iepa = getattr(__config__, "max_cycle_pair_iepa", 64)
+CONFIG_max_cycle_iepa = getattr(__config__, "max_cycle_iepa", 64)
 CONFIG_iepa_schemes = getattr(__config__, "iepa_schemes", ["MP2", "IEPA", "sIEPA", "MP2cr"])
 
 
@@ -312,17 +312,12 @@ def get_rmp2cr2_norm(n2_aa, n2_ab):
 class RIEPAConv(EngPostSCFBase):
     """ Restricted IEPA-like class of doubly hybrid with conventional integral. """
 
-    @property
-    def restricted(self):  # type: () -> bool
-        return True
-
     def __init__(self, mf, frozen=None, omega=0, **kwargs):
         super().__init__(mf)
         self.omega = omega
         self.frozen = frozen if frozen is not None else 0
-        self.frac_num = None
         self.conv_tol = CONFIG_tol_eng_pair_iepa
-        self.max_cycle = CONFIG_max_cycle_pair_iepa
+        self.max_cycle = CONFIG_max_cycle_iepa
         self.iepa_schemes = CONFIG_iepa_schemes
         self.siepa_screen = erfc
         self.set(**kwargs)
@@ -369,10 +364,6 @@ class RIEPAConv(EngPostSCFBase):
 class RIEPARI(EngPostSCFBase):
     """ Restricted IEPA-like class of doubly hybrid with RI integral. """
 
-    @property
-    def restricted(self):  # type: () -> bool
-        return True
-
     def __init__(self, mf, frozen=None, omega=0, with_df=None, **kwargs):
         super().__init__(mf)
         self.omega = omega
@@ -382,9 +373,8 @@ class RIEPARI(EngPostSCFBase):
             with_df = df.DF(self.mol, auxbasis=df.make_auxbasis(self.mol, mp2fit=True))
         self.with_df = with_df
         self.frozen = frozen if frozen is not None else 0
-        self.frac_num = None
         self.conv_tol = CONFIG_tol_eng_pair_iepa
-        self.max_cycle = CONFIG_max_cycle_pair_iepa
+        self.max_cycle = CONFIG_max_cycle_iepa
         self.iepa_schemes = CONFIG_iepa_schemes
         self.siepa_screen = erfc
         self.set(**kwargs)
