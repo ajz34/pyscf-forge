@@ -16,7 +16,7 @@ More over, we evaluate :math:`B_{ia, jb} = (ia|jb)` to match result of direct-RP
 direct ring-CCD instead of full ring-CCD).
 """
 
-from pyscf.dh.energy import EngPostSCFBase
+from pyscf.dh.energy import EngBase
 from pyscf import ao2mo, lib, __config__
 import numpy as np
 
@@ -115,7 +115,7 @@ def kernel_energy_rring_ccd_conv(
     return results
 
 
-class RRingCCDConv(EngPostSCFBase):
+class RRingCCDConv(EngBase):
     """ Restricted Ring-CCD class of doubly hybrid with conventional integral. """
 
     def __init__(self, mf, frozen=None, omega=0, **kwargs):

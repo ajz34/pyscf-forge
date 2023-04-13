@@ -1,10 +1,10 @@
 from pyscf import lib, dh
-from abc import ABC, abstractmethod
+from abc import ABC
 import numpy as np
 from pyscf import gto, dft, df, scf
 
 
-class EngPostSCFBase(lib.StreamObject, ABC):
+class EngBase(lib.StreamObject, ABC):
     """ Base class of post-SCF energy component evaluation.
 
     Attributes
@@ -60,7 +60,7 @@ class EngPostSCFBase(lib.StreamObject, ABC):
 
     @property
     def scf(self):
-        # type: () -> dft.rks.RKS or dft.uks.UKS or dft.rks.KohnShamDFT
+        # type: () -> dft.rks.RKS
         """ A more linting favourable replacement of attribute ``_scf``. """
         return self._scf
 

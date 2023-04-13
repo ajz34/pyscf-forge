@@ -1,8 +1,10 @@
 from . import options
 
-from .dhbase import EngPostSCFBase
+from .dhbase import EngBase
 from .rdhbase import RDHBase
 from .udhbase import UDHBase
+
+from .rdft import RSCF, RDFT
 
 from . import mp2, iepa
 from .mp2 import (

@@ -27,7 +27,7 @@ This class does not perform MP2 amplitude iteration algorithm, and assuming Fock
 molecular-orbital representation.
 """
 
-from pyscf.dh.energy import EngPostSCFBase
+from pyscf.dh.energy import EngBase
 from pyscf.dh import util
 from pyscf import ao2mo, lib, mp, __config__, df
 import numpy as np
@@ -52,14 +52,14 @@ None
 
 # region RMP2ConvPySCF
 
-class RMP2ConvPySCF(mp.mp2.RMP2, EngPostSCFBase):
+class RMP2ConvPySCF(mp.mp2.RMP2, EngBase):
     """ Restricted MP2 class of doubly hybrid with conventional integral evaluated by PySCF. """
     def __init__(self, mf, *args, **kwargs):
-        EngPostSCFBase.__init__(self, mf)
+        EngBase.__init__(self, mf)
         super().__init__(mf, *args, **kwargs)
 
     def get_frozen_mask(self):  # type: () -> np.ndarray
-        return EngPostSCFBase.get_frozen_mask(self)
+        return EngBase.get_frozen_mask(self)
 
     def driver_eng_mp2(self, *args, **kwargs):
         kernel_output = super().kernel(*args, **kwargs)
@@ -75,7 +75,7 @@ class RMP2ConvPySCF(mp.mp2.RMP2, EngPostSCFBase):
 
 # region RMP2RIPySCF
 
-class RMP2RIPySCF(mp.dfmp2.DFMP2, EngPostSCFBase):
+class RMP2RIPySCF(mp.dfmp2.DFMP2, EngBase):
     """ Restricted MP2 class of doubly hybrid with RI integral evaluated by PySCF. """
 
     def nuc_grad_method(self):
@@ -85,11 +85,11 @@ class RMP2RIPySCF(mp.dfmp2.DFMP2, EngPostSCFBase):
         raise NotImplementedError
 
     def __init__(self, mf, *args, **kwargs):
-        EngPostSCFBase.__init__(self, mf)
+        EngBase.__init__(self, mf)
         super().__init__(mf, *args, **kwargs)
 
     def get_frozen_mask(self):  # type: () -> np.ndarray
-        return EngPostSCFBase.get_frozen_mask(self)
+        return EngBase.get_frozen_mask(self)
 
     def driver_eng_mp2(self, *args, **kwargs):
         kernel_output = super().kernel(*args, **kwargs)
@@ -193,7 +193,7 @@ def kernel_energy_rmp2_conv_full_incore(
     return results
 
 
-class RMP2Conv(EngPostSCFBase):
+class RMP2Conv(EngBase):
     """ Restricted MP2 class of doubly hybrid with conventional integral. """
 
     def __init__(self, mf, frozen=None, omega=0, **kwargs):
@@ -331,7 +331,7 @@ def kernel_energy_rmp2_ri_incore(
     return results
 
 
-class RMP2RI(EngPostSCFBase):
+class RMP2RI(EngBase):
     """ Restricted MP2 class of doubly hybrid with RI integral. """
 
     def __init__(self, mf, frozen=None, omega=0, with_df=None, **kwargs):

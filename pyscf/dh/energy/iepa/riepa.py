@@ -1,6 +1,6 @@
 r""" Restricted IEPA-like methods. """
 
-from pyscf.dh.energy import EngPostSCFBase
+from pyscf.dh.energy import EngBase
 from pyscf.dh import util
 from pyscf import lib, ao2mo, __config__, df
 import numpy as np
@@ -309,7 +309,7 @@ def get_rmp2cr2_norm(n2_aa, n2_ab):
     return norm
 
 
-class RIEPAConv(EngPostSCFBase):
+class RIEPAConv(EngBase):
     """ Restricted IEPA-like class of doubly hybrid with conventional integral. """
 
     def __init__(self, mf, frozen=None, omega=0, **kwargs):
@@ -361,7 +361,7 @@ class RIEPAConv(EngPostSCFBase):
     kernel = driver_eng_iepa
 
 
-class RIEPARI(EngPostSCFBase):
+class RIEPARI(EngBase):
     """ Restricted IEPA-like class of doubly hybrid with RI integral. """
 
     def __init__(self, mf, frozen=None, omega=0, with_df=None, **kwargs):
