@@ -5,6 +5,7 @@ from .rdhbase import RDHBase
 from .udhbase import UDHBase
 
 from .rdft import RSCF, RDFT
+from .udft import USCF, UDFT
 
 from . import mp2, iepa
 from .mp2 import (

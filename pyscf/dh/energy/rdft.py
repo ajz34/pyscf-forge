@@ -325,7 +325,7 @@ class RSCF(EngBase):
     It's better to initialize this object first, before actually running SCF iterations.
     """
 
-    def __init__(self, mf, xc, flags=None):
+    def __init__(self, mf, xc):
         super().__init__(mf)
         self.xc = xc  # type: XCList
         if isinstance(self.xc, str):
