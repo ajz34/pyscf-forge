@@ -13,6 +13,27 @@ CONFIG_iepa_schemes = getattr(__config__, "iepa_schemes", ["MP2", "IEPA", "sIEPA
 CONFIG_etb_first = getattr(__config__, "etb_first", False)
 
 
+class IEPABase(EngBase):
+    """ Restricted IEPA-like base class. """
+
+    def __init__(self, mf, frozen=None, omega=0, with_df=None, **kwargs):
+        super().__init__(mf)
+        self.omega = omega
+        self.frozen = frozen if frozen is not None else 0
+        self.conv_tol = CONFIG_tol_eng_pair_iepa
+        self.max_cycle = CONFIG_max_cycle_iepa
+        self.iepa_schemes = CONFIG_iepa_schemes
+        self.siepa_screen = erfc
+        if with_df is None:
+            with_df = getattr(self.scf, "with_df", None)
+        if with_df is None:
+            mol = self.mol
+            auxbasis = df.aug_etb(mol) if CONFIG_etb_first else df.make_auxbasis(mol, mp2fit=True)
+            with_df = df.DF(self.mol, auxbasis=auxbasis)
+        self.with_df = with_df
+        self.set(**kwargs)
+
+
 def kernel_energy_riepa(
     mo_energy, gen_g_IJab, mo_occ, iepa_schemes,
     screen_func=erfc,
@@ -310,18 +331,8 @@ def get_rmp2cr2_norm(n2_aa, n2_ab):
     return norm
 
 
-class RIEPAConv(EngBase):
+class RIEPAConv(IEPABase):
     """ Restricted IEPA-like class of doubly hybrid with conventional integral. """
-
-    def __init__(self, mf, frozen=None, omega=0, **kwargs):
-        super().__init__(mf)
-        self.omega = omega
-        self.frozen = frozen if frozen is not None else 0
-        self.conv_tol = CONFIG_tol_eng_pair_iepa
-        self.max_cycle = CONFIG_max_cycle_iepa
-        self.iepa_schemes = CONFIG_iepa_schemes
-        self.siepa_screen = erfc
-        self.set(**kwargs)
 
     def driver_eng_iepa(self, **_kwargs):
         mask = self.get_frozen_mask()
@@ -362,25 +373,8 @@ class RIEPAConv(EngBase):
     kernel = driver_eng_iepa
 
 
-class RIEPARI(EngBase):
+class RIEPARI(IEPABase):
     """ Restricted IEPA-like class of doubly hybrid with RI integral. """
-
-    def __init__(self, mf, frozen=None, omega=0, with_df=None, **kwargs):
-        super().__init__(mf)
-        self.omega = omega
-        if with_df is None:
-            with_df = getattr(self.scf, "with_df", None)
-        if with_df is None:
-            mol = self.mol
-            auxbasis = df.aug_etb(mol) if CONFIG_etb_first else df.make_auxbasis(mol, mp2fit=True)
-            with_df = df.DF(self.mol, auxbasis=auxbasis)
-        self.with_df = with_df
-        self.frozen = frozen if frozen is not None else 0
-        self.conv_tol = CONFIG_tol_eng_pair_iepa
-        self.max_cycle = CONFIG_max_cycle_iepa
-        self.iepa_schemes = CONFIG_iepa_schemes
-        self.siepa_screen = erfc
-        self.set(**kwargs)
 
     def driver_eng_iepa(self, **_kwargs):
         mask = self.get_frozen_mask()

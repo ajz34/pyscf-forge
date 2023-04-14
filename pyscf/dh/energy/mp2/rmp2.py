@@ -52,6 +52,25 @@ None
 CONFIG_etb_first = getattr(__config__, "etb_first", False)
 
 
+class MP2Base(EngBase):
+    """ Restricted MP2 base class. """
+
+    def __init__(self, mf, frozen=None, omega=0, with_df=None, **kwargs):
+        super().__init__(mf)
+        self.omega = omega
+        self.incore_t_oovv_mp2 = CONFIG_incore_t_oovv_mp2
+        self.frozen = frozen if frozen is not None else 0
+        self.frac_num = None
+        if with_df is None:
+            with_df = getattr(self.scf, "with_df", None)
+        if with_df is None:
+            mol = self.mol
+            auxbasis = df.aug_etb(mol) if CONFIG_etb_first else df.make_auxbasis(mol, mp2fit=True)
+            with_df = df.DF(self.mol, auxbasis=auxbasis)
+        self.with_df = with_df
+        self.set(**kwargs)
+
+
 # region RMP2ConvPySCF
 
 class RMP2ConvPySCF(mp.mp2.RMP2, EngBase):
@@ -101,6 +120,8 @@ class RMP2RIPySCF(mp.dfmp2.DFMP2, EngBase):
         return kernel_output
 
     kernel = driver_eng_mp2
+
+# endregion
 
 
 # region RMP2Conv
@@ -195,16 +216,8 @@ def kernel_energy_rmp2_conv_full_incore(
     return results
 
 
-class RMP2Conv(EngBase):
+class RMP2Conv(MP2Base):
     """ Restricted MP2 class of doubly hybrid with conventional integral. """
-
-    def __init__(self, mf, frozen=None, omega=0, **kwargs):
-        super().__init__(mf)
-        self.omega = omega
-        self.incore_t_oovv_mp2 = CONFIG_incore_t_oovv_mp2
-        self.frozen = frozen if frozen is not None else 0
-        self.frac_num = None
-        self.set(**kwargs)
 
     def driver_eng_mp2(self, **kwargs):
         mask = self.get_frozen_mask()
@@ -333,24 +346,12 @@ def kernel_energy_rmp2_ri_incore(
     return results
 
 
-class RMP2RI(EngBase):
+class RMP2RI(MP2Base):
     """ Restricted MP2 class of doubly hybrid with RI integral. """
 
     def __init__(self, mf, frozen=None, omega=0, with_df=None, **kwargs):
-        super().__init__(mf)
-        self.omega = omega
-        self.incore_t_oovv_mp2 = CONFIG_incore_t_oovv_mp2
-        self.frozen = frozen if frozen is not None else 0
-        self.frac_num = None
-        if with_df is None:
-            with_df = getattr(self.scf, "with_df", None)
-        if with_df is None:
-            mol = self.mol
-            auxbasis = df.aug_etb(mol) if CONFIG_etb_first else df.make_auxbasis(mol, mp2fit=True)
-            with_df = df.DF(self.mol, auxbasis=auxbasis)
-        self.with_df = with_df
+        super().__init__(mf, frozen=frozen, omega=omega, with_df=with_df, **kwargs)
         self.with_df_2 = None
-        self.set(**kwargs)
 
     def driver_eng_mp2(self, **kwargs):
         mask = self.get_frozen_mask()

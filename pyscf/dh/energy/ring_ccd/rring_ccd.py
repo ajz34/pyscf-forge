@@ -17,13 +17,31 @@ direct ring-CCD instead of full ring-CCD).
 """
 
 from pyscf.dh.energy import EngBase
-from pyscf import ao2mo, lib, __config__
+from pyscf import ao2mo, lib, df, __config__
 import numpy as np
 
 
 CONFIG_tol_eng_ring_ccd = getattr(__config__, "tol_eng_ring_ccd", 1e-8)
 CONFIG_tol_amp_ring_ccd = getattr(__config__, "tol_amp_ring_ccd", 1e-6)
 CONFIG_max_cycle_ring_ccd = getattr(__config__, "max_cycle_ring_ccd", 64)
+CONFIG_etb_first = getattr(__config__, "etb_first", False)
+
+
+class RingCCDBase(EngBase):
+    def __init__(self, mf, frozen=None, omega=0, with_df=None, **kwargs):
+        super().__init__(mf)
+        self.omega = omega
+        self.frozen = frozen if frozen is not None else 0
+        self.conv_tol = CONFIG_tol_eng_ring_ccd
+        self.conv_tol_amp = CONFIG_tol_amp_ring_ccd
+        self.max_cycle = CONFIG_max_cycle_ring_ccd
+        if with_df is None:
+            with_df = getattr(self.scf, "with_df", None)
+        if with_df is None:
+            mol = self.mol
+            auxbasis = df.aug_etb(mol) if CONFIG_etb_first else df.make_auxbasis(mol, mp2fit=True)
+            with_df = df.DF(self.mol, auxbasis=auxbasis)
+        self.set(**kwargs)
 
 
 def kernel_energy_rring_ccd_conv(
@@ -115,7 +133,7 @@ def kernel_energy_rring_ccd_conv(
     return results
 
 
-class RRingCCDConv(EngBase):
+class RRingCCDConv(RingCCDBase):
     """ Restricted Ring-CCD class of doubly hybrid with conventional integral. """
 
     def __init__(self, mf, frozen=None, omega=0, **kwargs):
