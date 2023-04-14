@@ -1,7 +1,7 @@
 from pyscf.dh import util
 from pyscf.dh.util import XCList, XCType, XCInfo
 from pyscf.dh.energy import EngBase
-from pyscf import dft, lib, scf, __config__
+from pyscf import dft, lib, scf, df, __config__
 import numpy as np
 from types import MethodType
 
@@ -309,6 +309,67 @@ def numint_customized(xc, _mol=None):
     return ni_custom
 
 
+def custom_mf(mf, xc, auxbasis_or_with_df=None):
+    """ Customize options of PySCF's mf object.
+
+    - Check and customize numint if necessary
+    - Check and customize density fitting object if necessary
+
+    Parameters
+    ----------
+    mf : dft.rks.RKS or dft.uks.UKS
+        SCF object to be customized.
+    xc : XCList
+        Exchange-correlation list.
+    auxbasis_or_with_df : str or df.DF
+        Auxiliary basis definition.
+
+    Returns
+    -------
+    dft.rks.RKS or dft.uks.UKS
+    """
+    verbose = mf.verbose
+    log = lib.logger.new_logger(verbose=verbose)
+    restricted = isinstance(mf, scf.hf.RHF)
+
+    # transform to dft class if necessary
+    if not hasattr(mf, "xc"):
+        log.note("[INFO] Input SCF instance is not KS. Transfer to KS instance.")
+        converged = mf.converged
+        if restricted:
+            mf = mf.to_rks()
+        else:
+            mf = mf.to_uks()
+        mf.converged = converged
+
+    # check whether xc code is the same to SCF object; if not, substitute it
+    if XCList(mf.xc, code_scf=False).token != xc.token:
+        log.note("[INFO] Exchange-correlation is not the same to SCF object. Change xc of SCF.")
+        try:
+            ni = mf._numint  # type: dft.numint.NumInt
+            ni._xc_type(xc.token)
+            mf.xc = xc.token
+        except (KeyError, ValueError):
+            mf._numint = numint_customized(xc)
+        mf.converged = False
+
+    # change to with_df object
+    if auxbasis_or_with_df is not None:
+        if not isinstance(auxbasis_or_with_df, df.DF):
+            with_df = df.DF(mf.mol, auxbasis=auxbasis_or_with_df)
+        else:
+            with_df = auxbasis_or_with_df
+        if not hasattr(mf, "with_df"):
+            mf = mf.density_fit(with_df=with_df)
+            mf.converged = False
+        else:
+            if mf.with_df.auxbasis != with_df.auxbasis:
+                mf.with_df = with_df
+                mf.converged = False
+
+    return mf
+
+
 class RSCF(EngBase):
     """ Restricted SCF wrapper class of convenience.
 
@@ -334,36 +395,13 @@ class RSCF(EngBase):
             if xc_scf != xc_eng:
                 raise ValueError("Given energy functional contains part that could not handle with SCF!")
             self.xc = xc_scf
-        self.initialize()
+        else:
+            xc_scf = self.xc
+        self._scf = custom_mf(mf, xc_scf)
 
     @property
     def restricted(self):
         return isinstance(self.scf, scf.rhf.RHF)
-
-    def initialize(self):
-        """ Initialize RSCF object and remove  """
-        log = lib.logger.new_logger(verbose=self.verbose)
-
-        # transform to dft class if necessary
-        if not hasattr(self.scf, "xc"):
-            log.note("[INFO] Input SCF instance is not KS. Transfer to KS instance.")
-            converged = self.scf.converged
-            if self.restricted:
-                self._scf = self.scf.to_rks()
-            else:
-                self._scf = self.scf.to_uks()
-            self.scf.converged = converged
-
-        # check whether xc code is the same to SCF object; if not, substitute it
-        if self.scf.xc != self.xc.token:
-            log.note("[INFO] Exchange-correlation is not the same to SCF object. Change xc of SCF.")
-            try:
-                ni = self.scf._numint  # type: dft.numint.NumInt
-                ni._xc_type(self.xc.token)
-                self.scf.xc = self.xc.token
-            except (KeyError, ValueError):
-                self.scf._numint = numint_customized(self.xc)
-            self.scf.converged = False
 
     @property
     def e_tot(self) -> float:

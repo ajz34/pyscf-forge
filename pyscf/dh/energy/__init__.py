@@ -14,5 +14,3 @@ from .mp2 import (
 from .iepa import (RIEPAConv, RIEPARI, UIEPAConv, UIEPARI)
 from .ring_ccd import RRingCCDConv
 
-from .rdh import RDH
-from .udh import UDH

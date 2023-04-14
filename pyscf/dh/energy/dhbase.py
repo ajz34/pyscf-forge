@@ -143,3 +143,21 @@ class EngBase(lib.StreamObject, ABC):
                 frozen = self.frozen
             frozen_core = dh.util.FrozenCore(self.mol, self.mo_occ, rule=frozen)
             return frozen_core.mask
+
+    @classmethod
+    def from_rdh(cls, mf_dh: "EngBase", *args):
+        """ Build a new (inherited) instance by a base EngBase instance.
+
+        Only some attributes are copied. Excluded attributes including
+        - ``results``
+        - ``tensors``
+        - ``_tmpfile``
+        - ``e_corr``
+        """
+        mf_new = cls(*args)
+        mf_new.with_df = mf_dh.with_df
+        mf_new.frozen = mf_dh.frozen
+        mf_new.verbose = mf_dh.verbose
+        mf_new.max_memory = mf_dh.max_memory
+        mf_new.base = mf_dh
+        return mf_new
