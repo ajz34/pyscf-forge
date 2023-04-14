@@ -5,6 +5,8 @@ from pyscf import lib, ao2mo
 import numpy as np
 from scipy.special import erfc
 
+from pyscf.dh.util import pad_omega
+
 
 def kernel_energy_uiepa(
         mo_energy, gen_g_IJab, mo_occ, iepa_schemes,
@@ -226,6 +228,8 @@ class UIEPAConv(RIEPAConv):
             verbose=self.verbose
         )
 
+        # pad omega
+        results = {pad_omega(key, self.omega): val for (key, val) in results.items()}
         self.results.update(results)
         return results
 
@@ -271,6 +275,8 @@ class UIEPARI(RIEPARI):
             verbose=self.verbose
         )
 
+        # pad omega
+        results = {pad_omega(key, self.omega): val for (key, val) in results.items()}
         self.results.update(results)
         return results
 

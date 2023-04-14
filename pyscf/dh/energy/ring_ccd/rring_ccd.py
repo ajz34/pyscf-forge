@@ -20,6 +20,7 @@ from pyscf.dh.energy import EngBase
 from pyscf import ao2mo, lib, df, __config__
 import numpy as np
 
+from pyscf.dh.util import pad_omega
 
 CONFIG_tol_eng_ring_ccd = getattr(__config__, "tol_eng_ring_ccd", 1e-8)
 CONFIG_tol_amp_ring_ccd = getattr(__config__, "tol_amp_ring_ccd", 1e-6)
@@ -165,6 +166,8 @@ class RRingCCDConv(RingCCDBase):
                 max_cycle=self.max_cycle,
                 verbose=self.verbose
             )
+        # pad omega
+        results = {pad_omega(key, self.omega): val for (key, val) in results.items()}
         self.results.update(results)
         return results
 

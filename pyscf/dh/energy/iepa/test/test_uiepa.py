@@ -3,6 +3,8 @@ from pyscf import gto, scf, mp, df, dft, dh
 from pyscf.dh import RIEPAConv, UIEPAConv, RIEPARI, UIEPARI
 import numpy as np
 
+from pyscf.dh.util import pad_omega
+
 
 def get_mf_h2o_hf():
     mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="cc-pVTZ").build()
@@ -25,40 +27,40 @@ class TestEngUIEPA(unittest.TestCase):
         mf_s_res = self.mf_h2o_hf_res
         mf_dh = UIEPAConv(mf_s).run(iepa_schemes=["MP2", "MP2CR", "IEPA", "SIEPA"])
         mf_dh_res = RIEPAConv(mf_s_res).run(iepa_schemes=["MP2", "MP2CR", "IEPA", "SIEPA"])
-        keys = [f"eng_corr_{scheme}" for scheme in ["MP2", "MP2CR", "IEPA", "SIEPA"]]
+        keys_omega_0 = [f"eng_corr_{scheme}" for scheme in ["MP2", "MP2CR", "IEPA", "SIEPA"]]
         results_omega_0 = mf_dh.results
-        for key in keys:
+        for key in keys_omega_0:
             self.assertAlmostEqual(mf_dh.results[key], mf_dh_res.results[key], 8)
 
         mf_dh = UIEPAConv(mf_s).run(iepa_schemes=["MP2", "MP2CR", "IEPA", "SIEPA"], omega=0.7)
         mf_dh_res = RIEPAConv(mf_s_res).run(iepa_schemes=["MP2", "MP2CR", "IEPA", "SIEPA"], omega=0.7)
-        keys = [f"eng_corr_{scheme}" for scheme in ["MP2", "MP2CR", "IEPA", "SIEPA"]]
+        keys_omega_0p7 = [pad_omega(f"eng_corr_{scheme}", mf_dh.omega) for scheme in ["MP2", "MP2CR", "IEPA", "SIEPA"]]
         results_omega_0p7 = mf_dh.results
-        for key in keys:
+        for key in keys_omega_0p7:
             self.assertAlmostEqual(mf_dh.results[key], mf_dh_res.results[key], 8)
 
-        for key in keys:
-            self.assertNotAlmostEqual(results_omega_0[key], results_omega_0p7[key], 3)
+        for key_0, key_0p7 in zip(keys_omega_0, keys_omega_0p7):
+            self.assertNotAlmostEqual(results_omega_0[key_0], results_omega_0p7[key_0p7], 3)
 
     def test_eng_uiepa_ri_by_riepa(self):
         mf_s = self.mf_h2o_hf
         mf_s_res = self.mf_h2o_hf_res
         mf_dh = UIEPARI(mf_s).run(iepa_schemes=["MP2", "MP2CR", "IEPA", "SIEPA"])
         mf_dh_res = RIEPARI(mf_s_res).run(iepa_schemes=["MP2", "MP2CR", "IEPA", "SIEPA"])
-        keys = [f"eng_corr_{scheme}" for scheme in ["MP2", "MP2CR", "IEPA", "SIEPA"]]
+        keys_omega_0 = [f"eng_corr_{scheme}" for scheme in ["MP2", "MP2CR", "IEPA", "SIEPA"]]
         results_omega_0 = mf_dh.results
-        for key in keys:
+        for key in keys_omega_0:
             self.assertAlmostEqual(mf_dh.results[key], mf_dh_res.results[key], 8)
 
         mf_dh = UIEPARI(mf_s).run(iepa_schemes=["MP2", "MP2CR", "IEPA", "SIEPA"], omega=0.7)
         mf_dh_res = RIEPARI(mf_s_res).run(iepa_schemes=["MP2", "MP2CR", "IEPA", "SIEPA"], omega=0.7)
-        keys = [f"eng_corr_{scheme}" for scheme in ["MP2", "MP2CR", "IEPA", "SIEPA"]]
+        keys_omega_0p7 = [pad_omega(f"eng_corr_{scheme}", mf_dh.omega) for scheme in ["MP2", "MP2CR", "IEPA", "SIEPA"]]
         results_omega_0p7 = mf_dh.results
-        for key in keys:
+        for key in keys_omega_0p7:
             self.assertAlmostEqual(mf_dh.results[key], mf_dh_res.results[key], 8)
 
-        for key in keys:
-            self.assertNotAlmostEqual(results_omega_0[key], results_omega_0p7[key], 3)
+        for key_0, key_0p7 in zip(keys_omega_0, keys_omega_0p7):
+            self.assertNotAlmostEqual(results_omega_0[key_0], results_omega_0p7[key_0p7], 3)
 
     def test_eng_uiepa_coverage(self):
         # coverage only, not testing correctness

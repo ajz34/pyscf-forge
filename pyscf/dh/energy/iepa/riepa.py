@@ -7,6 +7,8 @@ import numpy as np
 from scipy.special import erfc
 import warnings
 
+from pyscf.dh.util import pad_omega
+
 CONFIG_tol_eng_pair_iepa = getattr(__config__, "tol_eng_pair_iepa", 1e-10)
 CONFIG_max_cycle_iepa = getattr(__config__, "max_cycle_iepa", 64)
 CONFIG_iepa_schemes = getattr(__config__, "iepa_schemes", ["MP2", "IEPA", "sIEPA", "MP2cr"])
@@ -366,6 +368,8 @@ class RIEPAConv(IEPABase):
             verbose=self.verbose
         )
 
+        # pad omega
+        results = {pad_omega(key, self.omega): val for (key, val) in results.items()}
         self.results.update(results)
         return results
 
@@ -406,6 +410,8 @@ class RIEPARI(IEPABase):
             verbose=self.verbose,
         )
 
+        # pad omega
+        results = {pad_omega(key, self.omega): val for (key, val) in results.items()}
         self.results.update(results)
         return results
 

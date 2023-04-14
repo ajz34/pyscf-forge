@@ -1,6 +1,7 @@
 import unittest
 from pyscf import gto, scf, mp, df, df
 from pyscf.dh import RIEPARI, RIEPAConv
+from pyscf.dh.util import pad_omega
 
 
 def get_mf_h2o_hf():
@@ -148,8 +149,8 @@ class TestEngRIEPA(unittest.TestCase):
         with mf_s.mol.with_range_coulomb(omega):
             REF_PYSCF = mp.MP2(mf_s).run().e_corr
         REF = -0.024328429878736478
-        self.assertAlmostEqual(mf_dh.results["eng_corr_MP2"], REF_PYSCF)
-        self.assertAlmostEqual(mf_dh.results["eng_corr_MP2"], REF)
+        self.assertAlmostEqual(mf_dh.results[pad_omega("eng_corr_MP2", mf_dh.omega)], REF_PYSCF)
+        self.assertAlmostEqual(mf_dh.results[pad_omega("eng_corr_MP2", mf_dh.omega)], REF)
         # ri-mp2
         mf_dh = RIEPARI(mf_s).run(omega=0.7, iepa_schemes=["MP2"], with_df=df.DF(mol, df.aug_etb(mol)))
         # reference value of ri-mp2
@@ -158,8 +159,8 @@ class TestEngRIEPA(unittest.TestCase):
         with mf_s.mol.with_range_coulomb(omega):
             REF_PYSCF = DFMP2(mf_s).run().e_corr
         REF = -0.024328452034606485
-        self.assertAlmostEqual(mf_dh.results["eng_corr_MP2"], REF_PYSCF)
-        self.assertAlmostEqual(mf_dh.results["eng_corr_MP2"], REF)
+        self.assertAlmostEqual(mf_dh.results[pad_omega("eng_corr_MP2", mf_dh.omega)], REF_PYSCF)
+        self.assertAlmostEqual(mf_dh.results[pad_omega("eng_corr_MP2", mf_dh.omega)], REF)
 
         mf_s._eri = eri
 

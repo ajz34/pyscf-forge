@@ -6,6 +6,7 @@ from pyscf.dh.energy.mp2.rmp2 import RMP2ConvPySCF, RMP2Conv, RMP2RI
 from pyscf import ao2mo, lib, mp, __config__, df
 import numpy as np
 
+from pyscf.dh.util import pad_omega
 
 CONFIG_incore_t_oovv_mp2 = getattr(__config__, 'incore_t_oovv_mp2', None)
 """ Flag for MP2 amplitude tensor :math:`t_{ij}^{ab}` stored in memory or disk.
@@ -173,6 +174,8 @@ class UMP2Conv(RMP2Conv):
                 mo_energy_act, mo_coeff_act, eri_or_mol, mo_occ_act,
                 t_oovv=t_oovv, frac_num=frac_num_act, verbose=self.verbose, **kwargs)
         self.e_corr = results["eng_corr_MP2"]
+        # pad omega
+        results = {pad_omega(key, self.omega): val for (key, val) in results.items()}
         self.results.update(results)
         return results
 
@@ -343,6 +346,8 @@ class UMP2RI(RMP2RI):
         )
 
         self.e_corr = results["eng_corr_MP2"]
+        # pad omega
+        results = {pad_omega(key, self.omega): val for (key, val) in results.items()}
         self.results.update(results)
         return results
 
