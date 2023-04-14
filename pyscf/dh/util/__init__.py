@@ -21,7 +21,7 @@ File structure
 from .general import HybridDict, Params, DictWithDefault
 from .helper import (
     calc_batch_size, gen_batch, gen_leggauss_0_1, gen_leggauss_0_inf, sanity_dimension, check_real, parse_incore_flag,
-    pad_omega, allocate_array)
+    pad_omega, allocate_array, update_results)
 from .df_addon import get_cderi_mo, get_with_df_omega
 from .interface import get_default_options
 

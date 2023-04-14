@@ -266,3 +266,38 @@ def allocate_array(incore, shape, max_memory,
                 name = "".join(random.choices(string.ascii_letters, k=6))
         return h5file.create_dataset(name=name, shape=shape, chunk=chunk, dtype=dtype, **kwargs)
 
+
+def update_results(results, income_result, allow_overwrite=True, warn_overwrite=True):
+    """ Update results as dictionary with warnings.
+
+    This function may change attribute ``results``.
+
+    Parameters
+    ----------
+    results : dict
+        Result dictionary to be updated.
+    income_result : dict
+        Result dictionary to be merged into ``results``.
+    allow_overwrite : bool
+        Whether allows overwriting result dictionary.
+    warn_overwrite : bool
+        Whether warns overwriting result dictionary.
+    """
+    if not allow_overwrite or warn_overwrite:
+        keys_interset = set(income_result).intersection(results)
+        if len(keys_interset) != 0:
+            if not allow_overwrite:
+                raise KeyError(f"Overwrite results is not allowed!\nRepeated keys: {keys_interset}")
+            if warn_overwrite:
+                msg = "Key result overwrited!\n"
+                for key in keys_interset:
+                    # if results are very close, then warn muted; otherwise, it could be very annoying
+                    try:
+                        if np.allclose(income_result[key], results[key], atol=1e-10, rtol=1e-10):
+                            continue
+                    except TypeError:
+                        pass
+                    msg += f"Key: {key}, before {income_result[key]}, after {results[key]}\n"
+                    warnings.warn(msg)
+    results.update(income_result)
+    return results
