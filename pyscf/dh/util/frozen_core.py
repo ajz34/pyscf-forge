@@ -134,6 +134,8 @@ CONFIGURATION_FC = [
 
 
 class ElementConfiguration:
+    """ Class to parse electronic configuration table of an chemical element. """
+
     element: int
     """ Element charge of concern. Should between 0 to 118; no g orbitals accepted. """
 
@@ -213,64 +215,85 @@ class ElementConfiguration:
 
 
 class FrozenRuleBase:
+    """ Base class for frozen core rules. """
+
     active_levels: np.ndarray
+    """ Electrons to be active for each element and each shell (when ``is_active`` is True). """
     is_active: bool
+    """ Is this an active or frozen level. """
 
     def __init__(self):
         self.define_active_levels()
 
     def define_active_levels(self):
+        """ Defines frozen rule by implementing ``active_levels`` (119x4 array) and ``is_active`` (usually True).
+
+        Inherited classes should implement this function. """
         raise NotImplementedError("As a base class this should be implemented, or either override get_num_core.")
 
     def get_num_core(self, elem):
+        """ Get number of frozen electrons for an element.
+
+        Parameters
+        ----------
+        elem : str or int
+            Indicator of an element.
+
+        Returns
+        -------
+        int
+        """
         chrg = ElementConfiguration(elem).element
         return ElementConfiguration(elem).get_num_core_electrons(self.active_levels[chrg], self.is_active)
 
     def print_frozen_core_electrons(self):
         assert self.active_levels.shape == (len(CONFIGURATION_FC), MAX_ANG)
         list_num_core = [self.get_num_core(n) for n in range(len(CONFIGURATION_FC))]
-        str_num_core = [f" {s:>3d} " for s in list_num_core]
-        str_elem = [f" {elements._atom_symbol(s):>3} " for s in range(len(CONFIGURATION_FC))]
+        str_num_core = [f" {s:>3d}" for s in list_num_core]
+        str_elem = [f" {elements._atom_symbol(s):>3}" for s in range(len(CONFIGURATION_FC))]
         token = ""
         # layer 0
         token += str_elem[0] + "\n" + str_num_core[0] + "\n"
         # layer 1
-        token += "".join([str_elem[1], " " * 16 * 5, str_elem[2], "\n"])
-        token += "".join([str_num_core[1], " " * 16 * 5, str_num_core[2], "\n"])
+        token += "".join([str_elem[1], " " * 16 * 4, str_elem[2], "\n"])
+        token += "".join([str_num_core[1], " " * 16 * 4, str_num_core[2], "\n"])
         # layer 2-3
-        token += "".join([*str_elem[3:5], " " * 10 * 5, *str_elem[5:11], "\n"])
-        token += "".join([*str_num_core[3:5], " " * 10 * 5, *str_num_core[5:11], "\n"])
-        token += "".join([*str_elem[11:13], " " * 10 * 5, *str_elem[13:19], "\n"])
-        token += "".join([*str_num_core[11:13], " " * 10 * 5, *str_num_core[13:19], "\n"])
+        token += "".join([*str_elem[3:5], " " * 10 * 4, *str_elem[5:11], "\n"])
+        token += "".join([*str_num_core[3:5], " " * 10 * 4, *str_num_core[5:11], "\n"])
+        token += "".join([*str_elem[11:13], " " * 10 * 4, *str_elem[13:19], "\n"])
+        token += "".join([*str_num_core[11:13], " " * 10 * 4, *str_num_core[13:19], "\n"])
         # layer 4-5
         token += "".join([*str_elem[19:37], "\n"])
         token += "".join([*str_num_core[19:37], "\n"])
         token += "".join([*str_elem[37:55], "\n"])
         token += "".join([*str_num_core[37:55], "\n"])
         # layer 6-7
-        token += "".join([*str_elem[55:57], " " * 5, *str_elem[72:87], "\n"])
-        token += "".join([*str_num_core[55:57], " " * 5, *str_num_core[72:87], "\n"])
-        token += "".join([*str_elem[87:89], " " * 5, *str_elem[104:119], "\n"])
-        token += "".join([*str_num_core[87:89], " " * 5, *str_num_core[104:119], "\n"])
+        token += "".join([*str_elem[55:57], " " * 4, *str_elem[72:87], "\n"])
+        token += "".join([*str_num_core[55:57], " " * 4, *str_num_core[72:87], "\n"])
+        token += "".join([*str_elem[87:89], " " * 4, *str_elem[104:119], "\n"])
+        token += "".join([*str_num_core[87:89], " " * 4, *str_num_core[104:119], "\n"])
         # layer La, Ac
         token += "\n"
-        token += "".join([" " * 15, *str_elem[57:72], "\n"])
-        token += "".join(["   Lanthanides ", *str_num_core[57:72], "\n"])
-        token += "".join([" " * 15, *str_elem[89:104], "\n"])
-        token += "".join(["     Actinides ", *str_num_core[89:104], "\n"])
+        token += "".join([" " * 3 * 4, *str_elem[57:72], "\n"])
+        token += "".join(["Lanthanides ", *str_num_core[57:72], "\n"])
+        token += "".join([" " * 3 * 4, *str_elem[89:104], "\n"])
+        token += "".join(["  Actinides ", *str_num_core[89:104], "\n"])
         print(token)
         return token
 
     @staticmethod
     def idx_alk_metal():
+        """ Index list of alkali metals and alkaline earth metals. """
         return np.array([3, 4, 11, 12, 19, 20, 37, 38, 55, 56, 87, 88])
 
     @staticmethod
     def idx_transition():
+        """ Index of transition metals (d only, without La and Ac). """
         return np.array(list(range(21, 31)) + list(range(39, 49)) + list(range(72, 81)) + list(range(104, 113)))
 
     @staticmethod
     def idx_p_main():
+        """ Index of p main group elements. """
         return np.array(
             list(range(5, 11)) + list(range(13, 19)) + list(range(31, 37)) + list(range(49, 55))
             + list(range(81, 87)) + list(range(113, 119))
@@ -278,18 +301,23 @@ class FrozenRuleBase:
 
     @staticmethod
     def idx_la():
+        """ Index of Lanthanum group elements. """
         return np.array(range(57, 72))
 
     @staticmethod
     def idx_ac():
+        """ Index of Actinium group elements. """
         return np.array(range(89, 104))
 
     @staticmethod
     def idx_p_metal_loid():
+        """ Index of metals and metalloids elements in p main group. """
         return np.array([5, 13, 14, 31, 32, 33, 49, 50, 51, 52, 81, 82, 83, 84, 113, 114, 115, 116])
 
 
 class FrozenRuleNone(FrozenRuleBase):
+    """ Frozen rule that no electron will be frozen. """
+
     def define_active_levels(self):
         self.active_levels = np.zeros((len(CONFIGURATION_FC), MAX_ANG), dtype=int)
         self.is_active = False
@@ -298,29 +326,27 @@ class FrozenRuleNone(FrozenRuleBase):
 class FrozenRuleORCA(FrozenRuleBase):
     """ Frozen rule convention from ORCA.
 
-    ```
-       X
-       0
-       H                                                                                   He
-       0                                                                                    0
-      Li   Be                                                      B    C    N    O    F   Ne
-       0    0                                                      2    2    2    2    2    2
-      Na   Mg                                                     Al   Si    P    S   Cl   Ar
-       2    2                                                     10   10   10   10   10   10
-       K   Ca   Sc   Ti    V   Cr   Mn   Fe   Co   Ni   Cu   Zn   Ga   Ge   As   Se   Br   Kr
-      10   10   10   10   10   10   10   10   10   10   10   10   18   18   18   18   18   18
-      Rb   Sr    Y   Zr   Nb   Mo   Tc   Ru   Rh   Pd   Ag   Cd   In   Sn   Sb   Te    I   Xe
-      18   18   28   28   28   28   28   28   28   10   28   28   36   36   36   36   36   36
-      Cs   Ba        Hf   Ta    W   Re   Os   Ir   Pt   Au   Hg   Tl   Pb   Bi   Po   At   Rn
-      36   36        46   46   46   46   46   46   46   46   46   68   68   68   68   68   68
-      Fr   Ra        Rf   Db   Sg   Bh   Hs   Mt   Ds   Rg   Cn   Nh   Fl   Mc   Lv   Ts   Og
-      68   68       100  100  100  100  100  100  100  100  100  100  100  100  100  100  100
+    .. code-block::
 
-                     La   Ce   Pr   Nd   Pm   Sm   Eu   Gd   Tb   Dy   Ho   Er   Tm   Yb   Lu
-       Lanthanides   36   36   36   36   36   36   36   36   36   36   36   36   36   36   36
-                     Ac   Th   Pa    U   Np   Pu   Am   Cm   Bk   Cf   Es   Fm   Md   No   Lr
-         Actinides   68   68   68   68   68   68   68   68   68   68   68   68   68   68   68
-    ```
+        #    H                                                                  He
+        #    0                                                                   0
+        #   Li  Be                                           B   C   N   O   F  Ne
+        #    0   0                                           2   2   2   2   2   2
+        #   Na  Mg                                          Al  Si   P   S  Cl  Ar
+        #    2   2                                          10  10  10  10  10  10
+        #    K  Ca  Sc  Ti   V  Cr  Mn  Fe  Co  Ni  Cu  Zn  Ga  Ge  As  Se  Br  Kr
+        #   10  10  10  10  10  10  10  10  10  10  10  10  18  18  18  18  18  18
+        #   Rb  Sr   Y  Zr  Nb  Mo  Tc  Ru  Rh  Pd  Ag  Cd  In  Sn  Sb  Te   I  Xe
+        #   18  18  28  28  28  28  28  28  28  28  28  28  36  36  36  36  36  36
+        #   Cs  Ba      Hf  Ta   W  Re  Os  Ir  Pt  Au  Hg  Tl  Pb  Bi  Po  At  Rn
+        #   36  36      46  46  46  46  46  46  46  46  46  68  68  68  68  68  68
+        #   Fr  Ra      Rf  Db  Sg  Bh  Hs  Mt  Ds  Rg  Cn  Nh  Fl  Mc  Lv  Ts  Og
+        #   68  68     100 100 100 100 100 100 100 100 100 100 100 100 100 100 100
+        #
+        #               La  Ce  Pr  Nd  Pm  Sm  Eu  Gd  Tb  Dy  Ho  Er  Tm  Yb  Lu
+        # Lanthanides   36  36  36  36  36  36  36  36  36  36  36  36  36  36  36
+        #               Ac  Th  Pa   U  Np  Pu  Am  Cm  Bk  Cf  Es  Fm  Md  No  Lr
+        #   Actinides   68  68  68  68  68  68  68  68  68  68  68  68  68  68  68
     """
     def define_active_levels(self):
         self.active_levels = np.zeros((len(CONFIGURATION_FC), MAX_ANG), dtype=int)
@@ -337,29 +363,27 @@ class FrozenRuleORCA(FrozenRuleBase):
 class FrozenRuleNobleGasCore(FrozenRuleBase):
     """ Frozen rule that the first layer noble gas is frozen.
 
-    ```
-       X
-       0
-       H                                                                                   He
-       0                                                                                    0
-      Li   Be                                                      B    C    N    O    F   Ne
-       2    2                                                      2    2    2    2    2    2
-      Na   Mg                                                     Al   Si    P    S   Cl   Ar
-      10   10                                                     10   10   10   10   10   10
-       K   Ca   Sc   Ti    V   Cr   Mn   Fe   Co   Ni   Cu   Zn   Ga   Ge   As   Se   Br   Kr
-      18   18   18   18   18   18   18   18   18   18   18   18   18   18   18   18   18   18
-      Rb   Sr    Y   Zr   Nb   Mo   Tc   Ru   Rh   Pd   Ag   Cd   In   Sn   Sb   Te    I   Xe
-      36   36   36   36   36   36   36   36   36   18   36   36   36   36   36   36   36   36
-      Cs   Ba        Hf   Ta    W   Re   Os   Ir   Pt   Au   Hg   Tl   Pb   Bi   Po   At   Rn
-      54   54        54   54   54   54   54   54   54   54   54   54   54   54   54   54   54
-      Fr   Ra        Rf   Db   Sg   Bh   Hs   Mt   Ds   Rg   Cn   Nh   Fl   Mc   Lv   Ts   Og
-      86   86        86   86   86   86   86   86   86   86   86   86   86   86   86   86   86
+    .. code-block::
 
-                     La   Ce   Pr   Nd   Pm   Sm   Eu   Gd   Tb   Dy   Ho   Er   Tm   Yb   Lu
-       Lanthanides   54   54   54   54   54   54   54   54   54   54   54   54   54   54   54
-                     Ac   Th   Pa    U   Np   Pu   Am   Cm   Bk   Cf   Es   Fm   Md   No   Lr
-         Actinides   86   86   86   86   86   86   86   86   86   86   86   86   86   86   86
-    ```
+        #    H                                                                  He
+        #    0                                                                   0
+        #   Li  Be                                           B   C   N   O   F  Ne
+        #    2   2                                           2   2   2   2   2   2
+        #   Na  Mg                                          Al  Si   P   S  Cl  Ar
+        #   10  10                                          10  10  10  10  10  10
+        #    K  Ca  Sc  Ti   V  Cr  Mn  Fe  Co  Ni  Cu  Zn  Ga  Ge  As  Se  Br  Kr
+        #   18  18  18  18  18  18  18  18  18  18  18  18  18  18  18  18  18  18
+        #   Rb  Sr   Y  Zr  Nb  Mo  Tc  Ru  Rh  Pd  Ag  Cd  In  Sn  Sb  Te   I  Xe
+        #   36  36  36  36  36  36  36  36  36  36  36  36  36  36  36  36  36  36
+        #   Cs  Ba      Hf  Ta   W  Re  Os  Ir  Pt  Au  Hg  Tl  Pb  Bi  Po  At  Rn
+        #   54  54      54  54  54  54  54  54  54  54  54  54  54  54  54  54  54
+        #   Fr  Ra      Rf  Db  Sg  Bh  Hs  Mt  Ds  Rg  Cn  Nh  Fl  Mc  Lv  Ts  Og
+        #   86  86      86  86  86  86  86  86  86  86  86  86  86  86  86  86  86
+        #
+        #               La  Ce  Pr  Nd  Pm  Sm  Eu  Gd  Tb  Dy  Ho  Er  Tm  Yb  Lu
+        # Lanthanides   54  54  54  54  54  54  54  54  54  54  54  54  54  54  54
+        #               Ac  Th  Pa   U  Np  Pu  Am  Cm  Bk  Cf  Es  Fm  Md  No  Lr
+        #   Actinides   86  86  86  86  86  86  86  86  86  86  86  86  86  86  86
     """
     def define_active_levels(self):
         self.active_levels = np.zeros((len(CONFIGURATION_FC), MAX_ANG), dtype=int)
@@ -370,29 +394,27 @@ class FrozenRuleNobleGasCore(FrozenRuleBase):
 class FrozenRuleInnerNobleGasCore(FrozenRuleBase):
     r""" Frozen rule that the first layer noble gas is frozen.
 
-    ```
-        X
-        0
-        H                                                                                   He
-        0                                                                                    0
-       Li   Be                                                      B    C    N    O    F   Ne
-        0    0                                                      0    0    0    0    0    0
-       Na   Mg                                                     Al   Si    P    S   Cl   Ar
-        2    2                                                      2    2    2    2    2    2
-        K   Ca   Sc   Ti    V   Cr   Mn   Fe   Co   Ni   Cu   Zn   Ga   Ge   As   Se   Br   Kr
-       10   10   10   10   10   10   10   10   10   10   10   10   10   10   10   10   10   10
-       Rb   Sr    Y   Zr   Nb   Mo   Tc   Ru   Rh   Pd   Ag   Cd   In   Sn   Sb   Te    I   Xe
-       18   18   18   18   18   18   18   18   18   10   18   18   18   18   18   18   18   18
-       Cs   Ba        Hf   Ta    W   Re   Os   Ir   Pt   Au   Hg   Tl   Pb   Bi   Po   At   Rn
-       36   36        36   36   36   36   36   36   36   36   36   36   36   36   36   36   36
-       Fr   Ra        Rf   Db   Sg   Bh   Hs   Mt   Ds   Rg   Cn   Nh   Fl   Mc   Lv   Ts   Og
-       54   54        54   54   54   54   54   54   54   54   54   54   54   54   54   54   54
+    .. code-block::
 
-                      La   Ce   Pr   Nd   Pm   Sm   Eu   Gd   Tb   Dy   Ho   Er   Tm   Yb   Lu
-        Lanthanides   36   36   36   36   36   36   36   36   36   36   36   36   36   36   36
-                      Ac   Th   Pa    U   Np   Pu   Am   Cm   Bk   Cf   Es   Fm   Md   No   Lr
-          Actinides   54   54   54   54   54   54   54   54   54   54   54   54   54   54   54
-    ```
+        #    H                                                                  He
+        #    0                                                                   0
+        #   Li  Be                                           B   C   N   O   F  Ne
+        #    0   0                                           0   0   0   0   0   0
+        #   Na  Mg                                          Al  Si   P   S  Cl  Ar
+        #    2   2                                           2   2   2   2   2   2
+        #    K  Ca  Sc  Ti   V  Cr  Mn  Fe  Co  Ni  Cu  Zn  Ga  Ge  As  Se  Br  Kr
+        #   10  10  10  10  10  10  10  10  10  10  10  10  10  10  10  10  10  10
+        #   Rb  Sr   Y  Zr  Nb  Mo  Tc  Ru  Rh  Pd  Ag  Cd  In  Sn  Sb  Te   I  Xe
+        #   18  18  18  18  18  18  18  18  18  18  18  18  18  18  18  18  18  18
+        #   Cs  Ba      Hf  Ta   W  Re  Os  Ir  Pt  Au  Hg  Tl  Pb  Bi  Po  At  Rn
+        #   36  36      36  36  36  36  36  36  36  36  36  36  36  36  36  36  36
+        #   Fr  Ra      Rf  Db  Sg  Bh  Hs  Mt  Ds  Rg  Cn  Nh  Fl  Mc  Lv  Ts  Og
+        #   54  54      54  54  54  54  54  54  54  54  54  54  54  54  54  54  54
+        #
+        #               La  Ce  Pr  Nd  Pm  Sm  Eu  Gd  Tb  Dy  Ho  Er  Tm  Yb  Lu
+        # Lanthanides   36  36  36  36  36  36  36  36  36  36  36  36  36  36  36
+        #               Ac  Th  Pa   U  Np  Pu  Am  Cm  Bk  Cf  Es  Fm  Md  No  Lr
+        #   Actinides   54  54  54  54  54  54  54  54  54  54  54  54  54  54  54
     """
 
     def define_active_levels(self):
@@ -404,29 +426,27 @@ class FrozenRuleInnerNobleGasCore(FrozenRuleBase):
 class FrozenRuleG2(FrozenRuleBase):
     """ Frozen rule of G2, should be the same to Gaussian's FreezeG2.
 
-    ```
-       X
-       0
-       H                                                                                   He
-       0                                                                                    0
-      Li   Be                                                      B    C    N    O    F   Ne
-       2    2                                                      2    2    2    2    2    2
-      Na   Mg                                                     Al   Si    P    S   Cl   Ar
-      10   10                                                     10   10   10   10   10   10
-       K   Ca   Sc   Ti    V   Cr   Mn   Fe   Co   Ni   Cu   Zn   Ga   Ge   As   Se   Br   Kr
-      10   10   18   18   18   18   18   18   18   18   18   18   28   28   28   28   28   28
-      Rb   Sr    Y   Zr   Nb   Mo   Tc   Ru   Rh   Pd   Ag   Cd   In   Sn   Sb   Te    I   Xe
-      28   28   36   36   36   36   36   36   36   36   36   36   46   46   46   46   46   46
-      Cs   Ba        Hf   Ta    W   Re   Os   Ir   Pt   Au   Hg   Tl   Pb   Bi   Po   At   Rn
-      46   46        54   54   54   54   54   54   54   54   54   78   78   78   78   78   78
-      Fr   Ra        Rf   Db   Sg   Bh   Hs   Mt   Ds   Rg   Cn   Nh   Fl   Mc   Lv   Ts   Og
-      78   78        86   86   86   86   86   86   86   86   86  110  110  110  110  110  110
+    .. code-block::
 
-                     La   Ce   Pr   Nd   Pm   Sm   Eu   Gd   Tb   Dy   Ho   Er   Tm   Yb   Lu
-       Lanthanides   54   54   54   54   54   54   54   54   54   54   54   54   54   54   54
-                     Ac   Th   Pa    U   Np   Pu   Am   Cm   Bk   Cf   Es   Fm   Md   No   Lr
-         Actinides   86   86   86   86   86   86   86   86   86   86   86   86   86   86   86
-    ```
+        #    H                                                                  He
+        #    0                                                                   0
+        #   Li  Be                                           B   C   N   O   F  Ne
+        #    2   2                                           2   2   2   2   2   2
+        #   Na  Mg                                          Al  Si   P   S  Cl  Ar
+        #   10  10                                          10  10  10  10  10  10
+        #    K  Ca  Sc  Ti   V  Cr  Mn  Fe  Co  Ni  Cu  Zn  Ga  Ge  As  Se  Br  Kr
+        #   10  10  18  18  18  18  18  18  18  18  18  18  28  28  28  28  28  28
+        #   Rb  Sr   Y  Zr  Nb  Mo  Tc  Ru  Rh  Pd  Ag  Cd  In  Sn  Sb  Te   I  Xe
+        #   28  28  36  36  36  36  36  36  36  36  36  36  46  46  46  46  46  46
+        #   Cs  Ba      Hf  Ta   W  Re  Os  Ir  Pt  Au  Hg  Tl  Pb  Bi  Po  At  Rn
+        #   46  46      54  54  54  54  54  54  54  54  54  78  78  78  78  78  78
+        #   Fr  Ra      Rf  Db  Sg  Bh  Hs  Mt  Ds  Rg  Cn  Nh  Fl  Mc  Lv  Ts  Og
+        #   78  78      86  86  86  86  86  86  86  86  86 110 110 110 110 110 110
+        #
+        #               La  Ce  Pr  Nd  Pm  Sm  Eu  Gd  Tb  Dy  Ho  Er  Tm  Yb  Lu
+        # Lanthanides   54  54  54  54  54  54  54  54  54  54  54  54  54  54  54
+        #               Ac  Th  Pa   U  Np  Pu  Am  Cm  Bk  Cf  Es  Fm  Md  No  Lr
+        #   Actinides   86  86  86  86  86  86  86  86  86  86  86  86  86  86  86
     """
     def define_active_levels(self):
         self.active_levels = np.zeros((len(CONFIGURATION_FC), MAX_ANG), dtype=int)
@@ -439,29 +459,27 @@ class FrozenRuleG2(FrozenRuleBase):
 class FrozenRuleG3(FrozenRuleBase):
     """ Frozen rule of G3, should be the same to Gaussian's FreezeG3.
 
-    ```
-       X
-       0
-       H                                                                                   He
-       0                                                                                    0
-      Li   Be                                                      B    C    N    O    F   Ne
-       2    2                                                      2    2    2    2    2    2
-      Na   Mg                                                     Al   Si    P    S   Cl   Ar
-      10   10                                                     10   10   10   10   10   10
-       K   Ca   Sc   Ti    V   Cr   Mn   Fe   Co   Ni   Cu   Zn   Ga   Ge   As   Se   Br   Kr
-      10   10   18   18   18   18   18   18   18   18   18   18   18   18   18   18   18   18
-      Rb   Sr    Y   Zr   Nb   Mo   Tc   Ru   Rh   Pd   Ag   Cd   In   Sn   Sb   Te    I   Xe
-      36   36   36   36   36   36   36   36   36   36   36   36   36   36   36   36   36   36
-      Cs   Ba        Hf   Ta    W   Re   Os   Ir   Pt   Au   Hg   Tl   Pb   Bi   Po   At   Rn
-      54   54        54   54   54   54   54   54   54   54   54   54   54   54   54   54   54
-      Fr   Ra        Rf   Db   Sg   Bh   Hs   Mt   Ds   Rg   Cn   Nh   Fl   Mc   Lv   Ts   Og
-      86   86        86   86   86   86   86   86   86   86   86   86   86   86   86   86   86
+    .. code-block::
 
-                     La   Ce   Pr   Nd   Pm   Sm   Eu   Gd   Tb   Dy   Ho   Er   Tm   Yb   Lu
-       Lanthanides   54   54   54   54   54   54   54   54   54   54   54   54   54   54   54
-                     Ac   Th   Pa    U   Np   Pu   Am   Cm   Bk   Cf   Es   Fm   Md   No   Lr
-         Actinides   86   86   86   86   86   86   86   86   86   86   86   86   86   86   86
-    ```
+        #    H                                                                  He
+        #    0                                                                   0
+        #   Li  Be                                           B   C   N   O   F  Ne
+        #    2   2                                           2   2   2   2   2   2
+        #   Na  Mg                                          Al  Si   P   S  Cl  Ar
+        #   10  10                                          10  10  10  10  10  10
+        #    K  Ca  Sc  Ti   V  Cr  Mn  Fe  Co  Ni  Cu  Zn  Ga  Ge  As  Se  Br  Kr
+        #   10  10  18  18  18  18  18  18  18  18  18  18  18  18  18  18  18  18
+        #   Rb  Sr   Y  Zr  Nb  Mo  Tc  Ru  Rh  Pd  Ag  Cd  In  Sn  Sb  Te   I  Xe
+        #   36  36  36  36  36  36  36  36  36  36  36  36  36  36  36  36  36  36
+        #   Cs  Ba      Hf  Ta   W  Re  Os  Ir  Pt  Au  Hg  Tl  Pb  Bi  Po  At  Rn
+        #   54  54      54  54  54  54  54  54  54  54  54  54  54  54  54  54  54
+        #   Fr  Ra      Rf  Db  Sg  Bh  Hs  Mt  Ds  Rg  Cn  Nh  Fl  Mc  Lv  Ts  Og
+        #   86  86      86  86  86  86  86  86  86  86  86  86  86  86  86  86  86
+        #
+        #               La  Ce  Pr  Nd  Pm  Sm  Eu  Gd  Tb  Dy  Ho  Er  Tm  Yb  Lu
+        # Lanthanides   54  54  54  54  54  54  54  54  54  54  54  54  54  54  54
+        #               Ac  Th  Pa   U  Np  Pu  Am  Cm  Bk  Cf  Es  Fm  Md  No  Lr
+        #   Actinides   86  86  86  86  86  86  86  86  86  86  86  86  86  86  86
     """
     def define_active_levels(self):
         self.active_levels = np.zeros((len(CONFIGURATION_FC), MAX_ANG), dtype=int)
@@ -473,29 +491,27 @@ class FrozenRuleG3(FrozenRuleBase):
 class FrozenRuleG4(FrozenRuleBase):
     """ Frozen rule of G4, should be the same to Gaussian's FreezeG4.
 
-    ```
-       X
-       0
-       H                                                                                   He
-       0                                                                                    0
-      Li   Be                                                      B    C    N    O    F   Ne
-       2    2                                                      2    2    2    2    0    0
-      Na   Mg                                                     Al   Si    P    S   Cl   Ar
-      10   10                                                     10   10   10   10   10   10
-       K   Ca   Sc   Ti    V   Cr   Mn   Fe   Co   Ni   Cu   Zn   Ga   Ge   As   Se   Br   Kr
-      10   10   18   18   18   18   18   18   18   18   18   18   18   18   18   18   18   18
-      Rb   Sr    Y   Zr   Nb   Mo   Tc   Ru   Rh   Pd   Ag   Cd   In   Sn   Sb   Te    I   Xe
-      36   36   36   36   36   36   36   36   36   36   36   36   36   36   36   36   36   36
-      Cs   Ba        Hf   Ta    W   Re   Os   Ir   Pt   Au   Hg   Tl   Pb   Bi   Po   At   Rn
-      54   54        54   54   54   54   54   54   54   54   54   54   54   54   54   54   54
-      Fr   Ra        Rf   Db   Sg   Bh   Hs   Mt   Ds   Rg   Cn   Nh   Fl   Mc   Lv   Ts   Og
-      86   86        86   86   86   86   86   86   86   86   86   86   86   86   86   86   86
+    .. code-block::
 
-                     La   Ce   Pr   Nd   Pm   Sm   Eu   Gd   Tb   Dy   Ho   Er   Tm   Yb   Lu
-       Lanthanides   54   54   54   54   54   54   54   54   54   54   54   54   54   54   54
-                     Ac   Th   Pa    U   Np   Pu   Am   Cm   Bk   Cf   Es   Fm   Md   No   Lr
-         Actinides   86   86   86   86   86   86   86   86   86   86   86   86   86   86   86
-    ```
+        #    H                                                                  He
+        #    0                                                                   0
+        #   Li  Be                                           B   C   N   O   F  Ne
+        #    2   2                                           2   2   2   2   0   0
+        #   Na  Mg                                          Al  Si   P   S  Cl  Ar
+        #   10  10                                          10  10  10  10  10  10
+        #    K  Ca  Sc  Ti   V  Cr  Mn  Fe  Co  Ni  Cu  Zn  Ga  Ge  As  Se  Br  Kr
+        #   10  10  18  18  18  18  18  18  18  18  18  18  18  18  18  18  18  18
+        #   Rb  Sr   Y  Zr  Nb  Mo  Tc  Ru  Rh  Pd  Ag  Cd  In  Sn  Sb  Te   I  Xe
+        #   36  36  36  36  36  36  36  36  36  36  36  36  36  36  36  36  36  36
+        #   Cs  Ba      Hf  Ta   W  Re  Os  Ir  Pt  Au  Hg  Tl  Pb  Bi  Po  At  Rn
+        #   54  54      54  54  54  54  54  54  54  54  54  54  54  54  54  54  54
+        #   Fr  Ra      Rf  Db  Sg  Bh  Hs  Mt  Ds  Rg  Cn  Nh  Fl  Mc  Lv  Ts  Og
+        #   86  86      86  86  86  86  86  86  86  86  86  86  86  86  86  86  86
+        #
+        #               La  Ce  Pr  Nd  Pm  Sm  Eu  Gd  Tb  Dy  Ho  Er  Tm  Yb  Lu
+        # Lanthanides   54  54  54  54  54  54  54  54  54  54  54  54  54  54  54
+        #               Ac  Th  Pa   U  Np  Pu  Am  Cm  Bk  Cf  Es  Fm  Md  No  Lr
+        #   Actinides   86  86  86  86  86  86  86  86  86  86  86  86  86  86  86
     """
     def define_active_levels(self):
         self.active_levels = np.zeros((len(CONFIGURATION_FC), MAX_ANG), dtype=int)
@@ -507,29 +523,27 @@ class FrozenRuleG4(FrozenRuleBase):
 class FrozenRuleSmallCore(FrozenRuleBase):
     """ Frozen rule of small core.
 
-    ```
-       X
-       0
-       H                                                                                   He
-       0                                                                                    0
-      Li   Be                                                      B    C    N    O    F   Ne
-       2    2                                                      2    2    2    2    2    2
-      Na   Mg                                                     Al   Si    P    S   Cl   Ar
-       2    2                                                     10   10   10   10   10   10
-       K   Ca   Sc   Ti    V   Cr   Mn   Fe   Co   Ni   Cu   Zn   Ga   Ge   As   Se   Br   Kr
-      10   10   18   18   18   18   18   18   18   18   18   18   18   18   18   18   18   18
-      Rb   Sr    Y   Zr   Nb   Mo   Tc   Ru   Rh   Pd   Ag   Cd   In   Sn   Sb   Te    I   Xe
-      28   28   36   36   36   36   36   36   36   36   36   36   36   36   36   36   36   36
-      Cs   Ba        Hf   Ta    W   Re   Os   Ir   Pt   Au   Hg   Tl   Pb   Bi   Po   At   Rn
-      46   46        54   54   54   54   54   54   54   54   54   54   54   54   54   54   54
-      Fr   Ra        Rf   Db   Sg   Bh   Hs   Mt   Ds   Rg   Cn   Nh   Fl   Mc   Lv   Ts   Og
-      78   78        86   86   86   86   86   86   86   86   86   86   86   86   86   86   86
+    .. code-block::
 
-                     La   Ce   Pr   Nd   Pm   Sm   Eu   Gd   Tb   Dy   Ho   Er   Tm   Yb   Lu
-       Lanthanides   54   54   54   54   54   54   54   54   54   54   54   54   54   54   54
-                     Ac   Th   Pa    U   Np   Pu   Am   Cm   Bk   Cf   Es   Fm   Md   No   Lr
-         Actinides   86   86   86   86   86   86   86   86   86   86   86   86   86   86   86
-    ```
+        #    H                                                                  He
+        #    0                                                                   0
+        #   Li  Be                                           B   C   N   O   F  Ne
+        #    2   2                                           2   2   2   2   2   2
+        #   Na  Mg                                          Al  Si   P   S  Cl  Ar
+        #    2   2                                          10  10  10  10  10  10
+        #    K  Ca  Sc  Ti   V  Cr  Mn  Fe  Co  Ni  Cu  Zn  Ga  Ge  As  Se  Br  Kr
+        #   10  10  18  18  18  18  18  18  18  18  18  18  18  18  18  18  18  18
+        #   Rb  Sr   Y  Zr  Nb  Mo  Tc  Ru  Rh  Pd  Ag  Cd  In  Sn  Sb  Te   I  Xe
+        #   28  28  36  36  36  36  36  36  36  36  36  36  36  36  36  36  36  36
+        #   Cs  Ba      Hf  Ta   W  Re  Os  Ir  Pt  Au  Hg  Tl  Pb  Bi  Po  At  Rn
+        #   46  46      54  54  54  54  54  54  54  54  54  54  54  54  54  54  54
+        #   Fr  Ra      Rf  Db  Sg  Bh  Hs  Mt  Ds  Rg  Cn  Nh  Fl  Mc  Lv  Ts  Og
+        #   78  78      86  86  86  86  86  86  86  86  86  86  86  86  86  86  86
+        #
+        #               La  Ce  Pr  Nd  Pm  Sm  Eu  Gd  Tb  Dy  Ho  Er  Tm  Yb  Lu
+        # Lanthanides   54  54  54  54  54  54  54  54  54  54  54  54  54  54  54
+        #               Ac  Th  Pa   U  Np  Pu  Am  Cm  Bk  Cf  Es  Fm  Md  No  Lr
+        #   Actinides   86  86  86  86  86  86  86  86  86  86  86  86  86  86  86
 
     Notes
     -----
@@ -549,29 +563,27 @@ class FrozenRuleSmallCore(FrozenRuleBase):
 class FrozenRuleLargeCore(FrozenRuleBase):
     """ Frozen rule of small core.
 
-    ```
-       X
-       0
-       H                                                                                   He
-       0                                                                                    0
-      Li   Be                                                      B    C    N    O    F   Ne
-       2    2                                                      2    2    2    2    2    2
-      Na   Mg                                                     Al   Si    P    S   Cl   Ar
-      10   10                                                     10   10   10   10   10   10
-       K   Ca   Sc   Ti    V   Cr   Mn   Fe   Co   Ni   Cu   Zn   Ga   Ge   As   Se   Br   Kr
-      18   18   18   18   18   18   18   18   18   18   18   18   28   28   28   28   28   28
-      Rb   Sr    Y   Zr   Nb   Mo   Tc   Ru   Rh   Pd   Ag   Cd   In   Sn   Sb   Te    I   Xe
-      36   36   36   36   36   36   36   36   36   36   36   36   46   46   46   46   46   46
-      Cs   Ba        Hf   Ta    W   Re   Os   Ir   Pt   Au   Hg   Tl   Pb   Bi   Po   At   Rn
-      54   54        68   68   68   68   68   68   68   68   68   78   78   78   78   78   78
-      Fr   Ra        Rf   Db   Sg   Bh   Hs   Mt   Ds   Rg   Cn   Nh   Fl   Mc   Lv   Ts   Og
-      86   86       100  100  100  100  100  100  100  100  100  110  110  110  110  110  110
+    .. code-block::
 
-                     La   Ce   Pr   Nd   Pm   Sm   Eu   Gd   Tb   Dy   Ho   Er   Tm   Yb   Lu
-       Lanthanides   54   54   54   54   54   54   54   54   54   54   54   54   54   54   54
-                     Ac   Th   Pa    U   Np   Pu   Am   Cm   Bk   Cf   Es   Fm   Md   No   Lr
-         Actinides   86   86   86   86   86   86   86   86   86   86   86   86   86   86   86
-    ```
+        #    H                                                                  He
+        #    0                                                                   0
+        #   Li  Be                                           B   C   N   O   F  Ne
+        #    2   2                                           2   2   2   2   2   2
+        #   Na  Mg                                          Al  Si   P   S  Cl  Ar
+        #   10  10                                          10  10  10  10  10  10
+        #    K  Ca  Sc  Ti   V  Cr  Mn  Fe  Co  Ni  Cu  Zn  Ga  Ge  As  Se  Br  Kr
+        #   18  18  18  18  18  18  18  18  18  18  18  18  28  28  28  28  28  28
+        #   Rb  Sr   Y  Zr  Nb  Mo  Tc  Ru  Rh  Pd  Ag  Cd  In  Sn  Sb  Te   I  Xe
+        #   36  36  36  36  36  36  36  36  36  36  36  36  46  46  46  46  46  46
+        #   Cs  Ba      Hf  Ta   W  Re  Os  Ir  Pt  Au  Hg  Tl  Pb  Bi  Po  At  Rn
+        #   54  54      68  68  68  68  68  68  68  68  68  78  78  78  78  78  78
+        #   Fr  Ra      Rf  Db  Sg  Bh  Hs  Mt  Ds  Rg  Cn  Nh  Fl  Mc  Lv  Ts  Og
+        #   86  86     100 100 100 100 100 100 100 100 100 110 110 110 110 110 110
+        #
+        #               La  Ce  Pr  Nd  Pm  Sm  Eu  Gd  Tb  Dy  Ho  Er  Tm  Yb  Lu
+        # Lanthanides   54  54  54  54  54  54  54  54  54  54  54  54  54  54  54
+        #               Ac  Th  Pa   U  Np  Pu  Am  Cm  Bk  Cf  Es  Fm  Md  No  Lr
+        #   Actinides   86  86  86  86  86  86  86  86  86  86  86  86  86  86  86
 
     Notes
     -----
@@ -614,6 +626,8 @@ FrozenRules = {
 
 
 class FrozenCore:
+    """ Frozen core class that gives mask of active orbitals. """
+
     def __init__(
             self, mol, mo_occ,
             rule=None, ecp_only=False, mo_energy=None):
@@ -879,6 +893,6 @@ if __name__ == '__main__':
         # FrozenRuleInnerNobleGasCore().print_frozen_core_electrons()
         # FrozenRuleLargeCore().print_frozen_core_electrons()
         # FrozenRuleLargeCore().print_frozen_core_electrons()
-        FrozenRuleG4().print_frozen_core_electrons()
+        FrozenRuleLargeCore().print_frozen_core_electrons()
 
     main_2()
