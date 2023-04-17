@@ -521,7 +521,8 @@ class DH(EngBase):
             self.log.info(f"[INFO] Generate SCF object with xc {xc_scf.token}.")
         else:
             mf = mf_or_mol  # type: dft.rks.RKS or dft.uks.UKS
-        do_jk = route_scf.lower() == "ri"
+        do_jk = route_scf.lower().startswith("ri")
+        do_only_dfj = route_scf.lower().replace("-", "").replace("_", "") in ["rijonx", "rij"]
         if do_jk:
             auxbasis_jk = flags.get("auxbasis_jk", None)
             if auxbasis_jk is None:
@@ -531,6 +532,8 @@ class DH(EngBase):
         else:
             auxbasis_jk = None
         mf = custom_mf(mf, xc_scf, auxbasis_or_with_df=auxbasis_jk)
+        if do_jk:
+            mf.only_dfj = do_only_dfj
         self._scf = mf
 
         # generate with_df (for post-SCF)
