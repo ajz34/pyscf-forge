@@ -2,7 +2,6 @@ import re
 import typing
 import numpy as np
 from pyscf.data import elements
-from pyscf.lib import logger
 
 if typing.TYPE_CHECKING:
     from pyscf import gto
@@ -589,7 +588,7 @@ class FrozenRuleLargeCore(FrozenRuleBase):
     -----
     See original article of [1]_.
 
-    .. [1] Rassolov, Vitaly A, John A Pople, Paul C Redfern, and Larry A Curtiss. “The Definition of Core Electrons.”
+    .. [1] Rassolov, Vitaly A, John A Pople, Paul C Redfern, and Larry A Curtiss. The Definition of Core Electrons.
            Chem. Phys. Lett. 350, (5–6), 573–76. https://doi.org/10.1016/S0009-2614(01)01345-8.
     """
     def define_active_levels(self):
@@ -598,6 +597,55 @@ class FrozenRuleLargeCore(FrozenRuleBase):
         self.active_levels[:] = [1, 1, 2, 3]
         self.active_levels[self.idx_p_main()] = [1, 1, 1, 2]
         self.active_levels[self.idx_transition()] = [1, 1, 2, 2]
+
+
+class FrozenRuleSmallMetal(FrozenRuleBase):
+    """ Frozen rule with small core electrons for metals and metalloids.
+
+    .. code-block::
+
+        #    H                                                                  He
+        #    0                                                                   0
+        #   Li  Be                                           B   C   N   O   F  Ne
+        #    0   0                                           0   2   2   2   2   2
+        #   Na  Mg                                          Al  Si   P   S  Cl  Ar
+        #    2   2                                           2   2  10  10  10  10
+        #    K  Ca  Sc  Ti   V  Cr  Mn  Fe  Co  Ni  Cu  Zn  Ga  Ge  As  Se  Br  Kr
+        #   10  10  10  10  10  10  10  10  10  10  10  10  10  10  10  18  18  18
+        #   Rb  Sr   Y  Zr  Nb  Mo  Tc  Ru  Rh  Pd  Ag  Cd  In  Sn  Sb  Te   I  Xe
+        #   18  18  18  18  18  18  18  18  18  18  18  18  28  28  28  28  36  36
+        #   Cs  Ba      Hf  Ta   W  Re  Os  Ir  Pt  Au  Hg  Tl  Pb  Bi  Po  At  Rn
+        #   36  36      36  36  36  36  36  36  36  36  36  46  46  46  46  54  54
+        #   Fr  Ra      Rf  Db  Sg  Bh  Hs  Mt  Ds  Rg  Cn  Nh  Fl  Mc  Lv  Ts  Og
+        #   54  54      54  54  54  54  54  54  54  54  54  78  78  78  78  86  86
+        #
+        #               La  Ce  Pr  Nd  Pm  Sm  Eu  Gd  Tb  Dy  Ho  Er  Tm  Yb  Lu
+        # Lanthanides   36  36  36  36  36  36  36  36  36  36  36  36  36  36  36
+        #               Ac  Th  Pa   U  Np  Pu  Am  Cm  Bk  Cf  Es  Fm  Md  No  Lr
+        #   Actinides   54  54  54  54  54  54  54  54  54  54  54  54  54  54  54
+
+    Notes
+    -----
+    See article of [1]_.
+
+    To perform benchmark of doubly hybrids against GMTKN55 by WTMAD-2, it is probably better to use the following
+    frozen core scheme:
+
+    - for most subsets, use rule from ORCA (``ORCA``);
+    - for MB16-43, HEAVYSB11, ALK8, ALKBDE10, use rule ``FreezeSmallMetal``;
+    - currently it is unknown for subset HEAVY28; using ``FreezeInnerNobleGasCore`` may be close to benchmark results
+      of G Santra, but not exactly.
+
+    .. [1] Santra, G.; Sylvetsky, N.; Martin, J. M. L. Minimally Empirical Double-Hybrid Functionals Trained against
+           the GMTKN55 Database: RevDSD-PBEP86-D4, RevDOD-PBE-D4, and DOD-SCAN-D4.
+           J. Phys. Chem. A 2019, 123 (24), 5129–5143. https://doi.org/10.1021/acs.jpca.9b03157.
+    """
+    def define_active_levels(self):
+        self.active_levels = np.zeros((len(CONFIGURATION_FC), MAX_ANG), dtype=int)
+        self.is_active = True
+        self.active_levels[:] = [2, 2, 3, 4]
+        self.active_levels[self.idx_p_main()] = [1, 1, 2, 3]
+        self.active_levels[self.idx_p_metal_loid()] = [2, 2, 2, 3]
 
 
 FrozenRules = {
@@ -619,6 +667,8 @@ FrozenRules = {
     "frzg2": FrozenRuleG2(),
     "frzg3": FrozenRuleG3(),
     "frzg4": FrozenRuleG4(),
+    # others
+    "freezesmallmetal": FrozenRuleSmallMetal(),
     # need double check?
     "smallcore": FrozenRuleSmallCore(),
     "largecore": FrozenRuleLargeCore(),
@@ -877,7 +927,7 @@ class FrozenCore:
 
 if __name__ == '__main__':
     def main_1():
-        from pyscf import mp, gto, scf
+        from pyscf import gto, scf
         elemcfg = ElementConfiguration("Pm")
         mol = gto.Mole(atom="I 0 0 0; H 0 0 1; O 0 1 0", basis="def2-TZVP", ecp="def2-TZVP").build()
         mf = scf.RHF(mol).run()
@@ -893,6 +943,6 @@ if __name__ == '__main__':
         # FrozenRuleInnerNobleGasCore().print_frozen_core_electrons()
         # FrozenRuleLargeCore().print_frozen_core_electrons()
         # FrozenRuleLargeCore().print_frozen_core_electrons()
-        FrozenRuleLargeCore().print_frozen_core_electrons()
+        FrozenRuleSmallMetal().print_frozen_core_electrons()
 
     main_2()
