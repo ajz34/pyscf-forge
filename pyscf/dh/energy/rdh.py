@@ -576,11 +576,18 @@ class DH(EngBase):
         return self
 
     def kernel(self, xc=None, **kwargs):
+
+        if xc is None:
+            xc = self.xc.xc_eng
+        elif isinstance(xc, str):
+            xc = XCList(xc, code_scf=False)
+        assert isinstance(xc, XCList)
+
         self.flags.update(kwargs)
         force_evaluate = self.flags.get("force_evaluate", False)
         results = driver_energy_dh(self, xc, force_evaluate)
         update_results(self.results, results)
-        return self.e_tot
+        return self.results[f"eng_dh_{xc.token}"]
 
     @property
     def e_tot(self):
