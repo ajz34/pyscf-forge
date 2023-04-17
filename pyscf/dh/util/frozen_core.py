@@ -2,7 +2,6 @@ import re
 import typing
 import numpy as np
 from pyscf.data import elements
-from pyscf.data.elements import CONFIGURATION
 from pyscf.lib import logger
 
 if typing.TYPE_CHECKING:
@@ -11,6 +10,128 @@ if typing.TYPE_CHECKING:
 MAX_LEVEL = 7
 MAX_ANG = 4
 
+CONFIGURATION_FC = [
+    [ 0, 0, 0, 0],     # 000  GHOST
+    [ 1, 0, 0, 0],     # 001  H
+    [ 2, 0, 0, 0],     # 002  He
+    [ 3, 0, 0, 0],     # 003  Li
+    [ 4, 0, 0, 0],     # 004  Be
+    [ 4, 1, 0, 0],     # 005  B
+    [ 4, 2, 0, 0],     # 006  C
+    [ 4, 3, 0, 0],     # 007  N
+    [ 4, 4, 0, 0],     # 008  O
+    [ 4, 5, 0, 0],     # 009  F
+    [ 4, 6, 0, 0],     # 010  Ne
+    [ 5, 6, 0, 0],     # 011  Na
+    [ 6, 6, 0, 0],     # 012  Mg
+    [ 6, 7, 0, 0],     # 013  Al
+    [ 6, 8, 0, 0],     # 014  Si
+    [ 6, 9, 0, 0],     # 015  P
+    [ 6,10, 0, 0],     # 016  S
+    [ 6,11, 0, 0],     # 017  Cl
+    [ 6,12, 0, 0],     # 018  Ar
+    [ 7,12, 0, 0],     # 019  K
+    [ 8,12, 0, 0],     # 020  Ca
+    [ 8,12, 1, 0],     # 021  Sc
+    [ 8,12, 2, 0],     # 022  Ti
+    [ 8,12, 3, 0],     # 023  V
+    [ 8,12, 4, 0],     # 024  Cr
+    [ 8,12, 5, 0],     # 025  Mn
+    [ 8,12, 6, 0],     # 026  Fe
+    [ 8,12, 7, 0],     # 027  Co
+    [ 8,12, 8, 0],     # 028  Ni
+    [ 8,12, 9, 0],     # 029  Cu
+    [ 8,12,10, 0],     # 030  Zn
+    [ 8,13,10, 0],     # 031  Ga
+    [ 8,14,10, 0],     # 032  Ge
+    [ 8,15,10, 0],     # 033  As
+    [ 8,16,10, 0],     # 034  Se
+    [ 8,17,10, 0],     # 035  Br
+    [ 8,18,10, 0],     # 036  Kr
+    [ 9,18,10, 0],     # 037  Rb
+    [10,18,10, 0],     # 038  Sr
+    [10,18,11, 0],     # 039  Y
+    [10,18,12, 0],     # 040  Zr
+    [10,18,13, 0],     # 041  Nb
+    [10,18,14, 0],     # 042  Mo
+    [10,18,15, 0],     # 043  Tc
+    [10,18,16, 0],     # 044  Ru
+    [10,18,17, 0],     # 045  Rh
+    [10,18,28, 0],     # 046  Pd
+    [10,18,19, 0],     # 047  Ag
+    [10,18,20, 0],     # 048  Cd
+    [10,19,20, 0],     # 049  In
+    [10,20,20, 0],     # 050  Sn
+    [10,21,20, 0],     # 051  Sb
+    [10,22,20, 0],     # 052  Te
+    [10,23,20, 0],     # 053  I
+    [10,24,20, 0],     # 054  Xe
+    [11,24,20, 0],     # 055  Cs
+    [12,24,20, 0],     # 056  Ba
+    [12,24,20, 1],     # 057  La
+    [12,24,20, 2],     # 058  Ce
+    [12,24,20, 3],     # 059  Pr
+    [12,24,20, 4],     # 060  Nd
+    [12,24,20, 5],     # 061  Pm
+    [12,24,20, 6],     # 062  Sm
+    [12,24,20, 7],     # 063  Eu
+    [12,24,20, 8],     # 064  Gd
+    [12,24,20, 9],     # 065  Tb
+    [12,24,20,10],     # 066  Dy
+    [12,24,20,11],     # 067  Ho
+    [12,24,20,12],     # 068  Er
+    [12,24,20,13],     # 069  Tm
+    [12,24,20,14],     # 070  Yb
+    [12,24,21,14],     # 071  Lu
+    [12,24,22,14],     # 072  Hf
+    [12,24,23,14],     # 073  Ta
+    [12,24,24,14],     # 074  W
+    [12,24,25,14],     # 075  Re
+    [12,24,26,14],     # 076  Os
+    [12,24,27,14],     # 077  Ir
+    [12,24,28,14],     # 078  Pt
+    [12,24,29,14],     # 079  Au
+    [12,24,30,14],     # 080  Hg
+    [12,25,30,14],     # 081  Tl
+    [12,26,30,14],     # 082  Pb
+    [12,27,30,14],     # 083  Bi
+    [12,28,30,14],     # 084  Po
+    [12,29,30,14],     # 085  At
+    [12,30,30,14],     # 086  Rn
+    [13,30,30,14],     # 087  Fr
+    [14,30,30,14],     # 088  Ra
+    [14,30,30,15],     # 089  Ac
+    [14,30,30,16],     # 090  Th
+    [14,30,30,17],     # 091  Pa
+    [14,30,30,18],     # 092  U
+    [14,30,30,19],     # 093  Np
+    [14,30,30,20],     # 094  Pu
+    [14,30,30,21],     # 095  Am
+    [14,30,30,22],     # 096  Cm
+    [14,30,30,23],     # 097  Bk
+    [14,30,30,24],     # 098  Cf
+    [14,30,30,25],     # 099  Es
+    [14,30,30,26],     # 100  Fm
+    [14,30,30,27],     # 101  Md
+    [14,30,30,28],     # 102  No
+    [14,30,31,28],     # 103  Lr
+    [14,30,32,28],     # 104  Rf
+    [14,30,33,28],     # 105  Db
+    [14,30,34,28],     # 106  Sg
+    [14,30,35,28],     # 107  Bh
+    [14,30,36,28],     # 108  Hs
+    [14,30,37,28],     # 109  Mt
+    [14,30,38,28],     # 110  Ds
+    [14,30,39,28],     # 111  Rg
+    [14,30,40,28],     # 112  Cn
+    [14,31,40,28],     # 113  Nh
+    [14,32,40,28],     # 114  Fl
+    [14,33,40,28],     # 115  Mc
+    [14,34,40,28],     # 116  Lv
+    [14,35,40,28],     # 117  Ts
+    [14,36,40,28],     # 118  Og
+]
+
 
 class ElementConfiguration:
     element: int
@@ -18,7 +139,7 @@ class ElementConfiguration:
 
     def __init__(self, element):
         self.element = elements.charge(element)
-        if self.element > len(CONFIGURATION) - 1:
+        if self.element > len(CONFIGURATION_FC) - 1:
             raise ValueError(f"Element {self.element} too large.")
 
     def get_configuration_table(self):
@@ -28,7 +149,7 @@ class ElementConfiguration:
         angular_start = [l for l in range(MAX_ANG)]
         angular_num = [2 + 4 * l for l in range(MAX_ANG)]
         for angular in range(MAX_ANG):
-            angular_elec = CONFIGURATION[self.element][angular]
+            angular_elec = CONFIGURATION_FC[self.element][angular]
             if angular_elec == 0:
                 continue
             n_start = angular_start[angular]
@@ -106,10 +227,10 @@ class FrozenRuleBase:
         return ElementConfiguration(elem).get_num_core_electrons(self.active_levels[chrg], self.is_active)
 
     def print_frozen_core_electrons(self):
-        assert self.active_levels.shape == (len(CONFIGURATION), MAX_ANG)
-        list_num_core = [self.get_num_core(n) for n in range(len(CONFIGURATION))]
+        assert self.active_levels.shape == (len(CONFIGURATION_FC), MAX_ANG)
+        list_num_core = [self.get_num_core(n) for n in range(len(CONFIGURATION_FC))]
         str_num_core = [f" {s:>3d} " for s in list_num_core]
-        str_elem = [f" {elements._atom_symbol(s):>3} " for s in range(len(CONFIGURATION))]
+        str_elem = [f" {elements._atom_symbol(s):>3} " for s in range(len(CONFIGURATION_FC))]
         token = ""
         # layer 0
         token += str_elem[0] + "\n" + str_num_core[0] + "\n"
@@ -142,35 +263,35 @@ class FrozenRuleBase:
 
     @staticmethod
     def idx_alk_metal():
-        return [3, 4, 11, 12, 19, 20, 37, 38, 55, 56, 87, 88]
+        return np.array([3, 4, 11, 12, 19, 20, 37, 38, 55, 56, 87, 88])
 
     @staticmethod
     def idx_transition():
-        return list(range(21, 31)) + list(range(39, 49)) + list(range(72, 81)) + list(range(104, 113))
+        return np.array(list(range(21, 31)) + list(range(39, 49)) + list(range(72, 81)) + list(range(104, 113)))
 
     @staticmethod
     def idx_p_main():
-        return (
+        return np.array(
             list(range(5, 11)) + list(range(13, 19)) + list(range(31, 37)) + list(range(49, 55))
             + list(range(81, 87)) + list(range(113, 119))
         )
 
     @staticmethod
     def idx_la():
-        return list(range(57, 72))
+        return np.array(range(57, 72))
 
     @staticmethod
     def idx_ac():
-        return list(range(89, 104))
+        return np.array(range(89, 104))
 
     @staticmethod
     def idx_p_metal_loid():
-        return [5, 13, 14, 31, 32, 33, 49, 50, 51, 52, 81, 82, 83, 84, 113, 114, 115, 116]
+        return np.array([5, 13, 14, 31, 32, 33, 49, 50, 51, 52, 81, 82, 83, 84, 113, 114, 115, 116])
 
 
 class FrozenRuleNone(FrozenRuleBase):
     def define_active_levels(self):
-        self.active_levels = np.zeros((len(CONFIGURATION), MAX_ANG), dtype=int)
+        self.active_levels = np.zeros((len(CONFIGURATION_FC), MAX_ANG), dtype=int)
         self.is_active = False
 
 
@@ -202,7 +323,7 @@ class FrozenRuleORCA(FrozenRuleBase):
     ```
     """
     def define_active_levels(self):
-        self.active_levels = np.zeros((len(CONFIGURATION), MAX_ANG), dtype=int)
+        self.active_levels = np.zeros((len(CONFIGURATION_FC), MAX_ANG), dtype=int)
         self.is_active = True
         self.active_levels[0:3] = [1, 1, 1, 1]
         self.active_levels[self.idx_alk_metal()] = [2, 2, 3, 3]
@@ -241,13 +362,47 @@ class FrozenRuleNobleGasCore(FrozenRuleBase):
     ```
     """
     def define_active_levels(self):
-        self.active_levels = np.zeros((len(CONFIGURATION), MAX_ANG), dtype=int)
+        self.active_levels = np.zeros((len(CONFIGURATION_FC), MAX_ANG), dtype=int)
         self.is_active = True
         self.active_levels[:] = [1, 1, 2, 3]
 
 
 class FrozenRuleInnerNobleGasCore(FrozenRuleBase):
-    """ Frozen rule that the first layer noble gas is frozen.
+    r""" Frozen rule that the first layer noble gas is frozen.
+
+    ```
+        X
+        0
+        H                                                                                   He
+        0                                                                                    0
+       Li   Be                                                      B    C    N    O    F   Ne
+        0    0                                                      0    0    0    0    0    0
+       Na   Mg                                                     Al   Si    P    S   Cl   Ar
+        2    2                                                      2    2    2    2    2    2
+        K   Ca   Sc   Ti    V   Cr   Mn   Fe   Co   Ni   Cu   Zn   Ga   Ge   As   Se   Br   Kr
+       10   10   10   10   10   10   10   10   10   10   10   10   10   10   10   10   10   10
+       Rb   Sr    Y   Zr   Nb   Mo   Tc   Ru   Rh   Pd   Ag   Cd   In   Sn   Sb   Te    I   Xe
+       18   18   18   18   18   18   18   18   18   10   18   18   18   18   18   18   18   18
+       Cs   Ba        Hf   Ta    W   Re   Os   Ir   Pt   Au   Hg   Tl   Pb   Bi   Po   At   Rn
+       36   36        36   36   36   36   36   36   36   36   36   36   36   36   36   36   36
+       Fr   Ra        Rf   Db   Sg   Bh   Hs   Mt   Ds   Rg   Cn   Nh   Fl   Mc   Lv   Ts   Og
+       54   54        54   54   54   54   54   54   54   54   54   54   54   54   54   54   54
+
+                      La   Ce   Pr   Nd   Pm   Sm   Eu   Gd   Tb   Dy   Ho   Er   Tm   Yb   Lu
+        Lanthanides   36   36   36   36   36   36   36   36   36   36   36   36   36   36   36
+                      Ac   Th   Pa    U   Np   Pu   Am   Cm   Bk   Cf   Es   Fm   Md   No   Lr
+          Actinides   54   54   54   54   54   54   54   54   54   54   54   54   54   54   54
+    ```
+    """
+
+    def define_active_levels(self):
+        self.active_levels = np.zeros((len(CONFIGURATION_FC), MAX_ANG), dtype=int)
+        self.is_active = True
+        self.active_levels[:] = [2, 2, 3, 4]
+
+
+class FrozenRuleG2(FrozenRuleBase):
+    """ Frozen rule of G2, should be the same to Gaussian's FreezeG2.
 
     ```
        X
@@ -255,28 +410,98 @@ class FrozenRuleInnerNobleGasCore(FrozenRuleBase):
        H                                                                                   He
        0                                                                                    0
       Li   Be                                                      B    C    N    O    F   Ne
-       0    0                                                      0    0    0    0    0    0
-      Na   Mg                                                     Al   Si    P    S   Cl   Ar
        2    2                                                      2    2    2    2    2    2
+      Na   Mg                                                     Al   Si    P    S   Cl   Ar
+      10   10                                                     10   10   10   10   10   10
        K   Ca   Sc   Ti    V   Cr   Mn   Fe   Co   Ni   Cu   Zn   Ga   Ge   As   Se   Br   Kr
-      10   10   10   10   10   10   10   10   10   10   10   10   10   10   10   10   10   10
+      10   10   18   18   18   18   18   18   18   18   18   18   28   28   28   28   28   28
       Rb   Sr    Y   Zr   Nb   Mo   Tc   Ru   Rh   Pd   Ag   Cd   In   Sn   Sb   Te    I   Xe
-      18   18   18   18   18   18   18   18   18   10   18   18   18   18   18   18   18   18
+      28   28   36   36   36   36   36   36   36   36   36   36   46   46   46   46   46   46
       Cs   Ba        Hf   Ta    W   Re   Os   Ir   Pt   Au   Hg   Tl   Pb   Bi   Po   At   Rn
-      36   36        36   36   36   36   36   36   36   36   36   36   36   36   36   36   36
+      46   46        54   54   54   54   54   54   54   54   54   78   78   78   78   78   78
       Fr   Ra        Rf   Db   Sg   Bh   Hs   Mt   Ds   Rg   Cn   Nh   Fl   Mc   Lv   Ts   Og
-      54   54        54   54   54   54   54   54   54   54   54   54   54   54   54   54   54
+      78   78        86   86   86   86   86   86   86   86   86  110  110  110  110  110  110
 
                      La   Ce   Pr   Nd   Pm   Sm   Eu   Gd   Tb   Dy   Ho   Er   Tm   Yb   Lu
-       Lanthanides   36   36   36   36   36   36   36   36   36   36   36   36   36   36   36
+       Lanthanides   54   54   54   54   54   54   54   54   54   54   54   54   54   54   54
                      Ac   Th   Pa    U   Np   Pu   Am   Cm   Bk   Cf   Es   Fm   Md   No   Lr
-         Actinides   54   54   54   54   54   54   54   54   54   54   54   54   54   54   54
+         Actinides   86   86   86   86   86   86   86   86   86   86   86   86   86   86   86
     ```
     """
     def define_active_levels(self):
-        self.active_levels = np.zeros((len(CONFIGURATION), MAX_ANG), dtype=int)
+        self.active_levels = np.zeros((len(CONFIGURATION_FC), MAX_ANG), dtype=int)
         self.is_active = True
-        self.active_levels[:] = [2, 2, 3, 4]
+        self.active_levels[:] = [1, 1, 2, 3]
+        self.active_levels[self.idx_alk_metal()[self.idx_alk_metal() > 18]] = [2, 2, 2, 3]
+        self.active_levels[self.idx_p_main()] = [1, 1, 1, 2]
+
+
+class FrozenRuleG3(FrozenRuleBase):
+    """ Frozen rule of G3, should be the same to Gaussian's FreezeG3.
+
+    ```
+       X
+       0
+       H                                                                                   He
+       0                                                                                    0
+      Li   Be                                                      B    C    N    O    F   Ne
+       2    2                                                      2    2    2    2    2    2
+      Na   Mg                                                     Al   Si    P    S   Cl   Ar
+      10   10                                                     10   10   10   10   10   10
+       K   Ca   Sc   Ti    V   Cr   Mn   Fe   Co   Ni   Cu   Zn   Ga   Ge   As   Se   Br   Kr
+      10   10   18   18   18   18   18   18   18   18   18   18   18   18   18   18   18   18
+      Rb   Sr    Y   Zr   Nb   Mo   Tc   Ru   Rh   Pd   Ag   Cd   In   Sn   Sb   Te    I   Xe
+      36   36   36   36   36   36   36   36   36   36   36   36   36   36   36   36   36   36
+      Cs   Ba        Hf   Ta    W   Re   Os   Ir   Pt   Au   Hg   Tl   Pb   Bi   Po   At   Rn
+      54   54        54   54   54   54   54   54   54   54   54   54   54   54   54   54   54
+      Fr   Ra        Rf   Db   Sg   Bh   Hs   Mt   Ds   Rg   Cn   Nh   Fl   Mc   Lv   Ts   Og
+      86   86        86   86   86   86   86   86   86   86   86   86   86   86   86   86   86
+
+                     La   Ce   Pr   Nd   Pm   Sm   Eu   Gd   Tb   Dy   Ho   Er   Tm   Yb   Lu
+       Lanthanides   54   54   54   54   54   54   54   54   54   54   54   54   54   54   54
+                     Ac   Th   Pa    U   Np   Pu   Am   Cm   Bk   Cf   Es   Fm   Md   No   Lr
+         Actinides   86   86   86   86   86   86   86   86   86   86   86   86   86   86   86
+    ```
+    """
+    def define_active_levels(self):
+        self.active_levels = np.zeros((len(CONFIGURATION_FC), MAX_ANG), dtype=int)
+        self.is_active = True
+        self.active_levels[:] = [1, 1, 2, 3]
+        self.active_levels[[19, 20]] = [2, 2, 2, 3]
+
+
+class FrozenRuleG4(FrozenRuleBase):
+    """ Frozen rule of G4, should be the same to Gaussian's FreezeG4.
+
+    ```
+       X
+       0
+       H                                                                                   He
+       0                                                                                    0
+      Li   Be                                                      B    C    N    O    F   Ne
+       2    2                                                      2    2    2    2    0    0
+      Na   Mg                                                     Al   Si    P    S   Cl   Ar
+      10   10                                                     10   10   10   10   10   10
+       K   Ca   Sc   Ti    V   Cr   Mn   Fe   Co   Ni   Cu   Zn   Ga   Ge   As   Se   Br   Kr
+      10   10   18   18   18   18   18   18   18   18   18   18   18   18   18   18   18   18
+      Rb   Sr    Y   Zr   Nb   Mo   Tc   Ru   Rh   Pd   Ag   Cd   In   Sn   Sb   Te    I   Xe
+      36   36   36   36   36   36   36   36   36   36   36   36   36   36   36   36   36   36
+      Cs   Ba        Hf   Ta    W   Re   Os   Ir   Pt   Au   Hg   Tl   Pb   Bi   Po   At   Rn
+      54   54        54   54   54   54   54   54   54   54   54   54   54   54   54   54   54
+      Fr   Ra        Rf   Db   Sg   Bh   Hs   Mt   Ds   Rg   Cn   Nh   Fl   Mc   Lv   Ts   Og
+      86   86        86   86   86   86   86   86   86   86   86   86   86   86   86   86   86
+
+                     La   Ce   Pr   Nd   Pm   Sm   Eu   Gd   Tb   Dy   Ho   Er   Tm   Yb   Lu
+       Lanthanides   54   54   54   54   54   54   54   54   54   54   54   54   54   54   54
+                     Ac   Th   Pa    U   Np   Pu   Am   Cm   Bk   Cf   Es   Fm   Md   No   Lr
+         Actinides   86   86   86   86   86   86   86   86   86   86   86   86   86   86   86
+    ```
+    """
+    def define_active_levels(self):
+        self.active_levels = np.zeros((len(CONFIGURATION_FC), MAX_ANG), dtype=int)
+        self.is_active = True
+        self.active_levels[:] = [1, 1, 2, 3]
+        self.active_levels[[9, 10, 19, 20]] = [2, 2, 2, 3]
 
 
 class FrozenRuleSmallCore(FrozenRuleBase):
@@ -294,7 +519,7 @@ class FrozenRuleSmallCore(FrozenRuleBase):
        K   Ca   Sc   Ti    V   Cr   Mn   Fe   Co   Ni   Cu   Zn   Ga   Ge   As   Se   Br   Kr
       10   10   18   18   18   18   18   18   18   18   18   18   18   18   18   18   18   18
       Rb   Sr    Y   Zr   Nb   Mo   Tc   Ru   Rh   Pd   Ag   Cd   In   Sn   Sb   Te    I   Xe
-      28   28   36   36   36   36   36   36   36   18   36   36   36   36   36   36   36   36
+      28   28   36   36   36   36   36   36   36   36   36   36   36   36   36   36   36   36
       Cs   Ba        Hf   Ta    W   Re   Os   Ir   Pt   Au   Hg   Tl   Pb   Bi   Po   At   Rn
       46   46        54   54   54   54   54   54   54   54   54   54   54   54   54   54   54
       Fr   Ra        Rf   Db   Sg   Bh   Hs   Mt   Ds   Rg   Cn   Nh   Fl   Mc   Lv   Ts   Og
@@ -314,7 +539,7 @@ class FrozenRuleSmallCore(FrozenRuleBase):
            Chem. Phys. Lett. 350, (5–6), 573–76. https://doi.org/10.1016/S0009-2614(01)01345-8.
     """
     def define_active_levels(self):
-        self.active_levels = np.zeros((len(CONFIGURATION), MAX_ANG), dtype=int)
+        self.active_levels = np.zeros((len(CONFIGURATION_FC), MAX_ANG), dtype=int)
         self.is_active = True
         self.active_levels[:] = [1, 1, 2, 3]
         self.active_levels[self.idx_alk_metal()] = [2, 2, 2, 3]
@@ -336,7 +561,7 @@ class FrozenRuleLargeCore(FrozenRuleBase):
        K   Ca   Sc   Ti    V   Cr   Mn   Fe   Co   Ni   Cu   Zn   Ga   Ge   As   Se   Br   Kr
       18   18   18   18   18   18   18   18   18   18   18   18   28   28   28   28   28   28
       Rb   Sr    Y   Zr   Nb   Mo   Tc   Ru   Rh   Pd   Ag   Cd   In   Sn   Sb   Te    I   Xe
-      36   36   36   36   36   36   36   36   36   18   36   36   46   46   46   46   46   46
+      36   36   36   36   36   36   36   36   36   36   36   36   46   46   46   46   46   46
       Cs   Ba        Hf   Ta    W   Re   Os   Ir   Pt   Au   Hg   Tl   Pb   Bi   Po   At   Rn
       54   54        68   68   68   68   68   68   68   68   68   78   78   78   78   78   78
       Fr   Ra        Rf   Db   Sg   Bh   Hs   Mt   Ds   Rg   Cn   Nh   Fl   Mc   Lv   Ts   Og
@@ -356,7 +581,7 @@ class FrozenRuleLargeCore(FrozenRuleBase):
            Chem. Phys. Lett. 350, (5–6), 573–76. https://doi.org/10.1016/S0009-2614(01)01345-8.
     """
     def define_active_levels(self):
-        self.active_levels = np.zeros((len(CONFIGURATION), MAX_ANG), dtype=int)
+        self.active_levels = np.zeros((len(CONFIGURATION_FC), MAX_ANG), dtype=int)
         self.is_active = True
         self.active_levels[:] = [1, 1, 2, 3]
         self.active_levels[self.idx_p_main()] = [1, 1, 1, 2]
@@ -365,10 +590,24 @@ class FrozenRuleLargeCore(FrozenRuleBase):
 
 FrozenRules = {
     "none": FrozenRuleNone(),
+    # orca/pyscf rule
     "pyscf": FrozenRuleORCA(),
     "orca": FrozenRuleORCA(),
+    # gaussian rule
+    # default for other basis: FreezeNobleGasCore
+    # default for 6-31G: FreezeG2
     "freezenoblegascore": FrozenRuleNobleGasCore(),
+    "frzngc": FrozenRuleNobleGasCore(),
     "freezeinnernoblegascore": FrozenRuleInnerNobleGasCore(),
+    "frzingc": FrozenRuleInnerNobleGasCore(),
+    "fc1": FrozenRuleInnerNobleGasCore(),
+    "freezeg2": FrozenRuleG2(),
+    "freezeg3": FrozenRuleG3(),
+    "freezeg4": FrozenRuleG4(),
+    "frzg2": FrozenRuleG2(),
+    "frzg3": FrozenRuleG3(),
+    "frzg4": FrozenRuleG4(),
+    # need double check?
     "smallcore": FrozenRuleSmallCore(),
     "largecore": FrozenRuleLargeCore(),
 }
@@ -623,16 +862,23 @@ class FrozenCore:
 
 
 if __name__ == '__main__':
-    from pyscf import mp, gto, scf
-    elemcfg = ElementConfiguration("Pm")
-    # FrozenRuleNone().print_frozen_core_electrons()
-    # FrozenRuleORCA().print_frozen_core_electrons()
-    FrozenRuleNobleGasCore().print_frozen_core_electrons()
-    # FrozenRuleInnerNobleGasCore().print_frozen_core_electrons()
-    # FrozenRuleSmallCore().print_frozen_core_electrons()
-    # FrozenRuleLargeCore().print_frozen_core_electrons()
-    mol = gto.Mole(atom="I 0 0 0; H 0 0 1; O 0 1 0", basis="def2-TZVP", ecp="def2-TZVP").build()
-    mf = scf.RHF(mol).run()
-    fc = FrozenCore(mol, mf.mo_occ, rule="FreezeNobleGasCore", ecp_only=False)
-    fc = FrozenCore(mol, mf.mo_occ, rule=[1, 2], ecp_only=False)
-    print(fc.mask)
+    def main_1():
+        from pyscf import mp, gto, scf
+        elemcfg = ElementConfiguration("Pm")
+        mol = gto.Mole(atom="I 0 0 0; H 0 0 1; O 0 1 0", basis="def2-TZVP", ecp="def2-TZVP").build()
+        mf = scf.RHF(mol).run()
+        fc = FrozenCore(mol, mf.mo_occ, rule="FreezeNobleGasCore", ecp_only=False)
+        fc = FrozenCore(mol, mf.mo_occ, rule=[1, 2], ecp_only=False)
+        print(fc.mask)
+
+    def main_2():
+
+        # FrozenRuleNone().print_frozen_core_electrons()
+        # FrozenRuleORCA().print_frozen_core_electrons()
+        # FrozenRuleNobleGasCore().print_frozen_core_electrons()
+        # FrozenRuleInnerNobleGasCore().print_frozen_core_electrons()
+        # FrozenRuleLargeCore().print_frozen_core_electrons()
+        # FrozenRuleLargeCore().print_frozen_core_electrons()
+        FrozenRuleG4().print_frozen_core_electrons()
+
+    main_2()
