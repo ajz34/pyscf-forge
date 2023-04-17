@@ -7,6 +7,8 @@ from .udhbase import UDHBase
 from .rdft import RSCF, RDFT
 from .udft import USCF, UDFT
 
+from .rdh import DH
+
 from . import mp2, iepa
 from .mp2 import (
     RMP2RIPySCF, RMP2ConvPySCF, UMP2ConvPySCF,

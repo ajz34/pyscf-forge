@@ -8,3 +8,5 @@ from .energy import (
     RIEPARI, RIEPAConv, UIEPAConv, UIEPARI,
     RRingCCDConv
 )
+
+from .energy import DH

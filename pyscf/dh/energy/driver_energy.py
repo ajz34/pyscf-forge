@@ -8,42 +8,6 @@ if typing.TYPE_CHECKING:
     from pyscf.dh import RDH
 
 
-def _process_energy_exx(mf_dh: "RDH", xc_list: XCList, force_evaluate=False):
-    log = mf_dh.log
-    xc_exx = xc_list.extract_by_xctype(XCType.EXX)
-    if len(xc_exx) == 0:
-        return xc_list, 0
-    xc_extracted = xc_list.remove(xc_exx, inplace=False)
-    log.info(f"[INFO] XCList extracted by process_energy_exx: {xc_exx.token}")
-    log.info(f"[INFO] XCList remains   by process_energy_exx: {xc_extracted.token}")
-    result = dict()
-    eng_tot = 0
-    for info in xc_exx:
-        log.info(f"[INFO] EXX to be evaluated: {info.token}")
-        # determine omega
-        omega = 0
-        if info.name == "LR_HF":
-            assert len(info.parameters) == 1
-            omega = info.parameters[0]
-        elif info.name == "HF":
-            omega = 0
-        else:
-            assert False, "Only accept LR_HF or HF, no SR_HF or anything else like second-order exchange, etc"
-        name_eng_exx_HF = util.pad_omega("eng_exx_HF", omega)
-        if force_evaluate or name_eng_exx_HF not in mf_dh.params.results:
-            log.info(f"[INFO] Evaluate {name_eng_exx_HF}")
-            result.update(mf_dh.get_energy_exactx(mf_dh.scf, mf_dh.make_rdm1_scf(), omega=omega))
-            eng = result[name_eng_exx_HF]
-        else:
-            log.info(f"[INFO] {name_eng_exx_HF} is evaluated. Take previous evaluated value.")
-            eng = mf_dh.params.results[name_eng_exx_HF]
-        eng = info.fac * eng
-        log.note(f"[RESULT] Energy of exchange {info.token}: {eng:20.12f}")
-        eng_tot += eng
-    mf_dh.params.update_results(result)
-    return xc_extracted, eng_tot
-
-
 def _process_energy_iepa(mf_dh: "RDH", xc_list: XCList, force_evaluate=False):
     log = mf_dh.log
     xc_iepa = xc_list.extract_by_xctype(XCType.IEPA)

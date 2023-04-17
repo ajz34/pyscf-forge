@@ -345,12 +345,15 @@ def custom_mf(mf, xc, auxbasis_or_with_df=None):
     # check whether xc code is the same to SCF object; if not, substitute it
     if XCList(mf.xc, code_scf=False).token != xc.token:
         log.note("[INFO] Exchange-correlation is not the same to SCF object. Change xc of SCF.")
-        try:
-            ni = mf._numint  # type: dft.numint.NumInt
-            ni._xc_type(xc.token)
-            mf.xc = xc.token
-        except (KeyError, ValueError):
-            mf._numint = numint_customized(xc)
+        mf.xc = xc.token
+        mf.converged = False
+
+    # try PySCF parsing of xc code; if not PySCF parsable, customize numint first
+    try:
+        ni = mf._numint  # type: dft.numint.NumInt
+        ni._xc_type(mf.xc)
+    except (KeyError, ValueError):
+        mf._numint = numint_customized(xc)
         mf.converged = False
 
     # change to with_df object

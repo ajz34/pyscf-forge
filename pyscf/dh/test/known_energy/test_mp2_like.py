@@ -27,13 +27,11 @@ class TestRMP2LikeDH(unittest.TestCase):
         REF_ESCF = -76.305197382056
         REF_ETOT = -76.391961061470
 
-        flags = {
-            "integral_scheme_scf": "Conv",
-            "frozen_rule": "FreezeNobleGasCore",
-            "auxbasis_ri": "cc-pVTZ-ri"}
         mol = self.mol
-        mf = dh.RDH(mol, xc="B2PLYP", flags=flags)
-        mf.with_df = df.DF(mol, auxbasis="cc-pVTZ-ri").run()
+        mf = dh.DH(mol, xc="B2PLYP") \
+            .build_scf(route_scf="conv") \
+            .run(frozen="FreezeNobleGasCore", auxbasis_ri="cc-pVTZ-ri")
+        self.assertFalse(hasattr(mf.scf, "with_df"))
         self.assertAlmostEqual(mf._scf.e_tot, REF_ESCF, places=5)
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
 
@@ -44,13 +42,10 @@ class TestRMP2LikeDH(unittest.TestCase):
         REF_ESCF = -76.268047709113
         REF_ETOT = -76.378191035928
 
-        flags = {
-            "integral_scheme_scf": "RI-JK",
-            "frozen_rule": "FreezeNobleGasCore",
-            "auxbasis_jk": "cc-pVTZ-jkfit",
-            "auxbasis_ri": "cc-pVTZ-ri"}
         mol = self.mol
-        mf = dh.RDH(mol, xc="B2GPPLYP", flags=flags).run()
+        mf = dh.DH(mol, xc="B2GPPLYP") \
+            .build_scf(route_scf="ri", auxbasis_jk="cc-pVTZ-jkfit") \
+            .run(frozen="FreezeNobleGasCore", auxbasis_ri="cc-pVTZ-ri")
         self.assertAlmostEqual(mf._scf.e_tot, REF_ESCF, places=5)
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
 
@@ -62,14 +57,10 @@ class TestRMP2LikeDH(unittest.TestCase):
         REF_ESCF = -76.186838177949
         REF_ETOT = -76.325115287231
 
-        flags={
-            "integral_scheme_scf": "RI-JK",
-            "frozen_rule": "FreezeNobleGasCore",
-            "auxbasis_jk": "cc-pVTZ-jkfit",
-            "auxbasis_ri": "cc-pVTZ-ri"}
         mol = self.mol
-        mf = dh.RDH(mol, xc="DSD-PBEP86-D3", flags=flags).run()
-        print()
+        mf = dh.DH(mol, xc="DSD-PBEP86-D3") \
+            .build_scf(route_scf="ri", auxbasis_jk="cc-pVTZ-jkfit") \
+            .run(frozen="FreezeNobleGasCore", auxbasis_ri="cc-pVTZ-ri")
         print(mf._scf.e_tot)
         print(mf.e_tot)
         # self.assertAlmostEqual(mf.mf.e_tot, REF_ESCF, places=5)
@@ -80,13 +71,10 @@ class TestRMP2LikeDH(unittest.TestCase):
         # MINP_H2O_cc-pVTZ_XYG3
         REF_ETOT = -76.400701189006
 
-        flags={
-            "integral_scheme_scf": "RI-JK",
-            "frozen_rule": "FreezeNobleGasCore",
-            "auxbasis_jk": "cc-pVTZ-jkfit",
-            "auxbasis_ri": "cc-pVTZ-ri"}
         mol = self.mol
-        mf = dh.RDH(mol, xc="XYG3", flags=flags).run()
+        mf = dh.DH(mol, xc="XYG3") \
+            .build_scf(route_scf="ri", auxbasis_jk="cc-pVTZ-jkfit") \
+            .run(frozen="FreezeNobleGasCore", auxbasis_ri="cc-pVTZ-ri")
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
 
     def test_SCAN0_2(self):
@@ -96,14 +84,10 @@ class TestRMP2LikeDH(unittest.TestCase):
         REF_ESCF = -76.204558509844
         REF_ETOT = -76.348414592594
 
-        flags={
-            "integral_scheme_scf": "RI-JK",
-            "frozen_rule": "FreezeNobleGasCore",
-            "auxbasis_jk": "cc-pVTZ-jkfit",
-            "auxbasis_ri": "cc-pVTZ-ri"}
         mol = self.mol
-        mf = dh.RDH(mol, xc="SCAN", flags=flags).run()
-        print()
+        mf = dh.DH(mol, xc="SCAN0-2") \
+            .build_scf(route_scf="ri", auxbasis_jk="cc-pVTZ-jkfit") \
+            .run(frozen="FreezeNobleGasCore", auxbasis_ri="cc-pVTZ-ri")
         print(mf._scf.e_tot)
         print(mf.e_tot)
         # self.assertAlmostEqual(mf.mf.e_tot, REF_ESCF, places=5)
@@ -120,7 +104,9 @@ class TestRMP2LikeDH(unittest.TestCase):
             "integral_scheme_scf": "Conv",
             "integral_scheme": "Conv",
         })
-        mf = dh.RDH(mol, xc="lrc-XYG3", params=params).run()
+        mf = dh.DH(mol, xc="lrc-XYG3") \
+            .build_scf(route_scf="conv") \
+            .run(route_mp2="conv")
         self.assertAlmostEqual(mf._scf.e_tot, REF_ESCF, places=5)
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
 
@@ -152,12 +138,10 @@ class TestUMP2LikeDH(unittest.TestCase):
         REF_ESCF = -75.643314480794
         REF_ETOT = -75.708153526127
 
-        flags = {
-            "integral_scheme_scf": "Conv",
-            "frozen_rule": "FreezeNobleGasCore",
-            "auxbasis_ri": "cc-pVTZ-ri"}
         mol = self.mol
-        mf = dh.UDH(mol, xc="B2PLYP", flags=flags).run()
+        mf = dh.DH(mol, xc="B2PLYP") \
+            .build_scf(route_scf="conv") \
+            .run(frozen="FreezeNobleGasCore", auxbasis_ri="cc-pVTZ-ri")
         self.assertAlmostEqual(mf._scf.e_tot, REF_ESCF, places=5)
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
 
@@ -175,10 +159,8 @@ class TestUMP2LikeDH(unittest.TestCase):
         #    R1=2.00000000000
         REF_ETOT = -75.715897359518
 
-        flags = {
-            "frozen_rule": "FreezeNobleGasCore",
-            "auxbasis_jk": "cc-pVTZ-jkfit",
-            "auxbasis_ri": "cc-pVTZ-ri"}
         mol = self.mol
-        mf = dh.UDH(mol, xc="XYG3", flags=flags).run()
+        mf = dh.DH(mol, xc="XYG3") \
+            .build_scf(route_scf="ri", auxbasis_jk="cc-pVTZ-jkfit") \
+            .run(frozen="FreezeNobleGasCore", auxbasis_ri="cc-pVTZ-ri")
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)

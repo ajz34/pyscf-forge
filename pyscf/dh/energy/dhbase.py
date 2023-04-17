@@ -64,6 +64,10 @@ class EngBase(lib.StreamObject, ABC):
         """ A more linting favourable replacement of attribute ``_scf``. """
         return self._scf
 
+    @scf.setter
+    def scf(self, mf_scf):
+        self._scf = mf_scf
+
     @property
     def mo_coeff(self):
         # type: () -> np.ndarray
@@ -145,7 +149,7 @@ class EngBase(lib.StreamObject, ABC):
             return frozen_core.mask
 
     @classmethod
-    def from_rdh(cls, mf_dh: "EngBase", *args):
+    def from_rdh(cls, mf_dh: "EngBase", *args, **kwargs):
         """ Build a new (inherited) instance by a base EngBase instance.
 
         Only some attributes are copied. Excluded attributes including
@@ -154,7 +158,7 @@ class EngBase(lib.StreamObject, ABC):
         - ``_tmpfile``
         - ``e_corr``
         """
-        mf_new = cls(*args)
+        mf_new = cls(*args, **kwargs)
         mf_new.with_df = mf_dh.with_df
         mf_new.frozen = mf_dh.frozen
         mf_new.verbose = mf_dh.verbose

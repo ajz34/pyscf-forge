@@ -17,21 +17,12 @@ class TestRPALike(unittest.TestCase):
         """.replace("R1", "2.0").replace("A", "104.2458898548")
         mol = gto.Mole(atom=coord, basis="aug-cc-pVTZ", unit="AU", verbose=0).build()
 
-        params = dh.util.Params(flags={
-            "integral_scheme_scf": "RI-JK",
-            "integral_scheme": "Conv",
-            "drpa_scheme": "ring-CCD",
-            "frozen_rule": "FreezeNobleGasCore",
-            "auxbasis_jk": "aug-cc-pVTZ-jkfit",
-            "auxbasis_ri": "aug-cc-pVTZ-ri",
-        })
-        mf = dh.RDH(mol, xc="dRPA75", params=params).build()
+        mf = dh.DH(mol, xc="dRPA75").build_scf(route_scf="ri", auxbasis_jk="aug-cc-pVTZ-jkfit").build()
         # cheat eri evaluation, since currently RI-ring-CCD is not implemented
-        with_df = mf.with_df  # type: df.DF
+        with_df = df.DF(mol, auxbasis="aug-cc-pVTZ-ri").build()
         mf.scf._eri = with_df.get_eri()
         # run drpa evaluation
-        mf.run()
-        print()
+        mf.run(frozen="FreezeNobleGasCore")
         print(mf._scf.e_tot)
         print(mf.e_tot)
         # self.assertAlmostEqual(mf._scf.e_tot, REF_ESCF, places=5)
