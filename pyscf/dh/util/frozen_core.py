@@ -213,8 +213,8 @@ class FrozenRuleORCA(FrozenRuleBase):
         self.active_levels[104:113] = [1, 1, 2, 2]  # post Ac transition metel
 
 
-class FrozenRuleNobelGasCore(FrozenRuleBase):
-    """ Frozen rule that the first layer nobel gas is frozen.
+class FrozenRuleNobleGasCore(FrozenRuleBase):
+    """ Frozen rule that the first layer noble gas is frozen.
 
     ```
        X
@@ -246,8 +246,8 @@ class FrozenRuleNobelGasCore(FrozenRuleBase):
         self.active_levels[:] = [1, 1, 2, 3]
 
 
-class FrozenRuleInnerNobelGasCore(FrozenRuleBase):
-    """ Frozen rule that the first layer nobel gas is frozen.
+class FrozenRuleInnerNobleGasCore(FrozenRuleBase):
+    """ Frozen rule that the first layer noble gas is frozen.
 
     ```
        X
@@ -367,8 +367,8 @@ FrozenRules = {
     "none": FrozenRuleNone(),
     "pyscf": FrozenRuleORCA(),
     "orca": FrozenRuleORCA(),
-    "freezenoblegascore": FrozenRuleNobelGasCore(),
-    "freezeinnernoblegascore": FrozenRuleInnerNobelGasCore(),
+    "freezenoblegascore": FrozenRuleNobleGasCore(),
+    "freezeinnernoblegascore": FrozenRuleInnerNobleGasCore(),
     "smallcore": FrozenRuleSmallCore(),
     "largecore": FrozenRuleLargeCore(),
 }
@@ -627,8 +627,8 @@ if __name__ == '__main__':
     elemcfg = ElementConfiguration("Pm")
     # FrozenRuleNone().print_frozen_core_electrons()
     # FrozenRuleORCA().print_frozen_core_electrons()
-    FrozenRuleNobelGasCore().print_frozen_core_electrons()
-    # FrozenRuleInnerNobelGasCore().print_frozen_core_electrons()
+    FrozenRuleNobleGasCore().print_frozen_core_electrons()
+    # FrozenRuleInnerNobleGasCore().print_frozen_core_electrons()
     # FrozenRuleSmallCore().print_frozen_core_electrons()
     # FrozenRuleLargeCore().print_frozen_core_electrons()
     mol = gto.Mole(atom="I 0 0 0; H 0 0 1; O 0 1 0", basis="def2-TZVP", ecp="def2-TZVP").build()
