@@ -100,10 +100,6 @@ class TestRMP2LikeDH(unittest.TestCase):
         mol = gto.Mole(
             atom="N 0 0 0.54777500; N 0 0 -0.54777500",
             basis="6-311+G(3df,2p)").build()
-        params = dh.util.Params(flags={
-            "integral_scheme_scf": "Conv",
-            "integral_scheme": "Conv",
-        })
         mf = dh.DH(mol, xc="lrc-XYG3") \
             .build_scf(route_scf="conv") \
             .run(route_mp2="conv")

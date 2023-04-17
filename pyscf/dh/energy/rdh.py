@@ -1,4 +1,4 @@
-from pyscf.dh.energy import RDHBase, EngBase
+from pyscf.dh.energy import EngBase
 from typing import Tuple, List
 from pyscf.dh import util
 from pyscf.dh.util import XCType, XCList, XCDH, update_results, pad_omega
@@ -441,7 +441,7 @@ class DH(EngBase):
 
     Attributes
     ----------
-    inherited : List[Tuple[RDHBase, XCList]]
+    inherited : List[Tuple[EngBase, XCList]]
         Advanced correlation methods by inherited instances, accompanied with related exchange-correlation list.
     xc : XCDH
         Exchange-correlation object that represents both SCF part and energy part.
@@ -459,7 +459,7 @@ class DH(EngBase):
         # cheat to generate someting by __init__ from base class
         mol = mf_or_mol if isinstance(mf_or_mol, gto.Mole) else mf_or_mol.mol
         super().__init__(scf.HF(mol))
-        self.inherited = []  # type: List[Tuple[RDHBase, XCList]]
+        self.inherited = []  # type: List[Tuple[EngBase, XCList]]
         self.xc = NotImplemented  # type: XCDH
         self.log = NotImplemented  # type: lib.logger.Logger
         self.flags = flags if flags is not None else dict()
