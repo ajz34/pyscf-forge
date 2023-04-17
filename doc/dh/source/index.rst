@@ -12,9 +12,6 @@ Welcome to dh's documentation!
 
    programmer/configure_dh.ipynb
    programmer/usage_dev_post_scf.ipynb
-   programmer/usage_params_and_flags.ipynb
-   programmer/usage_hybriddict.ipynb
-   programmer/convention.ipynb
    programmer/coding_tips.ipynb
 
 .. toctree::
