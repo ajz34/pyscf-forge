@@ -1,7 +1,7 @@
 from .dhbase import EngBase
 
-from .rhdft import RHDFT, RDFT
-from .uhdft import UHDFT, UDFT
+from .rhdft import RHDFT
+from .uhdft import UHDFT
 
 from . import mp2, iepa
 from .mp2 import (
