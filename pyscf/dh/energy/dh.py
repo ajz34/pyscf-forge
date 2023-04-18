@@ -422,10 +422,10 @@ def driver_energy_dh(mf_dh, xc=None, force_evaluate=False):
     # 2.2 MP2
     xc_extracted, eng_mp2 = _process_energy_mp2(mf_dh, xc_extracted)
     eng_tot += eng_mp2
-    # 2.2 MP2
+    # 2.3 dRPA
     xc_extracted, eng_drpa = _process_energy_drpa(mf_dh, xc_extracted)
     eng_tot += eng_drpa
-    # # 2.3 VV10
+    # # 2.4 VV10
     # xc_extracted, eng_vdw = _process_energy_vdw(mf_dh, xc_extracted)
     # eng_tot += eng_vdw
     # finalize

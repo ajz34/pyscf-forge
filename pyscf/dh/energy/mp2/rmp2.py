@@ -292,9 +292,6 @@ def kernel_energy_rmp2_ri_incore(
 
     For energy of fractional occupation system, computation method is chosen
     by eq (7) from Su2016 (10.1021/acs.jctc.6b00197).
-
-    Since conventional integral of MP2 is computationally costly,
-    purpose of this function should only be benchmark.
     """
     log = lib.logger.new_logger(verbose=verbose)
     log.info("[INFO] Start unrestricted RI-MP2")
