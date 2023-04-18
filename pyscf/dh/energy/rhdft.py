@@ -373,8 +373,8 @@ def custom_mf(mf, xc, auxbasis_or_with_df=None):
     return mf
 
 
-class RSCF(EngBase):
-    """ Restricted SCF wrapper class of convenience.
+class RHDFT(EngBase):
+    """ Restricted hybrid (low-rung) DFT wrapper class of convenience.
 
     Notes
     -----
@@ -446,15 +446,12 @@ class RSCF(EngBase):
     get_rho = staticmethod(get_rho)
 
 
-RDFT = RSCF
-
-
 if __name__ == '__main__':
     def main_1():
         from pyscf import gto, scf
         mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5").build()
         mf_s = scf.RHF(mol)
-        mf = RSCF(mf_s, xc="HF, LYP").run()
+        mf = RHDFT(mf_s, xc="HF, LYP").run()
         res = mf.make_energy_purexc([", LYP", "B88, ", "HF", "LR_HF(0.5)", "SSR(GGA_X_B88, 0.5), "])
         print(res)
 

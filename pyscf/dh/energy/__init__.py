@@ -1,7 +1,7 @@
 from .dhbase import EngBase
 
-from .rdft import RSCF, RDFT
-from .udft import USCF, UDFT
+from .rhdft import RHDFT, RDFT
+from .uhdft import UHDFT, UDFT
 
 from . import mp2, iepa
 from .mp2 import (
@@ -10,4 +10,4 @@ from .mp2 import (
 from .iepa import (RIEPAConv, RIEPARI, UIEPAConv, UIEPARI)
 from .ring_ccd import RRingCCDConv
 
-from .rdh import DH
+from .dh import DH

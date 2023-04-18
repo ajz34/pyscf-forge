@@ -1,4 +1,4 @@
-from pyscf.dh.energy.rdft import RSCF
+from pyscf.dh.energy.rhdft import RHDFT
 from pyscf.dh import util
 from pyscf import dft
 import numpy as np
@@ -68,20 +68,19 @@ def get_energy_unrestricted_noxc(mf, dm):
     return results
 
 
-class USCF(RSCF):
+class UHDFT(RHDFT):
+    """ Unrestricted hybrid (low-rung) DFT wrapper class of convenience. """
 
     get_energy_exactx = staticmethod(get_energy_unrestricted_exactx)
     get_energy_noxc = staticmethod(get_energy_unrestricted_noxc)
 
-
-UDFT = USCF
 
 if __name__ == '__main__':
     def main_1():
         from pyscf import gto, scf
         mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", charge=1, spin=1).build()
         mf_s = scf.UHF(mol)
-        mf = USCF(mf_s, xc="HF, LYP").run()
+        mf = UHDFT(mf_s, xc="HF, LYP").run()
         res = mf.make_energy_purexc([", LYP", "B88, ", "HF", "LR_HF(0.5)", "SSR(GGA_X_B88, 0.5), "])
         print(res)
 
