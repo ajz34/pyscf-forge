@@ -327,6 +327,11 @@ def custom_mf(mf, xc, auxbasis_or_with_df=None):
     Returns
     -------
     dft.rks.RKS or dft.uks.UKS
+
+    Notes
+    -----
+    Note that if no with_df object passed in, the density-fitting setting of an SCF object is left as is.
+    So leaving option ``auxbasis_or_with_df=None`` will not convert density-fitting SCF to conventional SCF.
     """
     verbose = mf.verbose
     log = lib.logger.new_logger(verbose=verbose)
