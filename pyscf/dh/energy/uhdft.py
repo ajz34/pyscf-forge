@@ -1,12 +1,7 @@
-import typing
-
+from pyscf.dh.energy.rhdft import RHDFT
 from pyscf.dh import util
-from pyscf import dft, lib
+from pyscf import dft
 import numpy as np
-
-if typing.TYPE_CHECKING:
-    from pyscf.dh.energy import RDH, UDH
-    from pyscf import gto
 
 
 def get_energy_unrestricted_exactx(mf, dm, omega=None):
@@ -71,3 +66,23 @@ def get_energy_unrestricted_noxc(mf, dm):
     results["eng_j"] = eng_j
     results["eng_noxc"] = eng_noxc
     return results
+
+
+class UHDFT(RHDFT):
+    """ Unrestricted hybrid (low-rung) DFT wrapper class of convenience. """
+
+    get_energy_exactx = staticmethod(get_energy_unrestricted_exactx)
+    get_energy_noxc = staticmethod(get_energy_unrestricted_noxc)
+
+
+if __name__ == '__main__':
+    def main_1():
+        from pyscf import gto, scf
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", charge=1, spin=1).build()
+        mf_s = scf.UHF(mol)
+        mf = UHDFT(mf_s, xc="HF, LYP").run()
+        res = mf.make_energy_purexc([", LYP", "B88, ", "HF", "LR_HF(0.5)", "SSR(GGA_X_B88, 0.5), "])
+        print(res)
+
+    main_1()
+

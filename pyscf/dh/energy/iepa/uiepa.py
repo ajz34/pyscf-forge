@@ -1,116 +1,15 @@
-from pyscf.dh.energy import UDHBase
 from pyscf.dh import util
-from .riepa import get_pair_mp2, get_pair_iepa, get_pair_siepa, get_pair_dcpt2
+from pyscf.dh.energy.iepa.riepa import (
+    get_pair_mp2, get_pair_iepa, get_pair_siepa, get_pair_dcpt2, RIEPAConv, RIEPARI)
 from pyscf import lib, ao2mo
 import numpy as np
 from scipy.special import erfc
-import warnings
 
-
-class UIEPAofDH(UDHBase):
-    """ Unrestricted IEPA (independent electron-pair approximation) class of doubly hybrid. """
-
-    def __init__(self, *args, **kwargs):
-        self.siepa_screen = erfc
-        super().__init__(*args, **kwargs)
-
-    def kernel(self, **kwargs):
-        with self.params.temporary_flags(kwargs):
-            results = driver_energy_uiepa(self)
-        self.params.update_results(results)
-        return results
-
-
-def driver_energy_uiepa(mf_dh):
-    """ Driver of unrestricted IEPA energy.
-
-    Parameters
-    ----------
-    mf_dh : UDH
-        Unrestricted doubly hybrid object.
-
-    Returns
-    -------
-    dict
-
-    See Also
-    --------
-    .riepa.driver_energy_riepa
-    """
-    mf_dh.build()
-    log = mf_dh.log
-    params = mf_dh.params
-    mf_dh._flag_snapshot = mf_dh.params.flags.copy()
-    results_summary = dict()
-    # some results from mf_dh
-    mol = mf_dh.mol
-    mo_coeff_act = mf_dh.mo_coeff_act
-    mo_energy_act = mf_dh.mo_energy_act
-    nOcc, nVir, nact = mf_dh.nOcc, mf_dh.nVir, mf_dh.nact
-    # some flags
-    tol_eng_pair_iepa = params.flags["tol_eng_pair_iepa"]
-    max_cycle_iepa = params.flags["max_cycle_pair_iepa"]
-    iepa_schemes = params.flags["iepa_schemes"]
-    integral_scheme = mf_dh.params.flags.get("integral_scheme_iepa", mf_dh.params.flags["integral_scheme"]).lower()
-    # main loop
-    omega_list = params.flags["omega_list_iepa"]
-    for omega in omega_list:
-        log.info(f"[INFO] Evaluation of IEPA at omega({omega})")
-        # define g_iajb generation
-        if integral_scheme.startswith("ri"):
-            with_df = util.get_with_df_omega(mf_dh.with_df, omega)
-            Y_OV = [params.tensors.get(util.pad_omega(f"Y_OV_{sn}", omega), None) for sn in ("a", "b")]
-            if Y_OV[0] is None:
-                for s, sn in [(0, "a"), (1, "b")]:
-                    Y_OV[s] = params.tensors[util.pad_omega(f"Y_OV_{sn}", omega)] = util.get_cderi_mo(
-                        with_df, mo_coeff_act[s], None, (0, nOcc[s], nOcc[s], nact[s]),
-                        mol.max_memory - lib.current_memory()[0])
-                    
-            def gen_g_IJab(s0, s1, i, j):
-                return Y_OV[s0][:, i].T @ Y_OV[s1][:, j]
-        elif integral_scheme.startswith("conv"):
-            log.warn("Conventional integral of post-SCF is not recommended!\n"
-                     "Use density fitting approximation is preferred.")
-            CO = [mo_coeff_act[s][:, :nOcc[s]] for s in (0, 1)]
-            CV = [mo_coeff_act[s][:, nOcc[s]:] for s in (0, 1)]
-            eri_or_mol = mf_dh.scf._eri if omega == 0 else mol
-            if eri_or_mol is None:
-                eri_or_mol = mol
-            g_iajb = [np.array([])] * 3
-            with mol.with_range_coulomb(omega):
-                for s0, s1, ss in zip((0, 0, 1), (0, 1, 1), (0, 1, 2)):
-                    g_iajb[ss] = ao2mo.general(eri_or_mol, (CO[s0], CV[s0], CO[s1], CV[s1])) \
-                                      .reshape(nOcc[s0], nVir[s0], nOcc[s1], nVir[s1])
-                log.debug("Spin {:}{:} ao2mo finished".format(s0, s1))
-
-            def gen_g_IJab(s0, s1, i, j):
-                if (s0, s1) == (0, 0):
-                    return g_iajb[0][i, :, j]
-                elif (s0, s1) == (1, 1):
-                    return g_iajb[2][i, :, j]
-                elif (s0, s1) == (0, 1):
-                    return g_iajb[1][i, :, j]
-                # elif (s0, s1) == (1, 0):
-                #     return g_iajb[1][j, :, i].T
-                else:
-                    assert False, "Not accepted spin!"
-        else:
-            raise NotImplementedError
-
-        results = kernel_energy_uiepa(
-            mo_energy_act, gen_g_IJab, nOcc, iepa_schemes,
-            screen_func=mf_dh.siepa_screen,
-            tol=tol_eng_pair_iepa, max_cycle=max_cycle_iepa,
-            tensors=params.tensors,
-            verbose=mf_dh.verbose
-        )
-        results = {util.pad_omega(key, omega): val for (key, val) in results.items()}
-        results_summary.update(results)
-    return results_summary
+from pyscf.dh.util import pad_omega
 
 
 def kernel_energy_uiepa(
-        mo_energy, gen_g_IJab, nocc, iepa_schemes,
+        mo_energy, gen_g_IJab, mo_occ, iepa_schemes,
         screen_func=erfc,
         tol=1e-10, max_cycle=64,
         tensors=None,
@@ -125,8 +24,8 @@ def kernel_energy_uiepa(
         Generate ERI block :math:`(ij|ab)` where :math:`i, j` is specified.
         Function signature should be ``gen_g_IJab(s0: int, s1: int, i: int, j: int) -> np.ndarray``
         with shape of returned array (a, b) and spin of s0 (i, a) and spin of s1 (j, b).
-    nocc : list[int]
-        Number of occupied molecular orbitals.
+    mo_occ : list[np.ndarray]
+        Molecular orbitals occupation numbers.
     iepa_schemes : list[str] or str
         IEPA schemes. Currently MP2, IEPA, SIEPA, MP2cr, MP2cr2 accepted.
 
@@ -148,8 +47,12 @@ def kernel_energy_uiepa(
     log = lib.logger.new_logger(verbose=verbose)
     log.info("[INFO] Start unrestricted IEPA")
 
-    eo = [mo_energy[s][:nocc[s]] for s in (0, 1)]
-    ev = [mo_energy[s][nocc[s]:] for s in (0, 1)]
+    mask_occ = [mo_occ[s] != 0 for s in (0, 1)]
+    mask_vir = [mo_occ[s] == 0 for s in (0, 1)]
+    eo = [mo_energy[s][mask_occ[s]] for s in (0, 1)]
+    ev = [mo_energy[s][mask_vir[s]] for s in (0, 1)]
+    nocc = tuple([mask_occ[s].sum() for s in (0, 1)])
+    tensors = tensors if tensors is not None else dict()
 
     # parse IEPA schemes
     # `iepa_schemes` option is either str or list[str]; change to list
@@ -168,17 +71,17 @@ def kernel_energy_uiepa(
 
     # allocate pair energies
     for scheme in iepa_schemes:
-        tensors.create(f"pair_{scheme}_aa", shape=(nocc[0], nocc[0]))
-        tensors.create(f"pair_{scheme}_ab", shape=(nocc[0], nocc[1]))
-        tensors.create(f"pair_{scheme}_bb", shape=(nocc[1], nocc[1]))
+        tensors[f"pair_{scheme}_aa"] = np.zeros(shape=(nocc[0], nocc[0]))
+        tensors[f"pair_{scheme}_ab"] = np.zeros(shape=(nocc[0], nocc[1]))
+        tensors[f"pair_{scheme}_bb"] = np.zeros(shape=(nocc[1], nocc[1]))
         if scheme == "MP2CR":
             if "pair_MP2_aa" not in tensors:
-                tensors.create("pair_MP2_aa", shape=(nocc[0], nocc[0]))
-                tensors.create("pair_MP2_ab", shape=(nocc[0], nocc[1]))
-                tensors.create("pair_MP2_bb", shape=(nocc[1], nocc[1]))
-            tensors.create("n2_pair_aa", shape=(nocc[0], nocc[0]))
-            tensors.create("n2_pair_ab", shape=(nocc[0], nocc[1]))
-            tensors.create("n2_pair_bb", shape=(nocc[1], nocc[1]))
+                tensors["pair_MP2_aa"] = np.zeros(shape=(nocc[0], nocc[0]))
+                tensors["pair_MP2_ab"] = np.zeros(shape=(nocc[0], nocc[1]))
+                tensors["pair_MP2_bb"] = np.zeros(shape=(nocc[1], nocc[1]))
+            tensors["n2_pair_aa"] = np.zeros(shape=(nocc[0], nocc[0]))
+            tensors["n2_pair_ab"] = np.zeros(shape=(nocc[0], nocc[1]))
+            tensors["n2_pair_bb"] = np.zeros(shape=(nocc[1], nocc[1]))
 
     # In evaluation of MP2/cr, MP2 pair energy is evaluated first.
     schemes_for_pair = set(iepa_schemes)
@@ -275,3 +178,126 @@ def get_ump2cr_norm(n2_aa, n2_ab, n2_bb):
     np_bb += 0.25 * (n2_bb.sum(axis=1)[:, None] + n2_bb.sum(axis=0)[None, :])
     return np_aa, np_ab, np_bb
 
+
+class UIEPAConv(RIEPAConv):
+    """ Unrestricted IEPA-like class of doubly hybrid with conventional integral. """
+
+    def driver_eng_iepa(self, **_kwargs):
+        log = lib.logger.new_logger(verbose=self.verbose)
+        mask = self.get_frozen_mask()
+        mask_occ = mask & (self.mo_occ != 0)
+        mask_vir = mask & (self.mo_occ == 0)
+        mo_occ_act = [self.mo_occ[s][mask[s]] for s in (0, 1)]
+        mol = self.mol
+        nocc_act = tuple(mask_occ.sum(axis=-1))
+        nvir_act = tuple(mask_vir.sum(axis=-1))
+        occ_coeff_act = [self.mo_coeff[s][:, mask_occ[s]] for s in (0, 1)]
+        vir_coeff_act = [self.mo_coeff[s][:, mask_vir[s]] for s in (0, 1)]
+        mo_energy_act = [self.mo_energy[s][mask[s]] for s in (0, 1)]
+        # eri generator
+        eri_or_mol = self.scf._eri if self.omega == 0 else mol
+        eri_or_mol = eri_or_mol if eri_or_mol is not None else mol
+        g_iajb = [np.array([])] * 3
+        with mol.with_range_coulomb(self.omega):
+            for s0, s1, ss in ((0, 0, 0), (0, 1, 1), (1, 1, 2)):
+                g_iajb[ss] = ao2mo.general(
+                    eri_or_mol,
+                    (occ_coeff_act[s0], vir_coeff_act[s0], occ_coeff_act[s1], vir_coeff_act[s1])) \
+                    .reshape(nocc_act[s0], nvir_act[s0], nocc_act[s1], nvir_act[s1])
+                log.debug(f"Spin {s0}{s1} ao2mo finished")
+
+        def gen_g_IJab(s0, s1, i, j):
+            if (s0, s1) == (0, 0):
+                return g_iajb[0][i, :, j]
+            elif (s0, s1) == (1, 1):
+                return g_iajb[2][i, :, j]
+            elif (s0, s1) == (0, 1):
+                return g_iajb[1][i, :, j]
+            # elif (s0, s1) == (1, 0):
+            #     return g_iajb[1][j, :, i].T
+            else:
+                assert False, "Not accepted spin!"
+
+        results = self.kernel_energy_iepa(
+            mo_energy_act, gen_g_IJab, mo_occ_act,
+            iepa_schemes=self.iepa_schemes,
+            screen_func=self.siepa_screen,
+            tol=self.conv_tol,
+            max_cycle=self.max_cycle,
+            tensors=self.tensors,
+            verbose=self.verbose
+        )
+
+        # pad omega
+        results = {pad_omega(key, self.omega): val for (key, val) in results.items()}
+        self.results.update(results)
+        return results
+
+    kernel_energy_iepa = staticmethod(kernel_energy_uiepa)
+    kernel = driver_eng_iepa
+
+
+class UIEPARI(RIEPARI):
+    """ Unrestricted IEPA-like class of doubly hybrid with RI integral. """
+
+    def driver_eng_iepa(self, **_kwargs):
+        log = lib.logger.new_logger(verbose=self.verbose)
+        mask = self.get_frozen_mask()
+        mask_occ = mask & (self.mo_occ != 0)
+        mo_occ_act = [self.mo_occ[s][mask[s]] for s in (0, 1)]
+        nact = tuple(mask.sum(axis=-1))
+        nocc_act = tuple(mask_occ.sum(axis=-1))
+        mo_coeff_act = [self.mo_coeff[s][:, mask[s]] for s in (0, 1)]
+        mo_energy_act = [self.mo_energy[s][mask[s]] for s in (0, 1)]
+        # eri generator
+        omega = self.omega
+        with_df = util.get_with_df_omega(self.with_df, omega)
+        max_memory = self.max_memory - lib.current_memory()[0]
+        cderi_uov = self.tensors.get("cderi_uov", None)
+        if cderi_uov is None:
+            cderi_uov = [np.zeros(0)] * 2
+            for s in (0, 1):
+                cderi_uov[s] = util.get_cderi_mo(
+                    with_df, mo_coeff_act[s], None, (0, nocc_act[s], nocc_act[s], nact[s]), max_memory)
+                log.debug(f"Spin {s} ao2mo finished")
+            self.tensors["cderi_uov"] = cderi_uov
+
+        def gen_g_IJab(s0, s1, i, j):
+            return cderi_uov[s0][:, i].T @ cderi_uov[s1][:, j]
+
+        results = self.kernel_energy_iepa(
+            mo_energy_act, gen_g_IJab, mo_occ_act,
+            iepa_schemes=self.iepa_schemes,
+            screen_func=self.siepa_screen,
+            tol=self.conv_tol,
+            max_cycle=self.max_cycle,
+            tensors=self.tensors,
+            verbose=self.verbose
+        )
+
+        # pad omega
+        results = {pad_omega(key, self.omega): val for (key, val) in results.items()}
+        self.results.update(results)
+        return results
+
+    kernel_energy_iepa = staticmethod(kernel_energy_uiepa)
+    kernel = driver_eng_iepa
+
+
+if __name__ == '__main__':
+    def main_1():
+        from pyscf import gto, scf
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", charge=1, spin=1, basis="6-31G").build()
+        mf_scf = scf.UHF(mol).run()
+        mf_mp = UIEPAConv(mf_scf, frozen=[1, 2]).run()
+        print(mf_mp.results)
+
+    def main_2():
+        from pyscf import gto, scf
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", charge=1, spin=1, basis="6-31G").build()
+        mf_scf = scf.UHF(mol).run()
+        mf_mp = UIEPARI(mf_scf, frozen=[1, 2]).run()
+        print(mf_mp.results)
+
+    main_1()
+    main_2()

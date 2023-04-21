@@ -20,12 +20,6 @@ class TestRSDH(unittest.TestCase):
         H     0.00000000    1.43266384    0.99210317
         H     0.00000000   -1.43266384    0.99210317
         """, basis="aug-cc-pVDZ", unit="AU").build()
-        params = dh.util.Params(flags={
-            "frozen_rule": "FreezeNobleGasCore",
-            "auxbasis_jk": "aug-cc-pVDZ-jkfit",
-            "auxbasis_ri": "aug-cc-pVDZ-ri",
-        })
-        mf = dh.RDH(mol, xc="RS-PBE-P86", params=params)
-        mf.run()
+        mf = dh.DH(mol, xc="RS-PBE-P86").run(frozen="FreezeNobleGasCore")
         self.assertAlmostEqual(mf._scf.e_tot, REF_ESCF, places=5)
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)

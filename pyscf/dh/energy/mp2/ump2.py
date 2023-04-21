@@ -1,122 +1,45 @@
-from pyscf.dh.energy import UDHBase
+r""" Unrestricted MP2.
+"""
+
 from pyscf.dh import util
-from pyscf import ao2mo, lib
+from pyscf.dh.energy.mp2.rmp2 import RMP2ConvPySCF, RMP2Conv, RMP2RI
+from pyscf import ao2mo, lib, mp, __config__, df
 import numpy as np
 
+from pyscf.dh.util import pad_omega
 
-class UMP2ofDH(UDHBase):
-    """ Unestricted MP2 class of doubly hybrid. """
+CONFIG_incore_t_oovv_mp2 = getattr(__config__, 'incore_t_oovv_mp2', None)
+""" Flag for MP2 amplitude tensor :math:`t_{ij}^{ab}` stored in memory or disk.
 
-    def kernel(self, **kwargs):
-        with self.params.temporary_flags(kwargs):
-            results = driver_energy_ump2(self)
-        self.params.update_results(results)
-        return results
+Parameters
+----------
+True
+    Store tensor in memory.
+False
+    Store tensor in disk.
+None
+    Do not store tensor in either disk or memory.
+"auto"
+    Leave program to judge whether tensor locates.
+(int)
+    If tensor size exceeds this size (in MBytes), then store in disk.
+"""
 
 
-def driver_energy_ump2(mf_dh):
-    """ Driver of unrestricted MP2 energy.
+# region UMP2ConvPySCF
 
-    Parameters
-    ----------
-    mf_dh : UMP2ofDH
-        Restricted doubly hybrid object.
+class UMP2ConvPySCF(mp.ump2.UMP2, RMP2ConvPySCF):
+    """ Unrestricted MP2 class of doubly hybrid with conventional integral evaluated by PySCF. """
+    pass
 
-    Returns
-    -------
-    dict
+# endregion
 
-    See Also
-    --------
-    pyscf.dh.energy.mp2.rmp2.driver_energy_rmp2
-    """
-    mf_dh.build()
-    mol = mf_dh.mol
-    log = mf_dh.log
-    mf_dh._flag_snapshot = mf_dh.params.flags.copy()
-    results_summary = dict()
-    # parse frozen orbitals
-    mask_act = mf_dh.get_mask_act()
-    nact, nOcc, nVir = mf_dh.nact, mf_dh.nOcc, mf_dh.nVir
-    mo_coeff_act = mf_dh.mo_coeff_act
-    mo_energy_act = mf_dh.mo_energy_act
-    # other options
-    frac_num = mf_dh.params.flags["frac_num_mp2"]
-    frac_num_f = frac_num if frac_num is None else [frac_num[s][mask_act[s]] for s in (0, 1)]
-    omega_list = mf_dh.params.flags["omega_list_mp2"]
-    integral_scheme = mf_dh.params.flags.get("integral_scheme_mp2", mf_dh.params.flags["integral_scheme"]).lower()
-    for omega in omega_list:
-        log.info(f"[INFO] omega in MP2 energy driver: {omega}")
-        # prepare t_ijab space
-        params = mf_dh.params
-        max_memory = mol.max_memory - lib.current_memory()[0]
-        incore_t_ijab = util.parse_incore_flag(
-            params.flags["incore_t_ijab_mp2"], 3 * max(nOcc) ** 2 * max(nVir) ** 2,
-            max_memory, dtype=mo_coeff_act[0].dtype)
-        if incore_t_ijab is None:
-            t_ijab = None
-        else:
-            t_ijab = [np.zeros(0)] * 3  # IDE type cheat
-            for s0, s1, ss, ssn in ((0, 0, 0, "aa"), (0, 1, 1, "ab"), (1, 1, 2, "bb")):
-                t_ijab[ss] = params.tensors.create(
-                    name=util.pad_omega(f"t_ijab_{ssn}", omega),
-                    shape=(nOcc[s0], nOcc[s1], nVir[s0], nVir[s1]), incore=incore_t_ijab,
-                    dtype=mo_coeff_act[0].dtype)
 
-        # MP2 kernels
-        if integral_scheme.startswith("conv"):
-            eri_or_mol = mf_dh.scf._eri if omega == 0 else mol
-            if eri_or_mol is None:
-                eri_or_mol = mol
-            with mol.with_range_coulomb(omega):
-                results = kernel_energy_ump2_conv_full_incore(
-                    mo_energy_act, mo_coeff_act, eri_or_mol,
-                    nOcc, nVir,
-                    t_ijab=t_ijab,
-                    frac_num=frac_num_f,
-                    verbose=mf_dh.verbose)
-            if omega != 0:
-                results = {util.pad_omega(key, omega): val for (key, val) in results.items()}
-            results_summary.update(results)
-        elif mf_dh.params.flags["integral_scheme"].lower().startswith("ri"):
-            with_df = util.get_with_df_omega(mf_dh.with_df, omega)
-            Y_OV = [
-                params.tensors.get(util.pad_omega(f"Y_OV_{sn}", omega), None)
-                for sn in ("a", "b")]
-            if Y_OV[0] is None:
-                for s, sn in [(0, "a"), (1, "b")]:
-                    Y_OV[s] = util.get_cderi_mo(
-                        with_df, mo_coeff_act[s], None, (0, nOcc[s], nOcc[s], nact[s]),
-                        mol.max_memory - lib.current_memory()[0])
-                    params.tensors[util.pad_omega(f"Y_OV_{sn}", omega)] = Y_OV[s]
-            # Y_OV_2 is rarely called, so do not try to build omega for this special case
-            Y_OV_2 = None
-            if mf_dh.with_df_2 is not None:
-                Y_OV_2 = [[], []]
-                for s, sn in [(0, "a"), (1, "b")]:
-                    Y_OV_2[s] = util.get_cderi_mo(
-                        mf_dh.with_df_2, mo_coeff_act[s], None, (0, nOcc[s], nOcc[s], nact[s]),
-                        mol.max_memory - lib.current_memory()[0])
-            results = kernel_energy_ump2_ri(
-                mo_energy_act, Y_OV,
-                t_ijab=t_ijab,
-                frac_num=frac_num_f,
-                verbose=mf_dh.verbose,
-                max_memory=mol.max_memory - lib.current_memory()[0],
-                Y_OV_2=Y_OV_2
-            )
-            results = {util.pad_omega(key, omega): val for (key, val) in results.items()}
-            results_summary.update(results)
-        else:
-            raise NotImplementedError("Not implemented currently!")
-    return results_summary
-
+# region UMP2Conv
 
 def kernel_energy_ump2_conv_full_incore(
-        mo_energy, mo_coeff, eri_or_mol,
-        nocc, nvir,
-        t_ijab=None,
-        frac_num=None, verbose=lib.logger.NOTE):
+        mo_energy, mo_coeff, eri_or_mol, mo_occ,
+        t_oovv=None, frac_num=None, verbose=lib.logger.NOTE):
     """ Kernel of unrestricted MP2 energy by conventional method.
 
     Parameters
@@ -128,12 +51,10 @@ def kernel_energy_ump2_conv_full_incore(
     eri_or_mol : np.ndarray or gto.Mole
         ERI that is recognized by ``pyscf.ao2mo.general``.
 
-    t_ijab : list[np.ndarray]
-        Store space for ``t_ijab``
-    nocc : list[int]
-        Number of occupied orbitals.
-    nvir : list[int]
-        Number of virtual orbitals.
+    t_oovv : list[np.ndarray]
+        Store space for ``t_oovv``
+    mo_occ : list[np.ndarray]
+        Molecular orbitals occupation numbers.
 
     frac_num : list[np.ndarray]
         Fractional occupation number list.
@@ -156,6 +77,15 @@ def kernel_energy_ump2_conv_full_incore(
     log.warn("Conventional integral of MP2 is not recommended!\n"
              "Use density fitting approximation is recommended.")
 
+    mask_occ = [mo_occ[s] != 0 for s in (0, 1)]
+    mask_vir = [mo_occ[s] == 0 for s in (0, 1)]
+    nocc = tuple([mask_occ[s].sum() for s in (0, 1)])
+    nvir = tuple([mask_vir[s].sum() for s in (0, 1)])
+    Co = [mo_coeff[s][:, :nocc[s]] for s in (0, 1)]
+    Cv = [mo_coeff[s][:, nocc[s]:] for s in (0, 1)]
+    eo = [mo_energy[s][:nocc[s]] for s in (0, 1)]
+    ev = [mo_energy[s][nocc[s]:] for s in (0, 1)]
+
     if frac_num is not None:
         frac_occ = [frac_num[s][:nocc[s]] for s in (0, 1)]
         frac_vir = [frac_num[s][nocc[s]:] for s in (0, 1)]
@@ -163,10 +93,6 @@ def kernel_energy_ump2_conv_full_incore(
         frac_occ = frac_vir = None
 
     # ERI conversion
-    Co = [mo_coeff[s][:, :nocc[s]] for s in (0, 1)]
-    Cv = [mo_coeff[s][:, nocc[s]:] for s in (0, 1)]
-    eo = [mo_energy[s][:nocc[s]] for s in (0, 1)]
-    ev = [mo_energy[s][nocc[s]:] for s in (0, 1)]
     log.info("[INFO] Start ao2mo")
     g_iajb = [np.array([])] * 3
     for s0, s1, ss in zip((0, 0, 1), (0, 1, 1), (0, 1, 2)):
@@ -183,8 +109,8 @@ def kernel_energy_ump2_conv_full_incore(
             t_Ijab = lib.einsum("ajb, jab -> jab", g_Iajb, 1 / D_Ijab)
             if s0 == s1:
                 t_Ijab -= lib.einsum("bja, jab -> jab", g_Iajb, 1 / D_Ijab)
-            if t_ijab is not None:
-                t_ijab[ss][i] = t_Ijab
+            if t_oovv is not None:
+                t_oovv[ss][i] = t_Ijab
             if frac_num is not None:
                 n_Ijab = frac_occ[s0][i] * frac_occ[s1][:, None, None] \
                     * (1 - frac_vir[s0][None, :, None]) * (1 - frac_vir[s1][None, None, :])
@@ -210,10 +136,60 @@ def kernel_energy_ump2_conv_full_incore(
     return results
 
 
-def kernel_energy_ump2_ri(
-        mo_energy, Y_OV,
-        t_ijab=None,
-        frac_num=None, verbose=lib.logger.NOTE, max_memory=2000, Y_OV_2=None):
+class UMP2Conv(RMP2Conv):
+    """ Unrestricted MP2 class of doubly hybrid with conventional integral. """
+
+    def driver_eng_mp2(self, **kwargs):
+        mask = self.get_frozen_mask()
+        nocc_act = tuple((mask & (self.mo_occ != 0)).sum(axis=-1))
+        nvir_act = tuple((mask & (self.mo_occ == 0)).sum(axis=-1))
+        mo_coeff_act = [self.mo_coeff[s][:, mask[s]] for s in (0, 1)]
+        mo_energy_act = [self.mo_energy[s][mask[s]] for s in (0, 1)]
+        mo_occ_act = [self.mo_occ[s][mask[s]] for s in (0, 1)]
+        frac_num_act = self.frac_num
+        if frac_num_act is not None:
+            frac_num_act = [frac_num_act[s][mask[s]] for s in (0, 1)]
+        # prepare t_oovv
+        max_memory = self.max_memory - lib.current_memory()[0]
+        incore_t_oovv = util.parse_incore_flag(
+            self.incore_t_oovv_mp2, 3 * max(nocc_act) ** 2 * max(nvir_act) ** 2,
+            max_memory, dtype=mo_coeff_act[0].dtype)
+        if incore_t_oovv is None:
+            t_oovv = None
+        else:
+            t_oovv = [np.zeros(0)] * 3  # IDE type cheat
+            for s0, s1, ss, ssn in ((0, 0, 0, "aa"), (0, 1, 1, "ab"), (1, 1, 2, "bb")):
+                t_oovv[ss] = util.allocate_array(
+                    incore_t_oovv, shape=(nocc_act[s0], nocc_act[s1], nvir_act[s0], nvir_act[s1]),
+                    max_memory=max_memory,
+                    h5file=self._tmpfile,
+                    name=f"t_oovv_{ssn}",
+                    dtype=mo_coeff_act[0].dtype)
+            self.tensors["t_oovv"] = t_oovv
+        # kernel
+        with self.mol.with_range_coulomb(self.omega):
+            eri_or_mol = self.scf._eri if self.omega == 0 else self.mol
+            eri_or_mol = eri_or_mol if eri_or_mol is not None else self.mol
+            results = self.kernel_energy_mp2(
+                mo_energy_act, mo_coeff_act, eri_or_mol, mo_occ_act,
+                t_oovv=t_oovv, frac_num=frac_num_act, verbose=self.verbose, **kwargs)
+        self.e_corr = results["eng_corr_MP2"]
+        # pad omega
+        results = {pad_omega(key, self.omega): val for (key, val) in results.items()}
+        self.results.update(results)
+        return results
+
+    kernel_energy_mp2 = staticmethod(kernel_energy_ump2_conv_full_incore)
+    kernel = driver_eng_mp2
+
+# endregion
+
+
+# region UMP2RI
+
+def kernel_energy_ump2_ri_incore(
+        mo_energy, cderi_uov,
+        t_oovv=None, frac_num=None, verbose=lib.logger.NOTE, max_memory=2000, cderi_uov_2=None):
     """ Kernel of unrestricted MP2 energy by RI integral.
 
     For RI approximation, ERI integral is set to be
@@ -225,18 +201,18 @@ def kernel_energy_ump2_ri(
     ----------
     mo_energy : list[np.ndarray]
         Molecular orbital energy levels.
-    Y_OV : list[np.ndarray]
+    cderi_uov : list[np.ndarray]
         Cholesky decomposed 3c2e ERI in MO basis (occ-vir part). Spin in (aa, bb).
 
-    t_ijab : list[np.ndarray]
-        Store space for ``t_ijab``
+    t_oovv : list[np.ndarray]
+        Store space for ``t_oovv``
     frac_num : list[np.ndarray]
         Fractional occupation number list.
     verbose : int
         Verbose level for PySCF.
     max_memory : float
         Allocatable memory in MB.
-    Y_OV_2 : list[np.ndarray]
+    cderi_uov_2 : list[np.ndarray]
         Another part of 3c2e ERI in MO basis (occ-vir part). This is mostly used in magnetic computations.
 
     Notes
@@ -251,8 +227,8 @@ def kernel_energy_ump2_ri(
     log.info("[INFO] Start unrestricted RI-MP2")
 
     nocc, nvir = np.array([0, 0]), np.array([0, 0])
-    naux, nocc[0], nvir[0] = Y_OV[0].shape
-    naux, nocc[1], nvir[1] = Y_OV[1].shape
+    naux, nocc[0], nvir[0] = cderi_uov[0].shape
+    naux, nocc[1], nvir[1] = cderi_uov[1].shape
 
     if frac_num is not None:
         frac_occ = [frac_num[s][:nocc[s]] for s in (0, 1)]
@@ -264,26 +240,26 @@ def kernel_energy_ump2_ri(
     ev = [mo_energy[s][nocc[s]:] for s in (0, 1)]
 
     # loops
-    eng_spin = np.array([0, 0, 0], dtype=Y_OV[0].dtype)
+    eng_spin = np.array([0, 0, 0], dtype=cderi_uov[0].dtype)
     log.info("[INFO] Start RI-MP2 loop")
-    nbatch = util.calc_batch_size(4 * max(nocc) * max(nvir) ** 2, max_memory, dtype=Y_OV[0].dtype)
+    nbatch = util.calc_batch_size(4 * max(nocc) * max(nvir) ** 2, max_memory, dtype=cderi_uov[0].dtype)
     for s0, s1, ss in zip((0, 0, 1), (0, 1, 1), (0, 1, 2)):
         log.info("[INFO] Starting spin {:}{:}".format(s0, s1))
         for sI in util.gen_batch(0, nocc[s0], nbatch):
             log.info("[INFO] MP2 loop i: [{:}, {:})".format(sI.start, sI.stop))
-            if Y_OV_2 is None:
-                g_Iajb = lib.einsum("PIa, Pjb -> Iajb", Y_OV[s0][:, sI], Y_OV[s1])
+            if cderi_uov_2 is None:
+                g_Iajb = lib.einsum("PIa, Pjb -> Iajb", cderi_uov[s0][:, sI], cderi_uov[s1])
             else:
-                g_Iajb = 0.5 * lib.einsum("PIa, Pjb -> Iajb", Y_OV[s0][:, sI], Y_OV_2[s1])
-                g_Iajb += 0.5 * lib.einsum("PIa, Pjb -> Iajb", Y_OV_2[s0][:, sI], Y_OV[s1])
+                g_Iajb = 0.5 * lib.einsum("PIa, Pjb -> Iajb", cderi_uov[s0][:, sI], cderi_uov_2[s1])
+                g_Iajb += 0.5 * lib.einsum("PIa, Pjb -> Iajb", cderi_uov_2[s0][:, sI], cderi_uov[s1])
             D_Ijab = (
                 + eo[s0][sI, None, None, None] + eo[s1][None, :, None, None]
                 - ev[s0][None, None, :, None] - ev[s1][None, None, None, :])
             t_Ijab = lib.einsum("Iajb, Ijab -> Ijab", g_Iajb, 1 / D_Ijab)
             if s0 == s1:
                 t_Ijab -= lib.einsum("Ibja, Ijab -> Ijab", g_Iajb, 1 / D_Ijab)
-            if t_ijab is not None:
-                t_ijab[ss][sI] = t_Ijab
+            if t_oovv is not None:
+                t_oovv[ss][sI] = t_Ijab
             if frac_num is not None:
                 n_Ijab = frac_occ[s0][sI, None, None, None] * frac_occ[s1][None, :, None, None] \
                     * (1 - frac_vir[s0][None, None, :, None]) * (1 - frac_vir[s1][None, None, None, :])
@@ -307,3 +283,98 @@ def kernel_energy_ump2_ri(
     log.note(f"[RESULT] Energy corr MP2 of spin bb: {eng_spin[2]:18.10f}")
     log.note(f"[RESULT] Energy corr MP2 of total  : {eng_mp2    :18.10f}")
     return results
+
+
+class UMP2RI(RMP2RI):
+    """ Unrestricted MP2 class of doubly hybrid with RI integral. """
+
+    def driver_eng_mp2(self, **kwargs):
+        mask = self.get_frozen_mask()
+        nocc_act = tuple((mask & (self.mo_occ != 0)).sum(axis=-1))
+        nvir_act = tuple((mask & (self.mo_occ == 0)).sum(axis=-1))
+        nact = tuple(mask.sum(axis=-1))
+        mo_coeff_act = [self.mo_coeff[s][:, mask[s]] for s in (0, 1)]
+        mo_energy_act = [self.mo_energy[s][mask[s]] for s in (0, 1)]
+        frac_num_act = self.frac_num
+        if frac_num_act is not None:
+            frac_num_act = [frac_num_act[s][mask[s]] for s in (0, 1)]
+        # prepare t_oovv
+        max_memory = self.max_memory - lib.current_memory()[0]
+        incore_t_oovv = util.parse_incore_flag(
+            self.incore_t_oovv_mp2, 3 * max(nocc_act) ** 2 * max(nvir_act) ** 2,
+            max_memory, dtype=mo_coeff_act[0].dtype)
+        if incore_t_oovv is None:
+            t_oovv = None
+        else:
+            t_oovv = [np.zeros(0)] * 3  # IDE type cheat
+            for s0, s1, ss, ssn in ((0, 0, 0, "aa"), (0, 1, 1, "ab"), (1, 1, 2, "bb")):
+                t_oovv[ss] = util.allocate_array(
+                    incore_t_oovv, shape=(nocc_act[s0], nocc_act[s1], nvir_act[s0], nvir_act[s1]),
+                    max_memory=max_memory,
+                    h5file=self._tmpfile,
+                    name=f"t_oovv_{ssn}",
+                    dtype=mo_coeff_act[0].dtype)
+            self.tensors["t_oovv"] = t_oovv
+        # generate cderi_uov
+        omega = self.omega
+        with_df = util.get_with_df_omega(self.with_df, omega)
+        max_memory = self.max_memory - lib.current_memory()[0]
+        cderi_uov = self.tensors.get("cderi_uov", None)
+        if cderi_uov is None:
+            cderi_uov = [np.zeros(0)] * 2  # IDE type cheat
+            for s in (0, 1):
+                cderi_uov[s] = util.get_cderi_mo(
+                    with_df, mo_coeff_act[s], None, (0, nocc_act[s], nocc_act[s], nact[s]), max_memory)
+            self.tensors["cderi_uov"] = cderi_uov
+        # cderi_uov_2 is rarely called, so do not try to build omega for this special case
+        cderi_uov_2 = None
+        max_memory = self.max_memory - lib.current_memory()[0]
+        if self.with_df_2 is not None:
+            cderi_uov_2 = [np.zeros(0)] * 2  # IDE type cheat
+            for s in (0, 1):
+                cderi_uov_2[s] = util.get_cderi_mo(
+                    self.with_df_2, mo_coeff_act[s], None, (0, nocc_act[s], nocc_act[s], nact[s]), max_memory)
+        # kernel
+        max_memory = self.max_memory - lib.current_memory()[0]
+        results = self.kernel_energy_mp2(
+            mo_energy_act, cderi_uov,
+            t_oovv=t_oovv,
+            frac_num=frac_num_act,
+            verbose=self.verbose,
+            max_memory=max_memory,
+            cderi_uov_2=cderi_uov_2
+        )
+
+        self.e_corr = results["eng_corr_MP2"]
+        # pad omega
+        results = {pad_omega(key, self.omega): val for (key, val) in results.items()}
+        self.results.update(results)
+        return results
+
+    kernel_energy_mp2 = staticmethod(kernel_energy_ump2_ri_incore)
+    kernel = driver_eng_mp2
+
+
+# endregion
+
+
+if __name__ == '__main__':
+
+    def main_1():
+        from pyscf import gto, scf
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
+        mf_scf = scf.UHF(mol).run()
+        mf_mp = UMP2Conv(mf_scf, frozen=[1, 2]).run()
+        print(mf_mp.e_tot)
+        print(mf_mp.results)
+
+    def main_2():
+        from pyscf import gto, scf
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
+        mf_scf = scf.UHF(mol).run()
+        mf_mp = UMP2RI(mf_scf, frozen=[1, 2]).run()
+        print(mf_mp.e_tot)
+        print(mf_mp.results)
+
+    main_1()
+    main_2()

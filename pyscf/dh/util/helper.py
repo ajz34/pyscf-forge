@@ -1,5 +1,4 @@
 import inspect
-
 import numpy as np
 import warnings
 
@@ -216,3 +215,89 @@ def pad_omega(s, omega):
     if omega == 0:
         return s
     return f"{s}_omega({omega:.6f})"
+
+
+def allocate_array(incore, shape, max_memory,
+                   h5file=None, name=None, dtype=float, zero_init=True, chunk=None, **kwargs):
+    """ Allocate an array with given memory estimation and incore stragety.
+
+    Parameters
+    ----------
+    incore : bool or float or None or str
+        Incore flag. Also see :class:`parse_incore_flag`.
+    shape : tuple
+        Shape of allocated array.
+    max_memory : int or float
+        Maximum memory in MB.
+    h5file : h5py.File
+        HDF5 file instance. Array may save into this file if disk is required.
+    name : str
+        Name of array; Only useful when h5py-based.
+    dtype : np.dtype
+        Type of numpy array.
+    zero_init : bool
+        Initialize array as zero if required; only useful when numpy-based.
+    chunk : tuple
+        Chunk of array; only useful when h5py-based.
+
+    Returns
+    -------
+    np.array or h5py.Dataset
+    """
+    incore = parse_incore_flag(incore, int(np.prod(shape)), max_memory, dtype=dtype)
+    if incore is None:
+        return None
+    elif incore is True:
+        if zero_init:
+            return np.zeros(shape, dtype=dtype)
+        else:
+            return np.empty(shape, dtype=dtype)
+    else:
+        assert incore is False
+        if h5file is None:
+            # this line of code require calling pyscf
+            from pyscf import lib
+            h5file = lib.misc.H5TmpFile()
+        if name is None:
+            import string
+            import random
+            name = "".join(random.choices(string.ascii_letters, k=6))
+            while name not in h5file:
+                name = "".join(random.choices(string.ascii_letters, k=6))
+        return h5file.create_dataset(name=name, shape=shape, chunk=chunk, dtype=dtype, **kwargs)
+
+
+def update_results(results, income_result, allow_overwrite=True, warn_overwrite=True):
+    """ Update results as dictionary with warnings.
+
+    This function may change attribute ``results``.
+
+    Parameters
+    ----------
+    results : dict
+        Result dictionary to be updated.
+    income_result : dict
+        Result dictionary to be merged into ``results``.
+    allow_overwrite : bool
+        Whether allows overwriting result dictionary.
+    warn_overwrite : bool
+        Whether warns overwriting result dictionary.
+    """
+    if not allow_overwrite or warn_overwrite:
+        keys_interset = set(income_result).intersection(results)
+        if len(keys_interset) != 0:
+            if not allow_overwrite:
+                raise KeyError(f"Overwrite results is not allowed!\nRepeated keys: {keys_interset}")
+            if warn_overwrite:
+                msg = "Key result overwrited!\n"
+                for key in keys_interset:
+                    # if results are very close, then warn muted; otherwise, it could be very annoying
+                    try:
+                        if np.allclose(income_result[key], results[key], atol=1e-10, rtol=1e-10):
+                            continue
+                    except TypeError:
+                        pass
+                    msg += f"Key: {key}, before {income_result[key]}, after {results[key]}\n"
+                    warnings.warn(msg)
+    results.update(income_result)
+    return results

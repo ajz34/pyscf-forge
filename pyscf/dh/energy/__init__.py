@@ -1,11 +1,13 @@
-from . import options
+from .dhbase import EngBase
 
-from .rdhbase import RDHBase
-from .udhbase import UDHBase
+from .rhdft import RHDFT
+from .uhdft import UHDFT
 
 from . import mp2, iepa
-from .mp2 import RMP2ofDH, UMP2ofDH
-from .iepa import RIEPAofDH, UIEPAofDH
+from .mp2 import (
+    RMP2RIPySCF, RMP2ConvPySCF, UMP2ConvPySCF,
+    RMP2Conv, RMP2RI, UMP2Conv, UMP2RI)
+from .iepa import (RIEPAConv, RIEPARI, UIEPAConv, UIEPARI)
+from .ring_ccd import RRingCCDConv
 
-from .rdh import RDH
-from .udh import UDH
+from .dh import DH

@@ -1,6 +1,6 @@
 import unittest
 from pyscf import gto, scf, df, dft
-from pyscf.dh import RRingCCDofDH
+from pyscf.dh import RRingCCDConv
 
 
 def get_mf_h2o_hf_mrcc():
@@ -37,10 +37,9 @@ class TestEngRRingCCD(unittest.TestCase):
         mol = mf_s.mol
         # cheat to get ri-eri and evaluate by conv
         mf_s._eri = df.DF(mol, auxbasis="cc-pVTZ-ri").get_ao_eri()
-        mf_dh = RRingCCDofDH(mf_s)
-        mf_dh.kernel(integral_scheme_ring_ccd="conv", frozen_rule="FreezeNobleGasCore")
+        mf_dh = RRingCCDConv(mf_s).run(frozen="FreezeNobleGasCore")
         REF_MRCC = -0.312651518707
-        self.assertAlmostEqual(mf_dh.params.results["eng_corr_RING_CCD"], REF_MRCC, 5)
+        self.assertAlmostEqual(mf_dh.results["eng_corr_RING_CCD"], REF_MRCC, 5)
 
     def test_eng_drpa75_known(self):
         # mrcc: MINP_H2O_aug-cc-pVTZ_dRPA75
@@ -49,10 +48,10 @@ class TestEngRRingCCD(unittest.TestCase):
         mol = mf_s.mol
         # cheat to get ri-eri and evaluate by conv
         mf_s._eri = df.DF(mol, auxbasis="aug-cc-pVTZ-ri").get_ao_eri()
-        mf_dh = RRingCCDofDH(mf_s)
-        eng_low_rung = mf_dh.make_energy_dh(xc="0.75*HF + 0.25*PBE, ")
-        results_ring_ccd = mf_dh.kernel(integral_scheme_ring_ccd="conv", frozen_rule="FreezeNobleGasCore")
-        eng_rring_ccd = results_ring_ccd["eng_corr_RING_CCD"]
+        mf_dh = RRingCCDConv(mf_s).run(frozen="FreezeNobleGasCore")
+        mf_n = dft.RKS(mol).set(mo_coeff=mf_s.mo_coeff, mo_occ=mf_s.mo_occ, xc="0.75*HF + 0.25*PBE, ")
+        eng_low_rung = mf_n.energy_tot(dm=mf_s.make_rdm1())
+        eng_rring_ccd = mf_dh.results["eng_corr_RING_CCD"]
         eng_tot = eng_low_rung + eng_rring_ccd
         REF_MRCC = -76.377085365919
         self.assertAlmostEqual(eng_tot, REF_MRCC, 5)

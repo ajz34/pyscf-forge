@@ -1,12 +1,14 @@
 from pyscf.dh import util
-from pyscf.dh.util import DictWithDefault, XCList, XCType, XCInfo
-from pyscf import dft, lib
+from pyscf.dh.util import XCList, XCType, XCInfo
+from pyscf.dh.energy import EngBase
+from pyscf import dft, lib, scf, df, __config__
 import numpy as np
 from types import MethodType
-import typing
 
-if typing.TYPE_CHECKING:
-    from pyscf.dh import RDHBase
+CONFIG_ssr_x_fr = getattr(__config__, "ssr_x_fr", "LDA_X")
+CONFIG_ssr_x_sr = getattr(__config__, "ssr_x_sr", "LDA_X_ERF")
+CONFIG_ssr_c_fr = getattr(__config__, "ssr_c_fr", "LDA_C_PW")
+CONFIG_ssr_c_sr = getattr(__config__, "ssr_c_sr", "LDA_C_PW_ERF")
 
 
 def get_energy_restricted_exactx(mf, dm, omega=None):
@@ -102,7 +104,7 @@ def get_rho(mol, grids, dm):
     return rho
 
 
-def get_energy_purexc(xc_lists, rho, weights, restricted, numint=None, flags=None):
+def get_energy_purexc(xc_lists, rho, weights, restricted, numint=None):
     """ Evaluate energy contributions of pure (DFT) exchange-correlation effects.
 
     Note that this kernel does not count HF, LR_HF and advanced correlation into account.
@@ -120,8 +122,6 @@ def get_energy_purexc(xc_lists, rho, weights, restricted, numint=None, flags=Non
         Indicator of restricted or unrestricted of incoming rho.
     numint : dft.numint.NumInt
         Special numint item if required.
-    flags : DictWithDefault
-        Flags (customizable parameters) for this computation. If not given, it is set to be default options.
 
     Returns
     -------
@@ -154,7 +154,7 @@ def get_energy_purexc(xc_lists, rho, weights, restricted, numint=None, flags=Non
             try:
                 ni._xc_type(xc_list.token)
             except (ValueError, KeyError):
-                ni = numint_customized(xc_list, flags)
+                ni = numint_customized(xc_list)
         else:
             ni = numint
 
@@ -198,25 +198,21 @@ def get_energy_vv10(mol, dm, nlc_pars, grids=None, nlcgrids=None, verbose=lib.lo
     return result
 
 
-def numint_customized(xc, flags=None):
+def numint_customized(xc, _mol=None):
     """ Customized (specialized) numint for a certain given xc.
 
     Parameters
     ----------
-    flags : DictWithDefault
-        Flags (customizable parameters) for this computation. If not given, it is set to be default options.
     xc : XCList
         xc list evaluation. Currently only accept low-rung (without VV10) and scaled short-range functionals.
+    _mol : gto.Mole
+        Molecule object (currently not utilized).
 
     Returns
     -------
     dft.numint.NumInt
         A customized numint object that only evaluates dft grids on given xc.
     """
-    # set flags
-    if flags is None:
-        flags = DictWithDefault()
-        flags.set_default_dict(util.get_default_options())
 
     # extract the functionals that is parsable by PySCF
     ni_custom = dft.numint.NumInt()  # customized numint, to be returned
@@ -264,15 +260,15 @@ def numint_customized(xc, flags=None):
         if XCType.SSR in xc_info.type:
             if XCType.EXCH in xc_info.type:
                 x_code, omega = xc_info.parameters
-                x_fr = xc_info.additional.get("ssr_x_fr", flags["ssr_x_fr"])
-                x_sr = xc_info.additional.get("ssr_x_sr", flags["ssr_x_sr"])
+                x_fr = xc_info.additional.get("ssr_x_fr", CONFIG_ssr_x_fr)
+                x_sr = xc_info.additional.get("ssr_x_sr", CONFIG_ssr_x_sr)
                 generator = util.eval_xc_eff_ssr_generator(x_code, x_fr, x_sr, omega=omega)
                 generator = multiply_factor_on_eval_xc_eff(generator, xc_info.fac)
                 gen_lists.append(generator)
             elif XCType.CORR in xc_info.type:
                 c_code, omega = xc_info.parameters
-                c_fr = xc_info.additional.get("ssr_c_fr", flags["ssr_c_fr"])
-                c_sr = xc_info.additional.get("ssr_c_sr", flags["ssr_c_sr"])
+                c_fr = xc_info.additional.get("ssr_c_fr", CONFIG_ssr_c_fr)
+                c_sr = xc_info.additional.get("ssr_c_sr", CONFIG_ssr_c_sr)
                 generator = util.eval_xc_eff_ssr_generator(c_code, c_fr, c_sr, omega=omega)
                 generator = multiply_factor_on_eval_xc_eff(generator, xc_info.fac)
                 gen_lists.append(generator)
@@ -311,3 +307,152 @@ def numint_customized(xc, flags=None):
     ni_custom._xc_type = lambda *args, **kwargs: xc_type_full
     ni_custom.custom = True
     return ni_custom
+
+
+def custom_mf(mf, xc, auxbasis_or_with_df=None):
+    """ Customize options of PySCF's mf object.
+
+    - Check and customize numint if necessary
+    - Check and customize density fitting object if necessary
+
+    Parameters
+    ----------
+    mf : dft.rks.RKS or dft.uks.UKS
+        SCF object to be customized.
+    xc : XCList
+        Exchange-correlation list.
+    auxbasis_or_with_df : str or df.DF
+        Auxiliary basis definition.
+
+    Returns
+    -------
+    dft.rks.RKS or dft.uks.UKS
+    """
+    verbose = mf.verbose
+    log = lib.logger.new_logger(verbose=verbose)
+    restricted = isinstance(mf, scf.hf.RHF)
+
+    # transform to dft class if necessary
+    if not hasattr(mf, "xc"):
+        log.note("[INFO] Input SCF instance is not KS. Transfer to KS instance.")
+        converged = mf.converged
+        if restricted:
+            mf = mf.to_rks()
+        else:
+            mf = mf.to_uks()
+        mf.converged = converged
+
+    # check whether xc code is the same to SCF object; if not, substitute it
+    if XCList(mf.xc, code_scf=False).token != xc.token:
+        log.note("[INFO] Exchange-correlation is not the same to SCF object. Change xc of SCF.")
+        mf.xc = xc.token
+        mf.converged = False
+
+    # try PySCF parsing of xc code; if not PySCF parsable, customize numint first
+    try:
+        ni = mf._numint  # type: dft.numint.NumInt
+        ni._xc_type(mf.xc)
+    except (KeyError, ValueError):
+        mf._numint = numint_customized(xc)
+        mf.converged = False
+
+    # change to with_df object
+    if auxbasis_or_with_df is not None:
+        if not isinstance(auxbasis_or_with_df, df.DF):
+            with_df = df.DF(mf.mol, auxbasis=auxbasis_or_with_df)
+        else:
+            with_df = auxbasis_or_with_df
+        if not hasattr(mf, "with_df"):
+            mf = mf.density_fit(with_df=with_df)
+            mf.converged = False
+        else:
+            if mf.with_df.auxbasis != with_df.auxbasis:
+                mf.with_df = with_df
+                mf.converged = False
+
+    return mf
+
+
+class RHDFT(EngBase):
+    """ Restricted hybrid (low-rung) DFT wrapper class of convenience.
+
+    Notes
+    -----
+    This class is an extension to original PySCF's RKS/UKS.
+
+    - Evaluation of various low-rung energy component results
+    - Modification to NumInt class
+
+    Warnings
+    --------
+    This class may change the underlying SCF object.
+    It's better to initialize this object first, before actually running SCF iterations.
+    """
+
+    def __init__(self, mf, xc):
+        super().__init__(mf)
+        self.xc = xc  # type: XCList
+        if isinstance(self.xc, str):
+            xc_scf = XCList(self.xc, code_scf=True)
+            xc_eng = XCList(self.xc, code_scf=False)
+            if xc_scf != xc_eng:
+                raise ValueError("Given energy functional contains part that could not handle with SCF!")
+            self.xc = xc_scf
+        else:
+            xc_scf = self.xc
+        self._scf = custom_mf(mf, xc_scf)
+
+    @property
+    def restricted(self):
+        return isinstance(self.scf, scf.rhf.RHF)
+
+    @property
+    def e_tot(self) -> float:
+        return self.scf.e_tot
+
+    def make_energy_purexc(self, xc_lists, numint=None, dm=None):
+        """ Evaluate energy contributions of pure (DFT) exchange-correlation effects.
+
+        Parameters
+        ----------
+        xc_lists : str or XCInfo or XCList or list[str or XCInfo or XCList]
+            List of xc codes.
+        numint : dft.numint.NumInt
+            Special numint item if required.
+        dm : np.ndarray
+            Density matrix in AO basis.
+
+        See Also
+        --------
+        get_energy_purexc
+        """
+        grids = self.scf.grids
+        if dm is None:
+            dm = self.scf.make_rdm1()
+        dm = np.asarray(dm)
+        if (self.restricted and dm.ndim != 2) or (not self.restricted and (dm.ndim != 3 or dm.shape[0] != 2)):
+            raise ValueError("Dimension of input density matrix is not correct.")
+        rho = self.get_rho(self.mol, grids, dm)
+        return self.get_energy_purexc(
+            xc_lists, rho, grids.weights, self.restricted, numint=numint)
+
+    def kernel(self, *args, **kwargs):
+        return self.scf.kernel(*args, **kwargs)
+
+    get_energy_exactx = staticmethod(get_energy_restricted_exactx)
+    get_energy_noxc = staticmethod(get_energy_restricted_noxc)
+    get_energy_vv10 = staticmethod(get_energy_vv10)
+    get_energy_purexc = staticmethod(get_energy_purexc)
+    get_rho = staticmethod(get_rho)
+
+
+if __name__ == '__main__':
+    def main_1():
+        from pyscf import gto, scf
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5").build()
+        mf_s = scf.RHF(mol)
+        mf = RHDFT(mf_s, xc="HF, LYP").run()
+        res = mf.make_energy_purexc([", LYP", "B88, ", "HF", "LR_HF(0.5)", "SSR(GGA_X_B88, 0.5), "])
+        print(res)
+
+    main_1()

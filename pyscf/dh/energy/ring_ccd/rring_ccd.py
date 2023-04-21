@@ -1,68 +1,52 @@
-from pyscf.dh.energy import RDHBase
-from pyscf.dh import util
-from pyscf import ao2mo, lib
+r""" Restricted Ring-CCD.
+
+Notes
+-----
+
+For restricted case, ring-CCD should give direct-RPA (dRPA) energy.
+
+.. math::
+    \mathbf{T} &= - \frac{1}{\mathbf{\Delta \varepsilon}} \odot (\mathbf{B} - 2 \mathbf{B T} - 2
+    \mathbf{T B} + 4 \mathbf{T B T}) \\
+    E^\mathrm{dRPA, OS} = E^\mathrm{dRPA, SS} &= - \mathrm{tr} (\mathbf{T B})
+
+Equation here is similar but not the same to 10.1063/1.3043729.
+The formula of Scuseria's article (eq 9) applies to spin-orbital and thus no coefficients 2 or 4.
+More over, we evaluate :math:`B_{ia, jb} = (ia|jb)` to match result of direct-RPA (thus, we only evaluate
+direct ring-CCD instead of full ring-CCD).
+"""
+
+from pyscf.dh.energy import EngBase
+from pyscf import ao2mo, lib, df, __config__
 import numpy as np
 
+from pyscf.dh.util import pad_omega
 
-class RRingCCDofDH(RDHBase):
-    """ Restricted MP2 class of doubly hybrid. """
-
-    def kernel(self, **kwargs):
-        with self.params.temporary_flags(kwargs):
-            results = driver_energy_rring_ccd(self)
-        self.params.update_results(results)
-        return results
+CONFIG_tol_eng_ring_ccd = getattr(__config__, "tol_eng_ring_ccd", 1e-8)
+CONFIG_tol_amp_ring_ccd = getattr(__config__, "tol_amp_ring_ccd", 1e-6)
+CONFIG_max_cycle_ring_ccd = getattr(__config__, "max_cycle_ring_ccd", 64)
+CONFIG_etb_first = getattr(__config__, "etb_first", False)
 
 
-def driver_energy_rring_ccd(mf_dh):
-    """ Driver of restricted ring-CCD energy.
-
-    Parameters
-    ----------
-    mf_dh : RDH
-        Restricted doubly hybrid object.
-
-    Returns
-    -------
-    RDH
-    """
-    mf_dh.build()
-    mol = mf_dh.mol
-    log = mf_dh.log
-    mf_dh._flag_snapshot = mf_dh.params.flags.copy()
-    results_summary = dict()
-    integral_scheme = mf_dh.params.flags.get("integral_scheme_ring_ccd", mf_dh.params.flags["integral_scheme"]).lower()
-    # parse frozen orbitals
-    nact, nOcc, nVir = mf_dh.nact, mf_dh.nOcc, mf_dh.nVir
-    mo_coeff_act = mf_dh.mo_coeff_act
-    mo_energy_act = mf_dh.mo_energy_act
-    # other options
-    omega_list = mf_dh.params.flags["omega_list_ring_ccd"]
-    tol_e = mf_dh.params.flags["tol_eng_ring_ccd"]
-    tol_amp = mf_dh.params.flags["tol_amp_ring_ccd"]
-    max_cycle = mf_dh.params.flags["max_cycle_ring_ccd"]
-    for omega in omega_list:
-        log.log(f"[INFO] omega in ring-CCD energy driver: {omega}")
-        if integral_scheme.startswith("conv"):
-            eri_or_mol = mf_dh.scf._eri if omega == 0 else mol
-            if eri_or_mol is None:
-                eri_or_mol = mol
-            with mol.with_range_coulomb(omega):
-                results = kernel_energy_rring_ccd_conv(
-                    mo_energy_act, mo_coeff_act, eri_or_mol,
-                    nOcc, nVir,
-                    tol_e=tol_e, tol_amp=tol_amp, max_cycle=max_cycle,
-                    verbose=mf_dh.verbose)
-            results = {util.pad_omega(key, omega): val for (key, val) in results.items()}
-            results_summary.update(results)
-        else:
-            raise NotImplementedError
-    return results_summary
+class RingCCDBase(EngBase):
+    def __init__(self, mf, frozen=None, omega=0, with_df=None, **kwargs):
+        super().__init__(mf)
+        self.omega = omega
+        self.frozen = frozen if frozen is not None else 0
+        self.conv_tol = CONFIG_tol_eng_ring_ccd
+        self.conv_tol_amp = CONFIG_tol_amp_ring_ccd
+        self.max_cycle = CONFIG_max_cycle_ring_ccd
+        if with_df is None:
+            with_df = getattr(self.scf, "with_df", None)
+        if with_df is None:
+            mol = self.mol
+            auxbasis = df.aug_etb(mol) if CONFIG_etb_first else df.make_auxbasis(mol, mp2fit=True)
+            with_df = df.DF(self.mol, auxbasis=auxbasis)
+        self.set(**kwargs)
 
 
 def kernel_energy_rring_ccd_conv(
-        mo_energy, mo_coeff, eri_or_mol,
-        nocc, nvir,
+        mo_energy, mo_coeff, eri_or_mol, mo_occ,
         tol_e=1e-8, tol_amp=1e-6, max_cycle=64,
         verbose=lib.logger.NOTE):
     """ dRPA evaluation by ring-CCD with conventional integral.
@@ -75,11 +59,8 @@ def kernel_energy_rring_ccd_conv(
         Molecular coefficients.
     eri_or_mol : np.ndarray or gto.Mole
         ERI that is recognized by ``pyscf.ao2mo.general``.
-
-    nocc : int
-        Number of occupied orbitals.
-    nvir : int
-        Number of virtual orbitals.
+    mo_occ : np.ndarray
+        Molecular orbital occupation numbers.
 
     tol_e : float
         Threshold of ring-CCD energy difference while in DIIS update.
@@ -95,13 +76,18 @@ def kernel_energy_rring_ccd_conv(
              "Use density fitting approximation is recommended.")
     log.info(f"[INFO] dRPA (ring-CCD) iteration, tol_e {tol_e:9.4e}, tol_amp {tol_amp:9.4e}, max_cycle {max_cycle:3d}")
 
-    Co = mo_coeff[:, :nocc]
-    Cv = mo_coeff[:, nocc:]
-    eo = mo_energy[:nocc]
-    ev = mo_energy[nocc:]
+    mask_occ = mo_occ != 0
+    mask_vir = mo_occ == 0
+    eo = mo_energy[mask_occ]
+    ev = mo_energy[mask_vir]
+    Co = mo_coeff[:, mask_occ]
+    Cv = mo_coeff[:, mask_vir]
+    nocc = mask_occ.sum()
+    nvir = mask_vir.sum()
+
     log.info("[INFO] Start ao2mo")
     g_iajb = ao2mo.general(eri_or_mol, (Co, Cv, Co, Cv)).reshape(nocc, nvir, nocc, nvir)
-    D_iajb = eo[:, None, None, None] - ev[None, :, None, None] + eo[None, None, :, None] - ev[None, None, None, :]
+    D_iajb = lib.direct_sum("i - a + j - b -> iajb", eo, ev, eo, ev)
     log.info("[INFO] Finish ao2mo")
 
     dim_ov = nocc * nvir
@@ -148,20 +134,42 @@ def kernel_energy_rring_ccd_conv(
     return results
 
 
-driver_energy_rring_ccd.__doc__ += \
-    r"""
-    Notes
-    -----
+class RRingCCDConv(RingCCDBase):
+    """ Restricted Ring-CCD class of doubly hybrid with conventional integral. """
 
-    For restricted case, ring-CCD should give direct-RPA (dRPA) energy.
+    def __init__(self, mf, frozen=None, omega=0, **kwargs):
+        super().__init__(mf)
+        self.omega = omega
+        self.frozen = frozen if frozen is not None else 0
+        self.conv_tol = CONFIG_tol_eng_ring_ccd
+        self.conv_tol_amp = CONFIG_tol_amp_ring_ccd
+        self.max_cycle = CONFIG_max_cycle_ring_ccd
+        self.set(**kwargs)
 
-    .. math::
-        \mathbf{T} &= - \frac{1}{\mathbf{\Delta \varepsilon}} \odot (\mathbf{B} - 2 \mathbf{B T} - 2
-        \mathbf{T B} + 4 \mathbf{T B T}) \\
-        E^\mathrm{dRPA, OS} = E^\mathrm{dRPA, SS} &= - \mathrm{tr} (\mathbf{T B})
-    
-    Equation here is similar but not the same to 10.1063/1.3043729.
-    The formula of Scuseria's article (eq 9) applies to spin-orbital and thus no coefficients 2 or 4.
-    More over, we evaluate :math:`B_{ia, jb} = (ia|jb)` to match result of direct-RPA (thus, we only evaluate 
-    direct ring-CCD instead of full ring-CCD).
-    """
+    def driver_eng_ring_ccd(self, **_kwargs):
+        mask = self.get_frozen_mask()
+        mol = self.mol
+        mo_coeff_act = self.mo_coeff[:, mask]
+        mo_energy_act = self.mo_energy[mask]
+        mo_occ_act = self.mo_occ[mask]
+        # eri generator
+        eri_or_mol = self.scf._eri if self.omega == 0 else mol
+        eri_or_mol = eri_or_mol if eri_or_mol is not None else mol
+        with mol.with_range_coulomb(self.omega):
+            results = kernel_energy_rring_ccd_conv(
+                mo_energy=mo_energy_act,
+                mo_coeff=mo_coeff_act,
+                eri_or_mol=eri_or_mol,
+                mo_occ=mo_occ_act,
+                tol_e=self.conv_tol,
+                tol_amp=self.conv_tol_amp,
+                max_cycle=self.max_cycle,
+                verbose=self.verbose
+            )
+        # pad omega
+        results = {pad_omega(key, self.omega): val for (key, val) in results.items()}
+        self.results.update(results)
+        return results
+
+    kernel_energy_ring_ccd = staticmethod(kernel_energy_rring_ccd_conv)
+    kernel = driver_eng_ring_ccd
