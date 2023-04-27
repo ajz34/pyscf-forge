@@ -109,11 +109,13 @@ def get_rdm1_corr(
         mo_energy, cderi_uov, t_oovv,
         c_os, c_ss,
         verbose=lib.logger.NOTE, max_memory=2000):
-    r""" MP2 correlation part of density matrix.
+    r""" 1-RDM of MP2 correlation by MO basis.
 
     .. math::
-        D_{jk} &= T_{ij}^{ab} t_{ik}^{ab} \\
-        D_{ab} &= T_{ij}^{ac} t_{ij}^{bc}
+        D_{jk}^\mathrm{(2)} &= 2 T_{ij}^{ab} t_{ik}^{ab} \\
+        D_{ab}^\mathrm{(2)} &= 2 T_{ij}^{ac} t_{ij}^{bc}
+
+    By definition of this program, 1-RDM is not response density.
 
     Parameters
     ----------
@@ -165,6 +167,8 @@ def get_G_uov(
         c_os, c_ss,
         verbose=lib.logger.NOTE, max_memory=2000):
     r""" Get 3-index transformed MP2 amplitude.
+
+    Evaluation of this 3-index amplitude is performed together with non-response MP2 correlation 1-RDM.
 
     .. math::
         \Gamma_{ia, P} = T_{ij}^{ab} Y_{jb, P}
@@ -220,6 +224,26 @@ def get_G_uov(
 
 
 def get_W_I(cderi_uov, cderi_uoo, G_uov, verbose=lib.logger.NOTE):
+    r""" Part I of MO-energy-weighted density matrix.
+
+    .. math::
+        W_{ij} [\mathrm{I}] &= -2 \Gamma_{ia, P} Y_{ja, P} \\
+        W_{ab} [\mathrm{I}] &= -2 \Gamma_{ia, P} Y_{ib, P} \\
+        W_{ai} [\mathrm{I}] &= -4 \Gamma_{ja, P} Y_{ij, P}
+
+    This energy-weighted density matrix is not symmetric by current implementation.
+
+    Parameters
+    ----------
+    cderi_uov : np.ndarray
+    cderi_uoo : np.ndarray
+    G_uov : np.ndarray
+    verbose : int
+
+    Returns
+    -------
+    dict[str, np.ndarray]
+    """
 
     log = lib.logger.new_logger(verbose=verbose)
     time0 = lib.logger.process_clock(), lib.logger.perf_counter()
@@ -246,6 +270,34 @@ def get_W_I(cderi_uov, cderi_uoo, G_uov, verbose=lib.logger.NOTE):
 def get_lag_vo(
         G_uov, cderi_uaa, W_I, rdm1_corr, Ax0_Core,
         max_memory=2000, verbose=lib.logger.NOTE):
+    r""" MP2 contribution to Lagrangian vir-occ block.
+
+    .. math::
+        L_{ai} = - 4 \Gamma_{ja, P} Y_{ij, P} + 4 \Gamma_{ib, P} Y_{ab, P} + A_{ai, pq} D_{pq}^\mathrm{(2)}
+
+    where :math:`- 4 \Gamma_{ja, P} Y_{ij, P}` is evaluated by :math:`W_{ai} [\mathrm{I}]`.
+
+    Some pratical meaning of lagrangian, is that for vir-occ block, it can be defined by MP2 energy derivative wrt
+    MO coefficients:
+
+    .. math::
+        \mathscr{L}_{pq} &= C_{\mu p} \frac{\partial E^\mathrm{(2)}}{\partial C_{\mu q}} \\
+        L_{ai} &= \mathscr{L}_{ai} - \mathscr{L}_{ia}
+
+    Parameters
+    ----------
+    G_uov
+    cderi_uaa
+    W_I
+    rdm1_corr
+    Ax0_Core
+    max_memory
+    verbose
+
+    Returns
+    -------
+    dict[str, np.ndarray]
+    """
 
     log = lib.logger.new_logger(verbose=verbose)
     time0 = lib.logger.process_clock(), lib.logger.perf_counter()
@@ -278,6 +330,32 @@ def get_rdm1_corr_resp(
         rdm1_corr, lag_vo,
         mo_energy, mo_occ, Ax0_Core,
         max_cycle=20, tol=1e-9, verbose=lib.logger.NOTE):
+    r""" 1-RDM of response MP2 correlation by MO basis.
+
+    For other parts, response density matrix is the same to the usual 1-RDM.
+
+    .. math::
+        A'_{ai, bj} D_{bj}^\mathrm{(2)} &= L_{ai}
+
+    Parameters
+    ----------
+    rdm1_corr : np.ndarray
+    lag_vo : np.ndarray
+    mo_energy : np.ndarray
+    mo_occ : np.ndarray
+    Ax0_Core : callable
+    max_cycle : int
+    tol : float
+    verbose : int
+
+    Returns
+    -------
+    dict[str, np.ndarray]
+
+    See Also
+    --------
+    get_rdm1_corr
+    """
 
     log = lib.logger.new_logger(verbose=verbose)
     time0 = lib.logger.process_clock(), lib.logger.perf_counter()
@@ -301,9 +379,6 @@ def get_rdm1_corr_resp(
         max_cycle=max_cycle, tol=tol)[0]
     rdm1_corr_resp[sv, so] = rdm1_corr_resp_vo
 
-    # symmetrize
-    rdm1_corr_resp = 0.5 * (rdm1_corr_resp + rdm1_corr_resp.T)
-
     log.timer("get_rdm1_corr_resp", *time0)
     tensors = {"rdm1_corr_resp": rdm1_corr_resp}
     return tensors
@@ -321,7 +396,7 @@ class RMP2RI(MP2Base):
         self._Ax0_Core = NotImplemented
 
     def make_cderi_uov(self):
-        """ Generate cholesky decomposed ERI (in memory, occ-vir block). """
+        r""" Generate cholesky decomposed ERI :math:`Y_{ia, P}` (in memory, occ-vir block). """
         mask = self.get_frozen_mask()
         nocc_act = (mask & (self.mo_occ != 0)).sum()
         nvir_act = (mask & (self.mo_occ == 0)).sum()
@@ -338,7 +413,7 @@ class RMP2RI(MP2Base):
         return cderi_uov
 
     def make_cderi_uoo(self):
-        """ Generate cholesky decomposed ERI (in memory, occ-occ block). """
+        r""" Generate cholesky decomposed ERI math:`Y_{ij, P}` (in memory, occ-occ block). """
         mask = self.get_frozen_mask()
         idx_occ = (self.mo_occ > 0) & mask
         mo_occ_act = self.mo_coeff[:, idx_occ]
@@ -354,7 +429,7 @@ class RMP2RI(MP2Base):
         return cderi_uoo
 
     def make_cderi_uaa(self):
-        """ Generate cholesky decomposed ERI (all block, s1 symm, in memory/disk). """
+        r""" Generate cholesky decomposed ERI math:`Y_{pq, P}` (all block, s1 symm, in memory/disk). """
         log = lib.logger.new_logger(verbose=self.verbose)
 
         # dimension and mask
@@ -385,7 +460,7 @@ class RMP2RI(MP2Base):
         return cderi_uaa
 
     def driver_eng_mp2(self, **kwargs):
-        """ Driver of MP2 energy. """
+        r""" Driver of MP2 energy. """
         mask = self.get_frozen_mask()
         nocc_act = (mask & (self.mo_occ != 0)).sum()
         nvir_act = (mask & (self.mo_occ == 0)).sum()
@@ -430,7 +505,7 @@ class RMP2RI(MP2Base):
 
     @property
     def Ax0_Core(self):
-        """ Fock response of underlying SCF object in MO basis. """
+        r""" Fock response of underlying SCF object in MO basis. """
         if self._Ax0_Core is NotImplemented:
             restricted = isinstance(self.scf, scf.rhf.RHF)
             from pyscf.dh import RHDFT, UHDFT
@@ -444,6 +519,7 @@ class RMP2RI(MP2Base):
         self._Ax0_Core = Ax0_Core
 
     def make_rdm1_corr(self):
+        r""" Generate 1-RDM (non-response) of MP2 correlation :math:`D_{pq}^{(2)}`. """
         log = lib.logger.new_logger(verbose=self.verbose)
         mask = self.get_frozen_mask()
         mo_energy = self.mo_energy[mask]
@@ -462,6 +538,7 @@ class RMP2RI(MP2Base):
         return tensors["rdm1_corr"]
 
     def make_G_uov(self):
+        r""" Generate 3-index transformed MP2 amplitude :math:`\Gamma_{ia, P}`. """
         log = lib.logger.new_logger(verbose=self.verbose)
         mask = self.get_frozen_mask()
         mo_energy = self.mo_energy[mask]
@@ -480,6 +557,7 @@ class RMP2RI(MP2Base):
         return tensors["G_uov"]
 
     def make_W_I(self):
+        r""" Generate part I of MO-energy-weighted density matrix. :math:`W_{pq} [\mathrm{I}]`. """
         log = lib.logger.new_logger(verbose=self.verbose)
 
         # prepare tensors
@@ -497,6 +575,7 @@ class RMP2RI(MP2Base):
         return tensors["W_I"]
 
     def make_lag_vo(self):
+        r""" Generate MP2 contribution to Lagrangian vir-occ block :math:`L_{ai}`. """
         # prepare tensors
         W_I = self.tensors.get("W_I", self.make_W_I())
         cderi_uaa = self.tensors.get("cderi_uaa", self.make_cderi_uaa())
@@ -513,6 +592,7 @@ class RMP2RI(MP2Base):
         return tensors["lag_vo"]
 
     def make_rdm1_corr_resp(self):
+        """ Generate 1-RDM (response) of MP2 correlation :math:`D_{pq}^{(2)}`. """
         # prepare input
         lag_vo = self.tensors.get("lag_vo", self.make_lag_vo())
         rdm1_corr = self.tensors["rdm1_corr"]
@@ -533,6 +613,7 @@ class RMP2RI(MP2Base):
         return tensors["rdm1_corr_resp"]
 
     def make_rdm1(self, ao=False):
+        r""" Generate 1-RDM (non-response) of MP2 :math:`D_{pq}^{MP2}` in MO or :math:`D_{\mu \nu}^{MP2}` in AO. """
         # prepare input
         rdm1_corr = self.tensors.get("rdm1_corr", self.make_rdm1_corr())
 
@@ -546,6 +627,7 @@ class RMP2RI(MP2Base):
         return rdm1
 
     def make_rdm1_resp(self, ao=False):
+        r""" Generate 1-RDM (response) of MP2 :math:`D_{pq}^{MP2}` in MO or :math:`D_{\mu \nu}^{MP2}` in AO. """
         # prepare input
         rdm1_corr_resp = self.tensors.get("rdm1_corr_resp", self.make_rdm1_corr_resp())
 
