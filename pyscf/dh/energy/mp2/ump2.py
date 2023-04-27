@@ -2,7 +2,8 @@ r""" Unrestricted MP2.
 """
 
 from pyscf.dh import util
-from pyscf.dh.energy.mp2.rmp2 import RMP2ConvPySCF, RMP2Conv, RMP2RI
+from pyscf.dh.energy.mp2.rmp2 import RMP2ConvPySCF, RMP2Conv
+from pyscf.dh.energy.mp2.rmp2ri import RMP2RI
 from pyscf import ao2mo, lib, mp, __config__, df
 import numpy as np
 
@@ -39,6 +40,7 @@ class UMP2ConvPySCF(mp.ump2.UMP2, RMP2ConvPySCF):
 
 def kernel_energy_ump2_conv_full_incore(
         mo_energy, mo_coeff, eri_or_mol, mo_occ,
+        c_os, c_ss,
         t_oovv=None, frac_num=None, verbose=lib.logger.NOTE):
     """ Kernel of unrestricted MP2 energy by conventional method.
 
@@ -50,6 +52,10 @@ def kernel_energy_ump2_conv_full_incore(
         Molecular coefficients.
     eri_or_mol : np.ndarray or gto.Mole
         ERI that is recognized by ``pyscf.ao2mo.general``.
+    c_os : float
+        Coefficient of oppo-spin contribution.
+    c_ss : float
+        Coefficient of same-spin contribution.
 
     t_oovv : list[np.ndarray]
         Store space for ``t_oovv``
@@ -120,7 +126,7 @@ def kernel_energy_ump2_conv_full_incore(
     eng_spin[0] *= 0.25
     eng_spin[2] *= 0.25
     eng_spin = util.check_real(eng_spin)
-    eng_mp2 = eng_spin[1] + (eng_spin[0] + eng_spin[2])
+    eng_mp2 = c_os * eng_spin[1] + c_ss * (eng_spin[0] + eng_spin[2])
     # finalize results
     results = dict()
     results["eng_corr_MP2_aa"] = eng_spin[0]
@@ -161,7 +167,7 @@ class UMP2Conv(RMP2Conv):
             for s0, s1, ss, ssn in ((0, 0, 0, "aa"), (0, 1, 1, "ab"), (1, 1, 2, "bb")):
                 t_oovv[ss] = util.allocate_array(
                     incore_t_oovv, shape=(nocc_act[s0], nocc_act[s1], nvir_act[s0], nvir_act[s1]),
-                    max_memory=max_memory,
+                    mem_avail=max_memory,
                     h5file=self._tmpfile,
                     name=f"t_oovv_{ssn}",
                     dtype=mo_coeff_act[0].dtype)
@@ -172,6 +178,7 @@ class UMP2Conv(RMP2Conv):
             eri_or_mol = eri_or_mol if eri_or_mol is not None else self.mol
             results = self.kernel_energy_mp2(
                 mo_energy_act, mo_coeff_act, eri_or_mol, mo_occ_act,
+                self.c_os, self.c_ss,
                 t_oovv=t_oovv, frac_num=frac_num_act, verbose=self.verbose, **kwargs)
         self.e_corr = results["eng_corr_MP2"]
         # pad omega
@@ -188,7 +195,7 @@ class UMP2Conv(RMP2Conv):
 # region UMP2RI
 
 def kernel_energy_ump2_ri_incore(
-        mo_energy, cderi_uov,
+        mo_energy, cderi_uov, c_os, c_ss,
         t_oovv=None, frac_num=None, verbose=lib.logger.NOTE, max_memory=2000, cderi_uov_2=None):
     """ Kernel of unrestricted MP2 energy by RI integral.
 
@@ -203,6 +210,10 @@ def kernel_energy_ump2_ri_incore(
         Molecular orbital energy levels.
     cderi_uov : list[np.ndarray]
         Cholesky decomposed 3c2e ERI in MO basis (occ-vir part). Spin in (aa, bb).
+    c_os : float
+        Coefficient of oppo-spin contribution.
+    c_ss : float
+        Coefficient of same-spin contribution.
 
     t_oovv : list[np.ndarray]
         Store space for ``t_oovv``
@@ -269,7 +280,7 @@ def kernel_energy_ump2_ri_incore(
     eng_spin[0] *= 0.25
     eng_spin[2] *= 0.25
     eng_spin = util.check_real(eng_spin)
-    eng_mp2 = eng_spin[1] + (eng_spin[0] + eng_spin[2])
+    eng_mp2 = c_os * eng_spin[1] + c_ss * (eng_spin[0] + eng_spin[2])
     # finalize results
     results = dict()
     results["eng_corr_MP2_aa"] = eng_spin[0]
@@ -310,7 +321,7 @@ class UMP2RI(RMP2RI):
             for s0, s1, ss, ssn in ((0, 0, 0, "aa"), (0, 1, 1, "ab"), (1, 1, 2, "bb")):
                 t_oovv[ss] = util.allocate_array(
                     incore_t_oovv, shape=(nocc_act[s0], nocc_act[s1], nvir_act[s0], nvir_act[s1]),
-                    max_memory=max_memory,
+                    mem_avail=max_memory,
                     h5file=self._tmpfile,
                     name=f"t_oovv_{ssn}",
                     dtype=mo_coeff_act[0].dtype)
@@ -338,6 +349,7 @@ class UMP2RI(RMP2RI):
         max_memory = self.max_memory - lib.current_memory()[0]
         results = self.kernel_energy_mp2(
             mo_energy_act, cderi_uov,
+            self.c_os, self.c_ss,
             t_oovv=t_oovv,
             frac_num=frac_num_act,
             verbose=self.verbose,

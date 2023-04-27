@@ -875,10 +875,13 @@ class FrozenCore:
         mask = np.ones((nset, nmo), dtype=bool)
 
         if isinstance(self.rule, list or np.ndarray):
+            arr = self.rule
+            # 0. frozen set is empty
+            if len(arr) == 0:
+                mask[:] = True
             # 1. case of frozen/active list defined, highest priority
             # first perform mask; if self.act, then reverse mask in order to make active orbitals to be True
-            arr = self.rule
-            if not hasattr(arr[0], "__iter__"):
+            elif not hasattr(arr[0], "__iter__"):
                 # one list of frozen orbitals:
                 mask[:, arr] = False
             else:

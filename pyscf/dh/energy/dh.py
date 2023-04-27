@@ -86,16 +86,6 @@ def _process_energy_mp2(mf_dh, xc_list, force_evaluate=False):
     log.info(f"[INFO] XCList extracted by process_energy_mp2: {xc_mp2.token}")
     log.info(f"[INFO] XCList remains   by process_energy_mp2: {xc_extracted.token}")
     log.info("[INFO] MP2 detected")
-    # generate omega list
-    # parameter of RSMP2: omega, c_os, c_ss
-    omega_list = []
-    for info in xc_mp2:
-        if XCType.MP2 in info.type:
-            omega_list.append(0)
-        else:
-            assert XCType.RSMP2 in info.type
-            omega_list.append(info.parameters[0])
-    assert len(set(omega_list)) == len(omega_list)
 
     def comput_mp2():
         eng_tot = 0
@@ -106,18 +96,21 @@ def _process_energy_mp2(mf_dh, xc_list, force_evaluate=False):
                 omega = 0
             else:
                 omega, c_os, c_ss = info.parameters
-            eng = info.fac * (
-                + c_os * results[pad_omega("eng_corr_MP2_OS", omega)]
-                + c_ss * results[pad_omega("eng_corr_MP2_SS", omega)])
+            eng = info.fac * results[pad_omega("eng_corr_MP2", omega)]
             log.note(f"[RESULT] Energy of correlation {info.token}: {eng:20.12f}")
             eng_tot += eng
         return eng_tot
 
     def force_comput_mp2():
-        for omega in omega_list:
+        for info in xc_mp2:
+            if XCType.MP2 in info.type:
+                c_os, c_ss = info.parameters
+                omega = 0
+            else:
+                omega, c_os, c_ss = info.parameters
             if pad_omega("eng_corr_MP2_SS", omega) in mf_dh.results and not force_evaluate:
                 continue  # results have been evaluated
-            mf_mp2 = mf_dh.to_mp2(omega=omega).run()
+            mf_mp2 = mf_dh.to_mp2(omega=omega, c_os=c_os, c_ss=c_ss).run()
             update_results(mf_dh.results, mf_mp2.results)
             mf_dh.inherited.append((mf_mp2, xc_mp2))
         eng_tot = comput_mp2()
@@ -596,12 +589,12 @@ class DH(EngBase):
     def to_scf(self, **kwargs):
         # import
         if self.restricted:
-            from pyscf.dh import RHDFT as DHSCF
+            from pyscf.dh import RHDFT as HDFT
         else:
-            from pyscf.dh import UHDFT as DHSCF
+            from pyscf.dh import UHDFT as HDFT
 
         # generate instance
-        mf = DHSCF.from_rdh(self, self.scf, self.xc.xc_scf, **kwargs)
+        mf = HDFT.from_rdh(self, self.scf, self.xc.xc_scf, **kwargs)
 
         return mf
 
@@ -609,7 +602,7 @@ class DH(EngBase):
         # import
         if self.restricted:
             from pyscf.dh import RMP2Conv as MP2Conv
-            from pyscf.dh import RMP2RI as MP2RI
+            from pyscf.dh.energy.mp2 import RMP2RI as MP2RI
         else:
             from pyscf.dh import UMP2Conv as MP2Conv
             from pyscf.dh import UMP2RI as MP2RI

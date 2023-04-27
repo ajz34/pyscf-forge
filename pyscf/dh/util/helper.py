@@ -86,7 +86,7 @@ def parse_incore_flag(flag, unit_flop, mem_avail, pre_flop=0, dtype=float):
         Memory available in MB.
     pre_flop : int
         Number of data preserved in memory. Unit in number.
-    dtype : type
+    dtype : np.dtype
         Type of data. Such as np.float64, complex, etc.
 
     Returns
@@ -217,7 +217,7 @@ def pad_omega(s, omega):
     return f"{s}_omega({omega:.6f})"
 
 
-def allocate_array(incore, shape, max_memory,
+def allocate_array(incore, shape, mem_avail,
                    h5file=None, name=None, dtype=float, zero_init=True, chunk=None, **kwargs):
     """ Allocate an array with given memory estimation and incore stragety.
 
@@ -227,8 +227,8 @@ def allocate_array(incore, shape, max_memory,
         Incore flag. Also see :class:`parse_incore_flag`.
     shape : tuple
         Shape of allocated array.
-    max_memory : int or float
-        Maximum memory in MB.
+    mem_avail : int or float
+        Memory available for allocation.
     h5file : h5py.File
         HDF5 file instance. Array may save into this file if disk is required.
     name : str
@@ -244,7 +244,7 @@ def allocate_array(incore, shape, max_memory,
     -------
     np.array or h5py.Dataset
     """
-    incore = parse_incore_flag(incore, int(np.prod(shape)), max_memory, dtype=dtype)
+    incore = parse_incore_flag(incore, int(np.prod(shape)), mem_avail, dtype=dtype)
     if incore is None:
         return None
     elif incore is True:
