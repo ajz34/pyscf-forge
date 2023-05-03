@@ -286,13 +286,13 @@ def get_lag_vo(
 
     Parameters
     ----------
-    G_uov
-    cderi_uaa
-    W_I
-    rdm1_corr
-    Ax0_Core
-    max_memory
-    verbose
+    G_uov : np.ndarray
+    cderi_uaa : np.ndarray
+    W_I : np.ndarray
+    rdm1_corr : np.ndarray
+    Ax0_Core : callable
+    max_memory : float
+    verbose : int
 
     Returns
     -------
