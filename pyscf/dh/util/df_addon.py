@@ -1,13 +1,11 @@
 import numpy as np
 import copy
-from pyscf import df, lib, __config__
+from pyscf import df, lib
 from pyscf.ao2mo import _ao2mo
 from pyscf.dh.util import calc_batch_size
 
 
-def get_cderi_mo(
-        with_df, mo_coeff, Y_mo=None, pqslice=None,
-        max_memory=2000, verbose=lib.logger.NOTE):
+def get_cderi_mo(with_df, mo_coeff, Y_mo=None, pqslice=None, max_memory=2000):
     """ Get Cholesky decomposed ERI in MO basis.
 
     Parameters
@@ -21,18 +19,13 @@ def get_cderi_mo(
     pqslice : tuple[int]
         Slice of orbitals to be transformed.
     max_memory : float
-        Maximum memory of molecular object.
-    verbose : int
-        Print level verbosity.
+        Maximum memory available.
 
     Returns
     -------
     np.ndarray
         Cholesky decomposed ERI in MO basis.
     """
-    log = lib.logger.new_logger(verbose=verbose)
-    time0 = lib.logger.process_clock(), lib.logger.perf_counter()
-
     naux = with_df.get_naoaux()
     nmo = mo_coeff.shape[-1]
     if pqslice is None:
@@ -45,16 +38,13 @@ def get_cderi_mo(
 
     p0, p1 = 0, 0
     preflop = 0 if not isinstance(Y_mo, np.ndarray) else Y_mo.size
-    mem_avail = max_memory - lib.current_memory()[0]
-    nbatch = calc_batch_size(2*nump*numq, mem_avail, preflop)
-    log.debug(f"[DEBUG] Number of available batch size in get_cderi_mo: {nbatch}")
+    nbatch = calc_batch_size(2*nump*numq, max_memory, preflop)
     if hasattr(with_df._cderi, "shape"):  # array alike
         aosym = "s2" if len(with_df._cderi.shape) == 2 else "s1"
     else:  # assert pyscf when memory is low
         aosym = "s2"
     for Y_ao in with_df.loop(nbatch):
         p1 = p0 + Y_ao.shape[0]
-        log.debug(f"[DEBUG] cderi transformation of auxiliary basis: {p0, p1}")
         if Y_ao.dtype == np.double and mo_coeff.dtype == np.double:
             Y_mo[p0:p1] = _ao2mo.nr_e2(Y_ao, mo_coeff, pqslice, aosym=aosym, mosym="s1").reshape(p1 - p0, nump, numq)
         else:
@@ -65,8 +55,6 @@ def get_cderi_mo(
                 Y_ao.reshape(naux, nao, nao),
                 mo_coeff[:, pqslice[0]:pqslice[1]].conj(), mo_coeff[:, pqslice[2]:pqslice[3]])
         p0 = p1
-
-    log.timer("get_cderi_mo", *time0)
     return Y_mo
 
 

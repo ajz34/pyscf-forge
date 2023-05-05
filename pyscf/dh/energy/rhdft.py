@@ -313,7 +313,7 @@ def numint_customized(xc, _mol=None):
 
 def Ax0_Core_resp(sp, sq, sr, ss, vresp, mo_coeff):
     r""" Convenient function for evaluation of Fock response in MO basis
-    :math:`\sum_{rs} A_{pq, rs} X_{rs}^\mathbb{A}` by PySCF's response function.
+    :math:`\sum_{rs} A_{pq, rs} X_{rs}^\mathbb{A}`.
 
     Parameters
     ----------
@@ -430,15 +430,9 @@ class RHDFT(EngBase):
     It's better to initialize this object first, before actually running SCF iterations.
     """
 
-    def __init__(self, mf, xc=None):
+    def __init__(self, mf, xc):
         super().__init__(mf)
-        if xc is None:
-            if hasattr(mf, "xc"):
-                self.xc = xc
-            else:
-                self.xc = "HF"  # not KS object
-        else:
-            self.xc = xc  # type: XCList
+        self.xc = xc  # type: XCList
         if isinstance(self.xc, str):
             xc_scf = XCList(self.xc, code_scf=True)
             xc_eng = XCList(self.xc, code_scf=False)
@@ -491,33 +485,9 @@ class RHDFT(EngBase):
         """ Fock response function (derivative w.r.t. molecular coefficient in AO basis). """
         return self.scf.gen_response()
 
-    def Ax0_Core(self, sp, sq, sr, ss):
-        r""" Convenient function for evaluation of Fock response in MO basis
-        :math:`\sum_{rs} A_{pq, rs} X_{rs}^\mathbb{A}`.
-
-        Parameters
-        ----------
-        sp, sq, sr, ss : slice or list
-            Slice of molecular orbital indices.
-
-        Returns
-        -------
-        callable
-            A function where input is :math:`X_{rs}^\mathbb{A}`, and output is
-            :math:`\sum_{rs} A_{pq, rs} X_{rs}^\mathbb{A}`.
-
-        Notes
-        -----
-        This function acts as a wrapper of various possible Fock response algorithms.
-
-        TODO: Functionality of this method is to be implemented.
-        """
-        # currently we just implemented response by PySCF
-        return self.Ax0_Core_resp(sp, sq, sr, ss)
-
     def Ax0_Core_resp(self, sp, sq, sr, ss, vresp=None, mo_coeff=None):
         r""" Convenient function for evaluation of Fock response in MO basis
-        :math:`\sum_{rs} A_{pq, rs} X_{rs}^\mathbb{A}` by PySCF's response function.
+        :math:`\sum_{rs} A_{pq, rs} X_{rs}^\mathbb{A}`.
 
         Parameters
         ----------
