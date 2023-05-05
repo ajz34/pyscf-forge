@@ -321,12 +321,8 @@ def _process_energy_low_rung(mf_dh, xc_list):
                  f"non_exx): {xc_non_exx.token}")
         if len(xc_exx) != 0:
             xc_exx_extracted, eng_exx = _process_energy_exx(mf_dh, xc_exx)
-            xc_non_exx_extracted, eng_non_exx = _process_energy_low_rung(mf_dh, xc_non_exx)
+            eng_non_exx = _process_energy_low_rung(mf_dh, xc_non_exx)
             assert len(xc_exx_extracted) == 0
-            if len(xc_non_exx_extracted) != 0:
-                raise RuntimeError(
-                    f"Finally left some xc not parsed: {xc_non_exx_extracted.token}. "
-                    f"This is probably bug.")
             eng_tot += eng_exx + eng_non_exx
             log.note(f"[RESULT] Energy of process_energy_low_rung (handle_multiple_omega): {eng_tot}")
             return eng_tot
@@ -337,8 +333,7 @@ def _process_energy_low_rung(mf_dh, xc_list):
                 "We evaluate each term one-by-one.")
             xc_non_exx_list = [XCList().build_from_list([xc_info]) for xc_info in xc_non_exx]
             for xc_non_exx_item in xc_non_exx_list:
-                xc_item_extracted, eng_item = _process_energy_low_rung(mf_dh, xc_non_exx_item)
-                assert len(xc_item_extracted) == 0
+                eng_item = _process_energy_low_rung(mf_dh, xc_non_exx_item)
                 eng_tot += eng_item
             log.note(f"[RESULT] Energy of process_energy_low_rung (handle_multiple_omega): {eng_tot}")
             return eng_tot
