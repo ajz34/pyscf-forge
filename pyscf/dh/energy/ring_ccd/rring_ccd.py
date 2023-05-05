@@ -25,6 +25,8 @@ from pyscf.dh.util import pad_omega
 CONFIG_tol_eng_ring_ccd = getattr(__config__, "tol_eng_ring_ccd", 1e-8)
 CONFIG_tol_amp_ring_ccd = getattr(__config__, "tol_amp_ring_ccd", 1e-6)
 CONFIG_max_cycle_ring_ccd = getattr(__config__, "max_cycle_ring_ccd", 64)
+CONFIG_diis_start_ring_ccd = getattr(__config__, "diis_start_ring_ccd", 3)
+CONFIG_diis_space_ring_ccd = getattr(__config__, "diis_space_ring_ccd", 6)
 CONFIG_etb_first = getattr(__config__, "etb_first", False)
 
 
@@ -36,6 +38,8 @@ class RingCCDBase(EngBase):
         self.conv_tol = CONFIG_tol_eng_ring_ccd
         self.conv_tol_amp = CONFIG_tol_amp_ring_ccd
         self.max_cycle = CONFIG_max_cycle_ring_ccd
+        self.diis_start = CONFIG_diis_start_ring_ccd
+        self.diis_space = CONFIG_diis_space_ring_ccd
         if with_df is None:
             with_df = getattr(self.scf, "with_df", None)
         if with_df is None:
@@ -48,6 +52,7 @@ class RingCCDBase(EngBase):
 def kernel_energy_rring_ccd_conv(
         mo_energy, mo_coeff, eri_or_mol, mo_occ,
         tol_e=1e-8, tol_amp=1e-6, max_cycle=64,
+        diis_start=3, diis_space=6,
         verbose=lib.logger.NOTE):
     """ dRPA evaluation by ring-CCD with conventional integral.
 
@@ -68,13 +73,17 @@ def kernel_energy_rring_ccd_conv(
         Threshold of L2 norm of ring-CCD amplitude while in DIIS update.
     max_cycle : int
         Maximum iteration of ring-CCD iteration.
+    diis_start : int
+        Start iteration number of DIIS.
+    diis_space : int
+        Space of DIIS.
     verbose : int
         Verbose level for PySCF.
     """
     log = lib.logger.new_logger(verbose=verbose)
-    log.warn("Conventional integral of MP2 is not recommended!\n"
-             "Use density fitting approximation is recommended.")
-    log.info(f"[INFO] dRPA (ring-CCD) iteration, tol_e {tol_e:9.4e}, tol_amp {tol_amp:9.4e}, max_cycle {max_cycle:3d}")
+    # log.warn("Conventional integral of MP2 is not recommended!\n"
+    #          "Use density fitting approximation is recommended.")
+    log.info(f"[INFO] Ring-CCD iteration, tol_e {tol_e:9.4e}, tol_amp {tol_amp:9.4e}, max_cycle {max_cycle:3d}")
 
     mask_occ = mo_occ != 0
     mask_vir = mo_occ == 0
@@ -95,33 +104,35 @@ def kernel_energy_rring_ccd_conv(
     D = D_iajb.reshape(dim_ov, dim_ov)
 
     def update_T(T, B, D):
-        return - 1 / D * (B - 2 * B @ T - 2 * T @ B + 4 * T @ B @ T)
+        # return - 1 / D * (B - 2 * B @ T - 2 * T @ B + 4 * T @ B @ T)
+        BT = B @ T
+        return - 1 / D * (B - 2 * BT - 2 * BT.T + 4 * T @ BT)
 
-    # begin diis, start from third iteration, space of diis is 6
+    # begin diis
     # T_old = np.zeros_like(B)
     T_new = np.zeros_like(B)
     eng_os = eng_ss = eng_drpa = 0
     diis = lib.diis.DIIS()
-    diis.space = 6
+    diis.space = diis_space
     converged = False
     for epoch in range(max_cycle):
         T_old, T_new = T_new, update_T(T_new, B, D)
         eng_old = eng_drpa
-        if epoch > 3:
+        if epoch > diis_start:
             T_new = diis.update(T_new)
         eng_os = eng_ss = - np.einsum("AB, AB ->", T_new, B)
         eng_drpa = eng_os + eng_ss
         err_amp = np.linalg.norm(T_new - T_old)
         err_e = abs(eng_drpa - eng_old)
         log.info(
-            f"[INFO] dRPA (ring-CCD) energy in iter {epoch:3d}: {eng_drpa:20.12f}, "
+            f"[INFO] Ring-CCD energy in iter {epoch:3d}: {eng_drpa:20.12f}, "
             f"amplitude L2 error {err_amp:9.4e}, eng_err {err_e:9.4e}")
         if err_amp < tol_amp and err_e < tol_e:
             converged = True
-            log.info("[INFO] dRPA (ring-CCD) amplitude converges.")
+            log.info("[INFO] Ring-CCD amplitude converges.")
             break
     if not converged:
-        log.warn(f"dRPA (ring-CCD) not converged in {max_cycle} iterations!")
+        log.warn(f"Ring-CCD not converged in {max_cycle} iterations!")
 
     results = dict()
     results["eng_corr_RING_CCD_OS"] = eng_os
@@ -156,7 +167,7 @@ class RRingCCDConv(RingCCDBase):
         eri_or_mol = self.scf._eri if self.omega == 0 else mol
         eri_or_mol = eri_or_mol if eri_or_mol is not None else mol
         with mol.with_range_coulomb(self.omega):
-            results = kernel_energy_rring_ccd_conv(
+            results = self.kernel_energy_ring_ccd(
                 mo_energy=mo_energy_act,
                 mo_coeff=mo_coeff_act,
                 eri_or_mol=eri_or_mol,
@@ -164,6 +175,8 @@ class RRingCCDConv(RingCCDBase):
                 tol_e=self.conv_tol,
                 tol_amp=self.conv_tol_amp,
                 max_cycle=self.max_cycle,
+                diis_start=self.diis_start,
+                diis_space=self.diis_space,
                 verbose=self.verbose
             )
         # pad omega
