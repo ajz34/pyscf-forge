@@ -5,7 +5,9 @@ from pyscf.ao2mo import _ao2mo
 from pyscf.dh.util import calc_batch_size
 
 
-def get_cderi_mo(with_df, mo_coeff, Y_mo=None, pqslice=None, max_memory=2000):
+def get_cderi_mo(
+        with_df, mo_coeff, Y_mo=None, pqslice=None,
+        max_memory=2000, verbose=lib.logger.NOTE):
     """ Get Cholesky decomposed ERI in MO basis.
 
     Parameters
@@ -20,12 +22,17 @@ def get_cderi_mo(with_df, mo_coeff, Y_mo=None, pqslice=None, max_memory=2000):
         Slice of orbitals to be transformed.
     max_memory : float
         Maximum memory available.
+    verbose : int
+        Print verbosity.
 
     Returns
     -------
     np.ndarray
         Cholesky decomposed ERI in MO basis.
     """
+    log = lib.logger.new_logger(verbose=verbose)
+    time0 = lib.logger.process_clock(), lib.logger.perf_counter()
+
     naux = with_df.get_naoaux()
     nmo = mo_coeff.shape[-1]
     if pqslice is None:
@@ -55,6 +62,8 @@ def get_cderi_mo(with_df, mo_coeff, Y_mo=None, pqslice=None, max_memory=2000):
                 Y_ao.reshape(naux, nao, nao),
                 mo_coeff[:, pqslice[0]:pqslice[1]].conj(), mo_coeff[:, pqslice[2]:pqslice[3]])
         p0 = p1
+
+    log.timer("get_mp2_integrals", *time0)
     return Y_mo
 
 
