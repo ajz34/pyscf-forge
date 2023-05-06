@@ -15,6 +15,48 @@ CONFIG_route_iepa = getattr(__config__, "route_iepa", CONFIG_route)
 CONFIG_frozen = getattr(__config__, "frozen", 0)
 
 
+def _process_xc_split(xc_list):
+    """ Split exch-corr list by certain type of xc.
+
+    Exch-corr list of input should be energy functional.
+
+    Parameters
+    ----------
+    xc_list : XCList
+
+    Returns
+    -------
+    dict[str, XCList]
+    """
+
+    result = dict()
+    # 1. low-rung
+    xc_extracted = xc_list.copy()
+    xc_low_rung = xc_extracted.extract_by_xctype(XCType.RUNG_LOW)
+    xc_extracted = xc_extracted.remove(xc_low_rung)
+    result["low_rung"] = xc_low_rung
+    # 2. advanced correlation
+    # 2.1 IEPA (may also resolve evaluation of MP2)
+    xc_iepa = xc_extracted.extract_by_xctype(XCType.IEPA)
+    if len(xc_iepa) != 0:
+        xc_iepa = xc_extracted.extract_by_xctype(XCType.IEPA | XCType.MP2)
+        xc_extracted = xc_extracted.remove(xc_iepa)
+    result["iepa"] = xc_iepa
+    # 2.2 MP2
+    xc_mp2 = xc_extracted.extract_by_xctype(XCType.MP2 | XCType.RSMP2)
+    xc_extracted = xc_extracted.remove(xc_mp2)
+    result["mp2"] = xc_mp2
+    # 2.3 Ring CCD
+    xc_ring_ccd = xc_extracted.extract_by_xctype(XCType.RS_RING_CCD)
+    xc_extracted = xc_extracted.remove(xc_ring_ccd)
+    result["ring_ccd"] = xc_ring_ccd
+
+    # finalize
+    if len(xc_extracted) > 0:
+        raise RuntimeError(f"Some xc terms not evaluated! Possibly bg of program.\nXC not evaluated: {xc_extracted}")
+    return result
+
+
 def _process_energy_exx(mf_dh, xc_list, force_evaluate=False):
     """ Evaluate exact exchange energy.
 
@@ -61,41 +103,27 @@ def _process_energy_exx(mf_dh, xc_list, force_evaluate=False):
         eng_tot += eng
 
     update_results(mf_dh.results, results)
-    mf_dh.inherited.append((mf_scf, xc_exx))
     return xc_extracted, eng_tot
 
 
-def _process_energy_mp2(mf_dh, xc_list, force_evaluate=False):
+def _process_energy_mp2(mf_dh, xc_mp2, force_evaluate=False):
     """ Evaluate MP2 correlation energy.
 
     Parameters
     ----------
     mf_dh : DH
-    xc_list : XCList
+    xc_mp2 : XCList
     force_evaluate : bool
 
     Returns
     -------
     tuple[XCList, float]
     """
-    log = lib.logger.new_logger(verbose=mf_dh.verbose)
-    xc_mp2 = xc_list.extract_by_xctype(XCType.MP2 | XCType.RSMP2)
     if len(xc_mp2) == 0:
-        return xc_list, 0
-    xc_extracted = xc_list.remove(xc_mp2, inplace=False)
-    log.info(f"[INFO] XCList extracted by process_energy_mp2: {xc_mp2.token}")
-    log.info(f"[INFO] XCList remains   by process_energy_mp2: {xc_extracted.token}")
-    log.info("[INFO] MP2 detected")
-    # generate omega list
-    # parameter of RSMP2: omega, c_os, c_ss
-    omega_list = []
-    for info in xc_mp2:
-        if XCType.MP2 in info.type:
-            omega_list.append(0)
-        else:
-            assert XCType.RSMP2 in info.type
-            omega_list.append(info.parameters[0])
-    assert len(set(omega_list)) == len(omega_list)
+        return 0
+
+    log = lib.logger.new_logger(verbose=mf_dh.verbose)
+    log.info(f"[INFO] XCList to be evaluated by process_energy_mp2: {xc_mp2.token}")
 
     def comput_mp2():
         eng_tot = 0
@@ -114,12 +142,17 @@ def _process_energy_mp2(mf_dh, xc_list, force_evaluate=False):
         return eng_tot
 
     def force_comput_mp2():
-        for omega in omega_list:
+        for info in xc_mp2:
+            if XCType.MP2 in info.type:
+                c_os, c_ss = info.parameters
+                omega = 0
+            else:
+                omega, c_os, c_ss = info.parameters
             if pad_omega("eng_corr_MP2_SS", omega) in mf_dh.results and not force_evaluate:
                 continue  # results have been evaluated
-            mf_mp2 = mf_dh.to_mp2(omega=omega).run()
+            mf_mp2 = mf_dh.to_mp2(omega=omega, c_os=c_os, c_ss=c_ss).run()
             update_results(mf_dh.results, mf_mp2.results)
-            mf_dh.inherited.append((mf_mp2, xc_mp2))
+            mf_dh.inherited["mp2"][1].append(mf_mp2)
         eng_tot = comput_mp2()
         return eng_tot
 
@@ -131,32 +164,28 @@ def _process_energy_mp2(mf_dh, xc_list, force_evaluate=False):
         except KeyError:
             eng_tot = force_comput_mp2()
 
-    return xc_extracted, eng_tot
+    return eng_tot
 
 
-def _process_energy_iepa(mf_dh, xc_list, force_evaluate=False):
+def _process_energy_iepa(mf_dh, xc_iepa, force_evaluate=False):
     """ Evaluate IEPA-like correlation energy.
 
     Parameters
     ----------
     mf_dh : DH
-    xc_list : XCList
+    xc_iepa : XCList
     force_evaluate : bool
 
     Returns
     -------
-    tuple[XCList, float]
+    float
     """
     log = lib.logger.new_logger(verbose=mf_dh.verbose)
-    xc_iepa = xc_list.extract_by_xctype(XCType.IEPA)
     if len(xc_iepa) == 0:
-        return xc_list, 0
+        return 0
 
     # run MP2 while in IEPA if found
-    xc_iepa = xc_list.extract_by_xctype(XCType.IEPA | XCType.MP2)
-    xc_extracted = xc_list.remove(xc_iepa, inplace=False)
-    log.info(f"[INFO] XCList extracted by process_energy_iepa: {xc_iepa.token}")
-    log.info(f"[INFO] XCList remains   by process_energy_iepa: {xc_extracted.token}")
+    log.info(f"[INFO] XCList to be evaluated by process_energy_iepa: {xc_iepa.token}")
 
     # prepare IEPA
     iepa_schemes = [info.name for info in xc_iepa]
@@ -177,7 +206,7 @@ def _process_energy_iepa(mf_dh, xc_list, force_evaluate=False):
         mf_iepa = mf_dh.to_iepa().run(iepa_schemes=iepa_schemes)
         update_results(mf_dh.results, mf_iepa.results)
         eng_tot = comput_iepa()
-        mf_dh.inherited.append((mf_iepa, xc_iepa))
+        mf_dh.inherited["iepa"][1].append(mf_iepa)
         return eng_tot
 
     if force_evaluate:
@@ -188,33 +217,30 @@ def _process_energy_iepa(mf_dh, xc_list, force_evaluate=False):
         except KeyError:
             eng_tot = force_comput_iepa()
 
-    return xc_extracted, eng_tot
+    return eng_tot
 
 
-def _process_energy_drpa(mf_dh, xc_list, force_evaluate=False):
-    """ Evaluate RPA-like correlation energy.
+def _process_energy_ring_ccd(mf_dh, xc_ring_ccd, force_evaluate=False):
+    """ Evaluate Ring-CCD-like correlation energy.
 
     Parameters
     ----------
     mf_dh : DH
-    xc_list : XCList
+    xc_ring_ccd : XCList
     force_evaluate : bool
 
     Returns
     -------
     tuple[XCList, float]
     """
-    log = lib.logger.new_logger(verbose=mf_dh.verbose)
-    xc_ring_ccd = xc_list.extract_by_xctype(XCType.RS_RING_CCD)
-    xc_extracted = xc_list.remove(xc_ring_ccd, inplace=False)
     if len(xc_ring_ccd) == 0:
-        return xc_list, 0
-    log.info(f"[INFO] XCList extracted by process_energy_drpa (RS_RING_CCD): {xc_ring_ccd.token}")
-    log.info(f"[INFO] XCList remains   by process_energy_drpa (RS_RING_CCD): {xc_extracted.token}")
-    log.info(f"[INFO] Ring-CCD detected")
+        return 0
+
+    log = lib.logger.new_logger(verbose=mf_dh.verbose)
+    log.info(f"[INFO] XCList to be evaluated by process_energy_drpa: {xc_ring_ccd.token}")
 
     # generate omega list
-    # parameter of RSMP2: omega, c_os, c_ss
+    # parameter of RS-Ring-CCD: omega, c_os, c_ss
     omega_list = []
     for xc_info in xc_ring_ccd:
         omega_list.append(xc_info.parameters[0])
@@ -237,7 +263,7 @@ def _process_energy_drpa(mf_dh, xc_list, force_evaluate=False):
                 continue  # results have been evaluated
             mf_ring_ccd = mf_dh.to_ring_ccd(omega=omega).run()
             update_results(mf_dh.results, mf_ring_ccd.results)
-            mf_dh.inherited.append((mf_ring_ccd, xc_ring_ccd))
+            mf_dh.inherited["ring_ccd"][1].append(mf_ring_ccd)
         eng_tot = comput_ring_ccd()
         return eng_tot
 
@@ -249,21 +275,20 @@ def _process_energy_drpa(mf_dh, xc_list, force_evaluate=False):
         except KeyError:
             eng_tot = force_comput_ring_ccd()
 
-    return xc_extracted, eng_tot
+    return eng_tot
 
 
-def _process_energy_low_rung(mf_dh, xc_list, xc_to_parse=None):
+def _process_energy_low_rung(mf_dh, xc_list):
     """ Evaluate low-rung pure DFT exchange/correlation energy.
 
     Parameters
     ----------
     mf_dh : DH
     xc_list : XCList
-    xc_to_parse : XCList
 
     Returns
     -------
-    tuple[XCList, float]
+    float
     """
     # logic of this function
     # 1. first try the whole low_rung token
@@ -275,13 +300,10 @@ def _process_energy_low_rung(mf_dh, xc_list, xc_to_parse=None):
     log = lib.logger.new_logger(verbose=mf_dh.verbose)
     mf_scf = mf_dh.to_scf()
     ni = dft.numint.NumInt()
-    if xc_to_parse is None:
-        xc_to_parse = xc_list.extract_by_xctype(XCType.RUNG_LOW)
-    xc_extracted = xc_list.remove(xc_to_parse, inplace=False)
-    log.info(f"[INFO] XCList to be parsed in process_energy_low_rung: {xc_to_parse.token}")
+    log.info(f"[INFO] XCList to be parsed in process_energy_low_rung: {xc_list.token}")
 
-    if len(xc_to_parse) == 0:
-        return xc_list, 0
+    if len(xc_list) == 0:
+        return 0
 
     def handle_multiple_omega():
         log.warn(
@@ -291,23 +313,19 @@ def _process_energy_low_rung(mf_dh, xc_list, xc_to_parse=None):
             "and our program currently could not handle it.\n"
             "Anyway, this is purely experimental and use with caution.")
         eng_tot = 0
-        xc_exx = xc_to_parse.extract_by_xctype(XCType.EXX)
-        xc_non_exx = xc_to_parse.remove(xc_exx, inplace=False)
+        xc_exx = xc_list.extract_by_xctype(XCType.EXX)
+        xc_non_exx = xc_list.remove(xc_exx, inplace=False)
         log.info(f"[INFO] XCList extracted by process_energy_low_rung (handle_multiple_omega, "
                  f"exx): {xc_exx.token}")
         log.info(f"[INFO] XCList extracted by process_energy_low_rung (handle_multiple_omega, "
                  f"non_exx): {xc_non_exx.token}")
         if len(xc_exx) != 0:
             xc_exx_extracted, eng_exx = _process_energy_exx(mf_dh, xc_exx)
-            xc_non_exx_extracted, eng_non_exx = _process_energy_low_rung(mf_dh, xc_non_exx)
+            eng_non_exx = _process_energy_low_rung(mf_dh, xc_non_exx)
             assert len(xc_exx_extracted) == 0
-            if len(xc_non_exx_extracted) != 0:
-                raise RuntimeError(
-                    f"Finally left some xc not parsed: {xc_non_exx_extracted.token}. "
-                    f"This is probably bug.")
             eng_tot += eng_exx + eng_non_exx
             log.note(f"[RESULT] Energy of process_energy_low_rung (handle_multiple_omega): {eng_tot}")
-            return xc_extracted, eng_tot
+            return eng_tot
         else:
             log.warn(
                 "Seems pure-DFT part has different values of omega.\n"
@@ -315,16 +333,15 @@ def _process_energy_low_rung(mf_dh, xc_list, xc_to_parse=None):
                 "We evaluate each term one-by-one.")
             xc_non_exx_list = [XCList().build_from_list([xc_info]) for xc_info in xc_non_exx]
             for xc_non_exx_item in xc_non_exx_list:
-                xc_item_extracted, eng_item = _process_energy_low_rung(mf_dh, xc_non_exx_item)
-                assert len(xc_item_extracted) == 0
+                eng_item = _process_energy_low_rung(mf_dh, xc_non_exx_item)
                 eng_tot += eng_item
             log.note(f"[RESULT] Energy of process_energy_low_rung (handle_multiple_omega): {eng_tot}")
-            return xc_extracted, eng_tot
+            return eng_tot
 
     numint = None
     # perform the logic of function
     try:
-        ni._xc_type(xc_to_parse.token)
+        ni._xc_type(xc_list.token)
     except (ValueError, KeyError) as err:
         if isinstance(err, ValueError) and "Different values of omega" in err.args[0]:
             return handle_multiple_omega()
@@ -332,7 +349,7 @@ def _process_energy_low_rung(mf_dh, xc_list, xc_to_parse=None):
                 or isinstance(err, ValueError) and "too many values to unpack" in err.args[0]:
             log.info("[INFO] Unknown functional to PySCF. Try build custom numint.")
             try:
-                numint = numint_customized(xc_to_parse)
+                numint = numint_customized(xc_list)
             except ValueError as err_numint:
                 if "Different values of omega" in err_numint.args[0]:
                     log.warn("We first resolve different omegas, and we later move on numint.")
@@ -346,8 +363,8 @@ def _process_energy_low_rung(mf_dh, xc_list, xc_to_parse=None):
     if numint is None:
         numint = dft.numint.NumInt()
     # exx part
-    xc_exx = xc_to_parse.extract_by_xctype(XCType.EXX)
-    xc_non_exx = xc_to_parse.remove(xc_exx, inplace=False)
+    xc_exx = xc_list.extract_by_xctype(XCType.EXX)
+    xc_non_exx = xc_list.remove(xc_exx, inplace=False)
     log.info(f"[INFO] XCList extracted by process_energy_low_rung (exx): {xc_exx.token}")
     log.info(f"[INFO] XCList extracted by process_energy_low_rung (non_exx): {xc_non_exx.token}")
     xc_exx_extracted, eng_exx = _process_energy_exx(mf_dh, xc_exx)
@@ -376,7 +393,7 @@ def _process_energy_low_rung(mf_dh, xc_list, xc_to_parse=None):
     eng_tot += results["eng_purexc_" + xc_non_exx.token]
     log.note(f"[RESULT] Energy of process_energy_low_rung (non_exx): {results['eng_purexc_' + xc_non_exx.token]}")
     log.note(f"[RESULT] Energy of process_energy_low_rung (total): {eng_tot}")
-    return xc_extracted, eng_tot
+    return eng_tot
 
 
 def driver_energy_dh(mf_dh, xc=None, force_evaluate=False):
@@ -390,6 +407,8 @@ def driver_energy_dh(mf_dh, xc=None, force_evaluate=False):
         Token of exchange and correlation.
     """
     log = mf_dh.log
+
+    # prepare xc tokens
     mf_dh.build()
     if xc is None:
         xc = mf_dh.xc.xc_eng
@@ -397,43 +416,46 @@ def driver_energy_dh(mf_dh, xc=None, force_evaluate=False):
         xc = XCList(xc, code_scf=False)
     assert isinstance(xc, XCList)
     xc = xc.copy()
+    xc_splitted = _process_xc_split(xc)
+    for key, xc_list in xc_splitted.items():
+        mf_dh.inherited[key] = (xc_list, [])
+
     result = dict()
     eng_tot = 0.
     # 1. general xc
-    xc_extracted = xc.copy()
-    xc_low_rung = xc_extracted.extract_by_xctype(XCType.RUNG_LOW)
-    xc_extracted = xc_extracted.remove(xc_low_rung)
+    xc_low_rung = xc_splitted["low_rung"]
     if xc_low_rung == mf_dh.xc.xc_scf and not force_evaluate:
         # If low-rung of xc_eng and xc_scf shares the same xc formula,
         # then we just use the SCF energy to evaluate low-rung part of total doubly hybrid energy.
         log.info("[INFO] xc of SCF is the same to xc of energy in rung-low part. Add SCF energy to total energy.")
         eng_tot += mf_dh.scf.e_tot
     else:
-        xc_low_rung_extracted, eng_low_rung = _process_energy_low_rung(mf_dh, xc_low_rung)
-        assert len(xc_low_rung_extracted) == 0
+        eng_low_rung = _process_energy_low_rung(mf_dh, xc_low_rung)
         eng_tot += eng_low_rung
         result.update(mf_dh.to_scf().get_energy_noxc(mf_dh.scf, mf_dh.scf.make_rdm1()))
         eng_tot += result["eng_noxc"]
 
     # 2. other correlation
     # 2.1 IEPA (may also resolve evaluation of MP2)
-    xc_extracted, eng_iepa = _process_energy_iepa(mf_dh, xc_extracted)
+    xc_iepa = xc_splitted["iepa"]
+    eng_iepa = _process_energy_iepa(mf_dh, xc_iepa)
     eng_tot += eng_iepa
     # 2.2 MP2
-    xc_extracted, eng_mp2 = _process_energy_mp2(mf_dh, xc_extracted)
+    xc_mp2 = xc_splitted["mp2"]
+    eng_mp2 = _process_energy_mp2(mf_dh, xc_mp2)
     eng_tot += eng_mp2
-    # 2.3 dRPA
-    xc_extracted, eng_drpa = _process_energy_drpa(mf_dh, xc_extracted)
-    eng_tot += eng_drpa
+    # 2.3 Ring CCD
+    xc_ring_ccd = xc_splitted["ring_ccd"]
+    eng_ring_ccd = _process_energy_ring_ccd(mf_dh, xc_ring_ccd)
+    eng_tot += eng_ring_ccd
     # # 2.4 VV10
     # xc_extracted, eng_vdw = _process_energy_vdw(mf_dh, xc_extracted)
     # eng_tot += eng_vdw
-    # finalize
-    if len(xc_extracted) > 0:
-        raise RuntimeError("Some xc terms not evaluated! Possibly bug of program.")
+
     result[f"eng_dh_{xc.token}"] = eng_tot
+    update_results(mf_dh.results, result)
     log.note(f"[RESULT] Energy of {xc.token}: {eng_tot:20.12f}")
-    return result
+    return eng_tot
 
 
 class DH(EngBase):
@@ -459,7 +481,7 @@ class DH(EngBase):
         # cheat to generate someting by __init__ from base class
         mol = mf_or_mol if isinstance(mf_or_mol, gto.Mole) else mf_or_mol.mol
         super().__init__(scf.HF(mol))
-        self.inherited = []  # type: List[Tuple[EngBase, XCList]]
+        self.inherited = dict()  # type: dict[str, tuple[XCList, list[EngBase]]]
         self.xc = NotImplemented  # type: XCDH
         self.log = NotImplemented  # type: lib.logger.Logger
         self.flags = flags if flags is not None else dict()
@@ -585,9 +607,8 @@ class DH(EngBase):
 
         self.flags.update(kwargs)
         force_evaluate = self.flags.get("force_evaluate", False)
-        results = driver_energy_dh(self, xc, force_evaluate)
-        update_results(self.results, results)
-        return self.results[f"eng_dh_{xc.token}"]
+        eng_tot = driver_energy_dh(self, xc, force_evaluate)
+        return eng_tot
 
     @property
     def e_tot(self):
@@ -596,12 +617,12 @@ class DH(EngBase):
     def to_scf(self, **kwargs):
         # import
         if self.restricted:
-            from pyscf.dh import RHDFT as DHSCF
+            from pyscf.dh import RHDFT as HDFT
         else:
-            from pyscf.dh import UHDFT as DHSCF
+            from pyscf.dh import UHDFT as HDFT
 
         # generate instance
-        mf = DHSCF.from_rdh(self, self.scf, self.xc.xc_scf, **kwargs)
+        mf = HDFT.from_rdh(self, self.scf, self.xc.xc_scf, **kwargs)
 
         return mf
 
@@ -609,7 +630,7 @@ class DH(EngBase):
         # import
         if self.restricted:
             from pyscf.dh import RMP2Conv as MP2Conv
-            from pyscf.dh import RMP2RI as MP2RI
+            from pyscf.dh.energy.mp2 import RMP2RI as MP2RI
         else:
             from pyscf.dh import UMP2Conv as MP2Conv
             from pyscf.dh import UMP2RI as MP2RI
