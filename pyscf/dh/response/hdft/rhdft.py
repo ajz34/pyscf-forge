@@ -1,8 +1,80 @@
 """ Hybrid-DFT Response-Related Utilities. """
 
 from pyscf.dh import RHDFT
+from pyscf.dh import util
+from pyscf import lib, __config__
 from pyscf.scf import _response_functions  # this import is not unnecessary
+import numpy as np
 from functools import cached_property
+
+
+CONFIG_dh_verbose = getattr(__config__, "dh_verbose", lib.logger.NOTE)
+
+
+def get_eri_cpks(
+        cderi_uaa, mo_occ, cx, eri_cpks=None,
+        max_memory=2000, verbose=CONFIG_dh_verbose):
+    r""" Obtain ERI term :math:`A_{ai, bj}^\mathrm{HF}`.
+
+    For given
+
+    Parameters
+    ----------
+    cderi_uaa : np.ndarray
+    mo_occ : np.ndarray
+    cx : float
+    eri_cpks : np.ndarray or None
+    max_memory : float
+    verbose : int
+
+    Returns
+    -------
+    np.ndarray
+    """
+    log = lib.logger.new_logger(verbose=verbose)
+    time0 = lib.logger.process_clock(), lib.logger.perf_counter()
+
+    # dimension and sanity check
+    naux = cderi_uaa.shape[0]
+    nmo = len(mo_occ)
+    nocc = (mo_occ != 0).sum()
+    nvir = (mo_occ == 0).sum()
+    so, sv = slice(0, nocc), slice(nocc, nmo)
+    assert cderi_uaa.shape == (naux, nmo, nmo)
+
+    # allocate eri_cpks if necessary
+    if eri_cpks is None:
+        eri_cpks = np.zeros((nvir, nocc, nvir, nocc))
+    else:
+        assert eri_cpks.shape == (nvir, nocc, nvir, nocc)
+
+    # copy some tensors to memory
+    cderi_uvo = np.asarray(cderi_uaa[:, sv, so])
+    cderi_uoo = np.asarray(cderi_uaa[:, so, so])
+
+    # prepare for async and batch
+    mem_avail = max_memory - lib.current_memory()[0]
+    nbatch = util.calc_batch_size(nvir*naux + 2*nocc**2*nvir, mem_avail)
+
+    def load_cderi_uaa(slc):
+        return np.asarray(cderi_uaa[:, slc, :])
+
+    def write_eri_cpks(slc, blk):
+        eri_cpks[slc] += blk
+
+    batches = util.gen_batch(nocc, nmo, nbatch)
+    with lib.call_in_background(write_eri_cpks) as async_write_eri_cpks:
+        for sA, cderi_uAa in zip(batches, lib.map_with_prefetch(load_cderi_uaa, batches)):
+            log.debug(f"[DEBUG] in get_eri_cpks, slice {sA} of virtual orbitals {nocc, nmo}")
+            sAvir = slice(sA.start - nocc, sA.stop - nocc)
+            blk = (
+                + 4 * lib.einsum("Pai, Pbj -> aibj", cderi_uvo[:, sAvir], cderi_uvo)
+                - cx * lib.einsum("Paj, Pbi -> aibj", cderi_uvo[:, sAvir], cderi_uvo)
+                - cx * lib.einsum("Pij, Pab -> aibj", cderi_uoo, cderi_uAa))
+            async_write_eri_cpks(sAvir, blk)
+
+    log.timer("get_eri_cpks", *time0)
+    return eri_cpks
 
 
 def Ax0_Core_resp(sp, sq, sr, ss, vresp, mo_coeff):
