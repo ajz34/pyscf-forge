@@ -394,9 +394,14 @@ class RHDFT(EngBase):
     It's better to initialize this object first, before actually running SCF iterations.
     """
 
-    def __init__(self, mf, xc):
+    def __init__(self, mf, xc=None):
         super().__init__(mf)
-        self.xc = xc  # type: XCList
+        if xc is not None:
+            self.xc = xc
+        elif not hasattr(mf, "xc"):
+            self.xc = "HF"
+        else:
+            self.xc = self.scf.xc
         if isinstance(self.xc, str):
             xc_scf = XCList(self.xc, code_scf=True)
             xc_eng = XCList(self.xc, code_scf=False)
@@ -405,6 +410,7 @@ class RHDFT(EngBase):
             self.xc = xc_scf
         else:
             xc_scf = self.xc
+
         self._scf = custom_mf(mf, xc_scf)
 
     @property

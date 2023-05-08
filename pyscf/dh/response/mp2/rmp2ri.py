@@ -2,7 +2,8 @@
 
 from pyscf.dh import RMP2RI
 from pyscf.dh import util
-from pyscf import lib, __config__
+from pyscf import scf, lib, __config__
+from pyscf.scf import cphf
 import h5py
 import numpy as np
 
@@ -19,12 +20,14 @@ def get_mp2_integrals(
     r""" Get 3-index transformed MP2 amplitude.
 
     .. math::
-        \Gamma_{ia, P} = T_{ij}^{ab} Y_{jb, P}
+        t_{ij}^{ab} &= Y_{ia, P} Y_{jb, P} / D_{ij}^{ab} \\
+        T_{ij}^{ab} &= 2 c_\mathrm{os} t_{ij}^{ab} - c_\mathrm{ss} t_{ij}^{ba} \\
+        \Gamma_{ia, P} &= T_{ij}^{ab} Y_{jb, P} \\
 
     Parameters
     ----------
     cderi_uov : np.ndarray
-        Cholesky decomposed ERI in MO basis (occ-vir block).
+        Cholesky decomposed ERI in MO basis (occ-vir block) :math:`Y_{ia, P}`.
         dim: (naux, nocc_act, nvir_act).
     mo_occ : np.ndarray
         Occupation number.
@@ -139,28 +142,205 @@ def get_mp2_integrals(
     return tensors, results
 
 
+def get_W_I(cderi_uov, cderi_uoo, G_uov, verbose=lib.logger.NOTE):
+    r""" Part I of MO-energy-weighted density matrix.
+
+    .. math::
+        W_{ij} [\mathrm{I}] &= -2 \Gamma_{ia, P} Y_{ja, P} \\
+        W_{ab} [\mathrm{I}] &= -2 \Gamma_{ia, P} Y_{ib, P} \\
+        W_{ai} [\mathrm{I}] &= -4 \Gamma_{ja, P} Y_{ij, P}
+
+    This energy-weighted density matrix is not symmetric by current implementation.
+
+    Parameters
+    ----------
+    cderi_uov : np.ndarray
+    cderi_uoo : np.ndarray
+    G_uov : np.ndarray
+    verbose : int
+
+    Returns
+    -------
+    dict[str, np.ndarray]
+    """
+
+    log = lib.logger.new_logger(verbose=verbose)
+    time0 = lib.logger.process_clock(), lib.logger.perf_counter()
+
+    # dimension definition and check sanity
+    naux, nocc, nvir = cderi_uov.shape
+    nmo = nocc + nvir
+    assert cderi_uoo.shape == (naux, nocc, nocc)
+    assert G_uov.shape == (naux, nocc, nvir)
+
+    # prepare essential matrices and slices
+    so, sv = slice(0, nocc), slice(nocc, nmo)
+
+    W_I = np.zeros((nmo, nmo))
+    W_I[so, so] = - 2 * lib.einsum("Pia, Pja -> ij", G_uov, cderi_uov)
+    W_I[sv, sv] = - 2 * lib.einsum("Pia, Pib -> ab", G_uov, cderi_uov)
+    W_I[sv, so] = - 4 * lib.einsum("Pja, Pij -> ai", G_uov, cderi_uoo)
+
+    log.timer("get_W_I", *time0)
+    tensors = {"W_I": W_I}
+    return tensors
+
+
+def get_lag_vo(
+        G_uov, cderi_uaa, W_I, rdm1_corr, Ax0_Core,
+        max_memory=2000, verbose=lib.logger.NOTE):
+    r""" MP2 contribution to Lagrangian vir-occ block.
+
+    .. math::
+        L_{ai} = - 4 \Gamma_{ja, P} Y_{ij, P} + 4 \Gamma_{ib, P} Y_{ab, P} + A_{ai, pq} D_{pq}^\mathrm{(2)}
+
+    where :math:`- 4 \Gamma_{ja, P} Y_{ij, P}` is evaluated by :math:`W_{ai} [\mathrm{I}]`.
+
+    Some pratical meaning of lagrangian, is that for vir-occ block, it can be defined by MP2 energy derivative wrt
+    MO coefficients:
+
+    .. math::
+        \mathscr{L}_{pq} &= C_{\mu p} \frac{\partial E^\mathrm{(2)}}{\partial C_{\mu q}} \\
+        L_{ai} &= \mathscr{L}_{ai} - \mathscr{L}_{ia}
+
+    Parameters
+    ----------
+    G_uov : np.ndarray
+    cderi_uaa : np.ndarray
+    W_I : np.ndarray
+    rdm1_corr : np.ndarray
+    Ax0_Core : callable
+    max_memory : float
+    verbose : int
+
+    Returns
+    -------
+    dict[str, np.ndarray]
+    """
+
+    log = lib.logger.new_logger(verbose=verbose)
+    time0 = lib.logger.process_clock(), lib.logger.perf_counter()
+
+    # dimension definition and check sanity
+    naux, nocc, nvir = G_uov.shape
+    nmo = nocc + nvir
+    assert cderi_uaa.shape == (naux, nmo, nmo)
+    if W_I is not None:
+        assert W_I.shape == (nmo, nmo)
+
+    # prepare essential matrices and slices
+    so, sv, sa = slice(0, nocc), slice(nocc, nmo), slice(0, nmo)
+
+    # generate lagrangian occ-vir block
+    lag_vo = np.zeros((nvir, nocc))
+    lag_vo += W_I[sv, so]
+    lag_vo += Ax0_Core(sv, so, sa, sa)(rdm1_corr)
+    mem_avail = max_memory - lib.current_memory()[0]
+    nbatch = util.calc_batch_size(nvir ** 2 + nocc * nvir, mem_avail)
+    for saux in util.gen_batch(0, naux, nbatch):
+        lag_vo += 4 * lib.einsum("Pib, Pab -> ai", G_uov[saux], cderi_uaa[saux, sv, sv])
+
+    log.timer("get_lag_vo", *time0)
+    tensors = {"lag_vo": lag_vo}
+    return tensors
+
+
+def get_rdm1_corr_resp(
+        rdm1_corr, lag_vo,
+        mo_energy, mo_occ, Ax0_Core,
+        max_cycle=20, tol=1e-9, verbose=lib.logger.NOTE):
+    r""" 1-RDM of response MP2 correlation by MO basis.
+
+    For other parts, response density matrix is the same to the usual 1-RDM.
+
+    .. math::
+        A'_{ai, bj} D_{bj}^\mathrm{(2)} &= L_{ai}
+
+    Parameters
+    ----------
+    rdm1_corr : np.ndarray
+    lag_vo : np.ndarray
+    mo_energy : np.ndarray
+    mo_occ : np.ndarray
+    Ax0_Core : callable
+    max_cycle : int
+    tol : float
+    verbose : int
+
+    Returns
+    -------
+    dict[str, np.ndarray]
+
+    See Also
+    --------
+    get_rdm1_corr
+    """
+
+    log = lib.logger.new_logger(verbose=verbose)
+    time0 = lib.logger.process_clock(), lib.logger.perf_counter()
+
+    # dimension definition and check sanity
+    nocc = (mo_occ > 0).sum()
+    nvir = (mo_occ == 0).sum()
+    nmo = nocc + nvir
+    assert lag_vo.shape == (nvir, nocc)
+    assert rdm1_corr.shape == (nmo, nmo)
+    assert len(mo_energy) == nmo
+    assert len(mo_occ) == nmo
+
+    # prepare essential matrices and slices
+    so, sv = slice(0, nocc), slice(nocc, nmo)
+
+    # cp-ks evaluation
+    rdm1_corr_resp = rdm1_corr.copy()
+    rdm1_corr_resp_vo = cphf.solve(
+        Ax0_Core(sv, so, sv, so), mo_energy, mo_occ, lag_vo,
+        max_cycle=max_cycle, tol=tol)[0]
+    rdm1_corr_resp[sv, so] = rdm1_corr_resp_vo
+
+    log.timer("get_rdm1_corr_resp", *time0)
+    tensors = {"rdm1_corr_resp": rdm1_corr_resp}
+    return tensors
+
+
 class RMP2RespRI(RMP2RI):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.incore_cderi_uaa = CONFIG_incore_cderi_uaa_mp2
         self.c_os = kwargs.get("c_os", 1)
         self.c_ss = kwargs.get("c_ss", 1)
+        self.incore_cderi_uaa = CONFIG_incore_cderi_uaa_mp2
         self.incore_t_oovv = kwargs.get("incore_t_oovv", CONFIG_incore_t_oovv_mp2)
+        self.max_cycle_cpks = CONFIG_max_cycle_cpks
+        self.tol_cpks = CONFIG_tol_cpks
+        self._Ax0_Core = NotImplemented
+
+    @property
+    def mask_occ(self):
+        return self.mo_occ != 0
+
+    @property
+    def mask_occ_act(self):
+        return self.get_frozen_mask() & (self.mo_occ != 0)
+
+    @property
+    def mask_vir(self):
+        return self.mo_occ == 0
+
+    @property
+    def mask_vir_act(self):
+        return self.get_frozen_mask() & (self.mo_occ == 0)
 
     def make_cderi_uaa(self):
-        """ Generate cholesky decomposed ERI (all block, active only, s1 symm, in memory/disk). """
+        """ Generate cholesky decomposed ERI (all block, full orbitals, s1 symm, in memory/disk). """
         if "cderi_uaa" in self.tensors:
             return self.tensors["cderi_uaa"]
 
         log = lib.logger.new_logger(verbose=self.verbose)
 
         # dimension and mask
-        mask = self.get_frozen_mask()
-        nocc_act = (mask & (self.mo_occ != 0)).sum()
-        nvir_act = (mask & (self.mo_occ == 0)).sum()
-        nact = nocc_act + nvir_act
-        mo_coeff_act = self.mo_coeff[:, mask]
+        mo_coeff = self.mo_coeff
+        nmo = self.nmo
 
         # density fitting preparation
         omega = self.omega
@@ -171,12 +351,12 @@ class RMP2RespRI(RMP2RI):
         mem_avail = self.max_memory - lib.current_memory()[0]
         incore_cderi_uaa = self.incore_cderi_uaa
         cderi_uaa = util.allocate_array(
-            incore_cderi_uaa, (naux, nact, nact), mem_avail,
+            incore_cderi_uaa, (naux, nmo, nmo), mem_avail,
             h5file=self._tmpfile, name="cderi_uaa", zero_init=False)
         log.info(f"[INFO] Store type of cderi_uaa: {type(cderi_uaa)}")
 
         # generate array
-        util.get_cderi_mo(with_df, mo_coeff_act, cderi_uaa, max_memory=self.max_memory)
+        util.get_cderi_mo(with_df, mo_coeff, cderi_uaa, max_memory=self.max_memory)
 
         tensors = {"cderi_uaa": cderi_uaa}
         self.tensors.update(tensors)
@@ -188,17 +368,32 @@ class RMP2RespRI(RMP2RI):
             return self.tensors["cderi_uov"]
 
         # dimension and mask
-        mask = self.get_frozen_mask()
-        nocc_act = (mask & (self.mo_occ != 0)).sum()
+        mask_occ_act = self.mask_occ_act
+        mask_vir_act = self.mask_vir_act
 
         # In response evaluation, ERI of all orbitals are generally required.
         # Thus, cderi_uaa is a must-evaluated tensor.
+        # note that cderi_uaa may be stored by h5py, so indexing by list should be done in following way
         cderi_uaa = self.tensors.get("cderi_uaa", self.make_cderi_uaa())
-        cderi_uov = cderi_uaa[:, :nocc_act, nocc_act:]
+        cderi_uov = cderi_uaa[:, mask_occ_act, :][:, :, mask_vir_act]
 
         tensors = {"cderi_uov": cderi_uov}
         self.tensors.update(tensors)
         return cderi_uov
+
+    def make_cderi_uoo(self):
+        """ Generate cholesky decomposed ERI (occ-occ block, in memory). """
+        # todo: frozen core not applied
+        if "cderi_uoo" in self.tensors:
+            return self.tensors["cderi_uoo"]
+
+        mo_coeff_occ = self.mo_coeff[:, self.mask_occ]
+        with_df = self.with_df
+        cderi_uoo = util.get_cderi_mo(with_df, mo_coeff_occ, max_memory=self.max_memory)
+
+        tensors = {"cderi_uoo": cderi_uoo}
+        self.tensors.update(tensors)
+        return cderi_uoo
 
     def _make_mp2_integrals(self):
         cderi_uov = self.tensors.get("cderi_uov", self.make_cderi_uov())
@@ -261,6 +456,124 @@ class RMP2RespRI(RMP2RI):
 
         return self.results
 
+    def make_W_I(self):
+        r""" Part I of MO-energy-weighted density matrix W_{pq} [\mathrm{I}].
+
+        dim: (nmo, nmo)
+        """
+        if "W_I" in self.tensors:
+            return self.tensors["W_I"]
+
+        # prepare tensors
+        cderi_uov = self.tensors.get("cderi_uov", self.make_cderi_uov())
+        cderi_uoo = self.tensors.get("cderi_uoo", self.make_cderi_uoo())
+        G_uov = self.tensors.get("G_uov", self.make_G_uov())
+
+        # main function
+        tensors = get_W_I(cderi_uov, cderi_uoo, G_uov, verbose=self.verbose)
+        self.tensors.update(tensors)
+        return tensors["W_I"]
+
+    def make_lag_vo(self):
+        r""" Generate MP2 contribution to Lagrangian vir-occ block :math:`L_{ai}`. """
+        if "lag_vo" in self.tensors:
+            return self.tensors["lag_vo"]
+
+        # prepare tensors
+        W_I = self.tensors.get("W_I", self.make_W_I())
+        cderi_uaa = self.tensors.get("cderi_uaa", self.make_cderi_uaa())
+        G_uov = self.tensors["G_uov"]
+        rdm1_corr = self.tensors["rdm1_corr"]
+        Ax0_Core = self.Ax0_Core
+
+        # main function
+        tensors = get_lag_vo(
+            G_uov, cderi_uaa, W_I, rdm1_corr, Ax0_Core,
+            max_memory=self.max_memory, verbose=self.verbose)
+
+        self.tensors.update(tensors)
+        return tensors["lag_vo"]
+
+    def make_rdm1_corr_resp(self):
+        """ Generate 1-RDM (response) of MP2 correlation :math:`D_{pq}^{(2)}`. """
+        if "rdm1_corr_resp" in self.tensors:
+            return self.tensors["rdm1_corr_resp"]
+
+        # prepare input
+        lag_vo = self.tensors.get("lag_vo", self.make_lag_vo())
+        rdm1_corr = self.tensors["rdm1_corr"]
+        mask = self.get_frozen_mask()
+        mo_energy = self.mo_energy[mask]
+        mo_occ = self.mo_occ[mask]
+        Ax0_Core = self.Ax0_Core
+        max_cycle = self.max_cycle_cpks
+        tol = self.tol_cpks
+        verbose = self.verbose
+
+        # main function
+        tensors = get_rdm1_corr_resp(
+            rdm1_corr, lag_vo, mo_energy, mo_occ, Ax0_Core,
+            max_cycle=max_cycle, tol=tol, verbose=verbose)
+
+        self.tensors.update(tensors)
+        return tensors["rdm1_corr_resp"]
+
+    def make_rdm1(self, ao=False):
+        r""" Generate 1-RDM (non-response) of MP2 :math:`D_{pq}^{MP2}` in MO or :math:`D_{\mu \nu}^{MP2}` in AO. """
+        # prepare input
+        rdm1_corr = self.tensors.get("rdm1_corr", self.make_rdm1_corr())
+
+        rdm1 = np.diag(self.mo_occ)
+        mask = self.get_frozen_mask()
+        ix_act = np.ix_(mask, mask)
+        rdm1[ix_act] += rdm1_corr
+        self.tensors["rdm1"] = rdm1
+        if ao:
+            rdm1 = self.mo_coeff @ rdm1 @ self.mo_coeff.T
+        return rdm1
+
+    def make_rdm1_resp(self, ao=False):
+        r""" Generate 1-RDM (response) of MP2 :math:`D_{pq}^{MP2}` in MO or :math:`D_{\mu \nu}^{MP2}` in AO. """
+        # prepare input
+        rdm1_corr_resp = self.tensors.get("rdm1_corr_resp", self.make_rdm1_corr_resp())
+
+        rdm1 = np.diag(self.mo_occ)
+        mask = self.get_frozen_mask()
+        ix_act = np.ix_(mask, mask)
+        rdm1[ix_act] += rdm1_corr_resp
+        self.tensors["rdm1_resp"] = rdm1
+        if ao:
+            rdm1 = self.mo_coeff @ rdm1 @ self.mo_coeff.T
+        return rdm1
+
+    def make_dipole(self):
+        # prepare input
+        mol = self.mol
+        rdm1_ao = self.make_rdm1_resp(ao=True)
+        int1e_r = mol.intor("int1e_r")
+
+        dip_elec = - np.einsum("uv, tuv -> t", rdm1_ao, int1e_r)
+        dip_nuc = np.einsum("A, At -> t", mol.atom_charges(), mol.atom_coords())
+        dip = dip_elec + dip_nuc
+        self.tensors["dipole"] = dip
+        return dip
+
+    @property
+    def Ax0_Core(self):
+        """ Fock response of underlying SCF object in MO basis. """
+        if self._Ax0_Core is NotImplemented:
+            restricted = isinstance(self.scf, scf.rhf.RHF)
+            from pyscf.dh.response.hdft import RHDFTResp
+            UHDFTResp = NotImplemented
+            HDFTResp = RHDFTResp if restricted else UHDFTResp
+            mf_scf = HDFTResp(self.scf)
+            self._Ax0_Core = mf_scf.Ax0_Core
+        return self._Ax0_Core
+
+    @Ax0_Core.setter
+    def Ax0_Core(self, Ax0_Core):
+        self._Ax0_Core = Ax0_Core
+
     get_mp2_integrals = staticmethod(get_mp2_integrals)
 
 
@@ -270,8 +583,42 @@ if __name__ == '__main__':
         mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
         mf = scf.RHF(mol).run()
         mf_mp2 = RMP2RespRI(mf)
-        print(mf_mp2.make_rdm1_corr())
+        print(mf_mp2.make_dipole())
+
+    def main_2():
+        # test numerical dipole
+        from pyscf import gto, scf, mp, df
+        np.set_printoptions(5, suppress=True, linewidth=150)
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
+
+        def eng_with_dipole_field(t, h):
+            mf_scf = scf.RHF(mol).density_fit("cc-pVDZ-jkfit")
+            mf_scf.get_hcore = lambda *args, **kwargs: scf.hf.get_hcore(mol) - h * mol.intor("int1e_r")[t]
+            mf_scf.run(conv_tol=1e-12)
+            mf_mp = RMP2RI(mf_scf).run()
+            # mf_mp = mp.dfmp2.DFMP2(mf_scf)
+            # mf_mp.with_df = df.DF(mol, df.make_auxbasis(mol, mp2fit=True))
+            # mf_mp.run()
+            return mf_mp.e_tot
+
+        mf_scf = scf.RHF(mol).density_fit("cc-pVDZ-jkfit").run()
+        mf_mp = RMP2RespRI(mf_scf).run()
+        dip_anal = mf_mp.make_dipole()
+
+        eng_array = np.zeros((2, 3))
+        h = 1e-4
+        for idx, h in [(0, h), [1, -h]]:
+            for t in (0, 1, 2):
+                eng_array[idx, t] = eng_with_dipole_field(t, h)
+        dip_elec_num = - (eng_array[0] - eng_array[1]) / (2 * h)
+        dip_nuc = np.einsum("A, At -> t", mol.atom_charges(), mol.atom_coords())
+        dip_num = dip_elec_num + dip_nuc
+
+        print(mf_scf.dip_moment(unit="AU"))
+        print(dip_num)
+        print(dip_anal)
+
+    main_2()
+
 
     main_1()
-
-
