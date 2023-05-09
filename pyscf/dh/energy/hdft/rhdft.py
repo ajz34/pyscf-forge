@@ -3,6 +3,7 @@ from pyscf.dh.util import XCList, XCType, XCInfo
 from pyscf.dh.energy import EngBase
 from pyscf import dft, lib, scf, df, __config__
 import numpy as np
+import copy
 from types import MethodType
 
 CONFIG_ssr_x_fr = getattr(__config__, "ssr_x_fr", "LDA_X")
@@ -333,6 +334,7 @@ def custom_mf(mf, xc, auxbasis_or_with_df=None):
     Note that if no with_df object passed in, the density-fitting setting of an SCF object is left as is.
     So leaving option ``auxbasis_or_with_df=None`` will not convert density-fitting SCF to conventional SCF.
     """
+    mf = copy.copy(mf)
     verbose = mf.verbose
     log = lib.logger.new_logger(verbose=verbose)
     restricted = isinstance(mf, scf.hf.RHF)
