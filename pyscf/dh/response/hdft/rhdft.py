@@ -13,6 +13,7 @@ CONFIG_dh_verbose = getattr(__config__, "dh_verbose", lib.logger.NOTE)
 CONFIG_incore_cderi_uaa_hdft = getattr(__config__, "incore_cderi_uaa_hdft", "auto")
 CONFIG_incore_eri_cpks_vovo = getattr(__config__, "incore_eri_cpks_vovo", "auto")
 CONFIG_dft_gen_grid_Grids_level = getattr(__config__, 'dft_gen_grid_Grids_level', 3)
+CONFIG_use_eri_cpks = getattr(__config__, "use_eri_cpks", True)
 
 
 def get_eri_cpks_vovo(
@@ -241,6 +242,7 @@ class RHDFTResp(RHDFT):
         super().__init__(*args, **kwargs)
         self.incore_cderi_uaa = CONFIG_incore_cderi_uaa_hdft
         self.incore_eri_cpks_vovo = CONFIG_incore_eri_cpks_vovo
+        self.use_eri_cpks = CONFIG_use_eri_cpks
 
         grid_level_cpks = max(CONFIG_dft_gen_grid_Grids_level - 1, 1)
         self.grids_cpks = dft.Grids(self.mol)
@@ -300,11 +302,26 @@ class RHDFTResp(RHDFT):
         Notes
         -----
         This function acts as a wrapper of various possible Fock response algorithms.
-
-        TODO: Functionality of this method is to be implemented.
         """
-        # currently we just implemented response by PySCF
-        return self.Ax0_Core_resp(sp, sq, sr, ss)
+        # if not RI, then use general Ax0_Core_resp
+        if not hasattr(self.scf, "with_df") or not self.use_eri_cpks:
+            return self.Ax0_Core_resp(sp, sq, sr, ss)
+
+        # try if satisfies CPKS evaluation (vovo)
+        lst_nmo = np.arange(self.nmo)
+        lst_occ = lst_nmo[:self.nocc]
+        lst_vir = lst_nmo[self.nocc:]
+        try:
+            if (
+                    np.all(lst_nmo[sp] == lst_vir) and np.all(lst_nmo[sq] == lst_occ) and
+                    np.all(lst_nmo[sr] == lst_vir) and np.all(lst_nmo[ss] == lst_occ)):
+                return self.Ax0_cpks()
+            else:
+                # otherwise, use response by PySCF
+                return self.Ax0_Core_resp(sp, sq, sr, ss)
+        except ValueError:
+            # dimension not match
+            return self.Ax0_Core_resp(sp, sq, sr, ss)
 
     def Ax0_Core_resp(self, sp, sq, sr, ss, vresp=None, mo_coeff=None):
         r""" Convenient function for evaluation of Fock response in MO basis
@@ -454,7 +471,7 @@ if __name__ == '__main__':
         so, sv = slice(0, nocc), slice(nocc, nmo)
         X = np.random.randn(3, nvir, nocc)
         ax_cpks = mf_scf.Ax0_cpks()(X)
-        ax_core = mf_scf.Ax0_Core(sv, so, sv, so)(X)
+        ax_core = mf_scf.Ax0_Core_resp(sv, so, sv, so)(X)
         print(np.allclose(ax_cpks, ax_core))
         # print(ax_core[0])
         # print(ax_cpks[0])
@@ -474,7 +491,7 @@ if __name__ == '__main__':
         so, sv = slice(0, nocc), slice(nocc, nmo)
         X = np.random.randn(3, nvir, nocc)
         ax_cpks = mf_scf.Ax0_cpks()(X)
-        ax_core = mf_scf.Ax0_Core(sv, so, sv, so)(X)
+        ax_core = mf_scf.Ax0_Core_resp(sv, so, sv, so)(X)
         print(np.allclose(ax_cpks, ax_core))
         # print(ax_core[0])
         # print(ax_cpks[0])
