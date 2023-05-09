@@ -4,7 +4,7 @@ from pyscf.dh import RHDFT
 from pyscf.dh import util
 from pyscf import gto, dft, lib, __config__
 from pyscf.scf import _response_functions  # this import is not unnecessary
-from pyscf.dh.energy.rhdft import get_rho
+from pyscf.dh.energy.hdft.rhdft import get_rho
 import numpy as np
 from functools import cached_property
 
