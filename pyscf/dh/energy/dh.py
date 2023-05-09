@@ -2,9 +2,9 @@ from pyscf.dh.energy import EngBase
 from typing import Tuple, List
 from pyscf.dh import util
 from pyscf.dh.util import XCType, XCList, XCDH, update_results, pad_omega
-from pyscf.dh.energy.rhdft import get_rho, numint_customized
+from pyscf.dh.energy.hdft.rhdft import get_rho, numint_customized
 from pyscf import lib, scf, gto, dft, df, __config__
-from pyscf.dh.energy.rhdft import custom_mf
+from pyscf.dh.energy.hdft.rhdft import custom_mf
 
 
 CONFIG_etb_first = getattr(__config__, "etb_first", False)
@@ -614,15 +614,17 @@ class DH(EngBase):
     def e_tot(self):
         return self.results[f"eng_dh_{self.xc.xc_eng.token}"]
 
-    def to_scf(self, **kwargs):
+    def to_scf(self, xc=None, **kwargs):
         # import
         if self.restricted:
             from pyscf.dh import RHDFT as HDFT
         else:
             from pyscf.dh import UHDFT as HDFT
 
+        xc = xc if xc is not None else self.xc.xc_scf
+
         # generate instance
-        mf = HDFT.from_rdh(self, self.scf, self.xc.xc_scf, **kwargs)
+        mf = HDFT.from_rdh(self, self.scf, xc, **kwargs)
 
         return mf
 
