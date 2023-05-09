@@ -624,7 +624,7 @@ class DH(EngBase):
         xc = xc if xc is not None else self.xc.xc_scf
 
         # generate instance
-        mf = HDFT.from_rdh(self, self.scf, xc, **kwargs)
+        mf = HDFT.from_cls(self, self.scf, xc, **kwargs)
 
         return mf
 
@@ -643,9 +643,9 @@ class DH(EngBase):
 
         # generate instance
         if route_mp2.lower().startswith("ri"):
-            mf = MP2RI.from_rdh(self, self.scf, **kwargs)
+            mf = MP2RI.from_cls(self, self.scf, **kwargs)
         elif route_mp2.lower().startswith("conv"):
-            mf = MP2Conv.from_rdh(self, self.scf, **kwargs)
+            mf = MP2Conv.from_cls(self, self.scf, **kwargs)
         else:
             assert False, "Not recognized route_mp2."
 
@@ -672,9 +672,9 @@ class DH(EngBase):
 
         # generate instance
         if route_iepa.lower().startswith("ri"):
-            mf = IEPARI.from_rdh(self, self.scf, **kwargs)
+            mf = IEPARI.from_cls(self, self.scf, **kwargs)
         elif route_iepa.lower().startswith("conv"):
-            mf = IEPAConv.from_rdh(self, self.scf, **kwargs)
+            mf = IEPAConv.from_cls(self, self.scf, **kwargs)
         else:
             assert False, "Not recognized route_iepa."
 
@@ -701,7 +701,7 @@ class DH(EngBase):
         max_cycle_ring_ccd = self.flags.get("max_cycle_ring_ccd", NotImplemented)
 
         # generated instance
-        mf = RingCCDConv.from_rdh(self, self.scf, **kwargs)
+        mf = RingCCDConv.from_cls(self, self.scf, **kwargs)
 
         # fill configurations
         if tol_eng_ring_ccd is not NotImplemented:
