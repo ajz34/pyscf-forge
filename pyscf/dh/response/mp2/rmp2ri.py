@@ -574,6 +574,7 @@ class RMP2RespRI(RMP2RI):
     def Ax0_Core(self, Ax0_Core):
         self._Ax0_Core = Ax0_Core
 
+    kernel = driver_eng_mp2
     get_mp2_integrals = staticmethod(get_mp2_integrals)
 
 
