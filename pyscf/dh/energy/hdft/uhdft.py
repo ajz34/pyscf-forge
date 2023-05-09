@@ -1,6 +1,5 @@
-from pyscf.dh.energy.rhdft import RHDFT
+from pyscf.dh.energy.hdft.rhdft import RHDFT
 from pyscf.dh import util
-from pyscf import dft
 import numpy as np
 
 
