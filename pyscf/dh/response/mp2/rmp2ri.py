@@ -385,9 +385,14 @@ class RMP2RespRI(RMP2RI, RespBase):
         if "cderi_uoo" in self.tensors:
             return self.tensors["cderi_uoo"]
 
-        mo_coeff_occ = self.mo_coeff[:, self.mask_occ]
-        with_df = self.with_df
-        cderi_uoo = util.get_cderi_mo(with_df, mo_coeff_occ, max_memory=self.max_memory)
+        # dimension and mask
+        mask_occ_act = self.mask_occ_act
+
+        # In response evaluation, ERI of all orbitals are generally required.
+        # Thus, cderi_uaa is a must-evaluated tensor.
+        # note that cderi_uaa may be stored by h5py, so indexing by list should be done in following way
+        cderi_uaa = self.tensors.get("cderi_uaa", self.make_cderi_uaa())
+        cderi_uoo = cderi_uaa[:, mask_occ_act, :][:, :, mask_occ_act]
 
         tensors = {"cderi_uoo": cderi_uoo}
         self.tensors.update(tensors)

@@ -253,7 +253,22 @@ class RHDFTResp(RHDFT, RespBase):
     @cached_property
     def vresp(self):
         """ Fock response function (derivative w.r.t. molecular coefficient in AO basis). """
-        return self.scf.gen_response()
+        try:
+            return self.scf.gen_response()
+        except ValueError:
+            # case that have customized xc
+            # should pass check of ni.libxc.test_deriv_order and ni.libxc.is_hybrid_xc
+            ni = self.scf._numint
+            omega, alpha, hyb = ni.rsh_and_hybrid_coeff(self.scf.xc, self.mol.spin)
+            if abs(hyb) > 1e-10 or abs(omega) > 1e-10:
+                fake_xc = "B3LYPg"
+            else:
+                fake_xc = "PBE"
+            actual_xc = self.scf.xc
+            self.scf.xc = fake_xc
+            resp = self.scf.gen_response()
+            self.scf.xc = actual_xc
+            return resp
 
     def make_cderi_uaa(self, omega=0):
         """ Generate cholesky decomposed ERI (all block, full orbitals, s1 symm, in memory/disk). """

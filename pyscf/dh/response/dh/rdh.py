@@ -191,7 +191,39 @@ if __name__ == '__main__':
         print(dip_anal)
         print(dip_num)
 
-    main_1()
-    main_2()
-    main_3()
-    main_4()
+    def main_5():
+        # try response density and dipole
+        from pyscf import gto, scf, dft
+
+        np.set_printoptions(8, suppress=True, linewidth=150)
+
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
+        xc_code = "0.5*HF + 0.5*LR_HF(0.7) + 0.5*SSR(GGA_X_PBE, 0.7), 0.75*SSR(GGA_C_P86, 0.7) + MP2(0.5, 0.5) + RS_MP2(-0.7, -0.25, -0.25) + RS_MP2(0.7, 0.5, 0.5)"
+        mf_resp = RDHResp(mol, xc=xc_code).run()
+
+        def eng_with_dipole_field(t, h):
+            mf_mp = RDH(mol, xc=xc_code)
+            mf_mp.scf.get_hcore = lambda *args, **kwargs: scf.hf.get_hcore(mol) - h * mol.intor("int1e_r")[t]
+            mf_mp.scf.conv_tol = 1e-12
+            mf_mp.run()
+            return mf_mp.e_tot
+
+        eng_array = np.zeros((2, 3))
+        h = 1e-4
+        for idx, h in [(0, h), [1, -h]]:
+            for t in (0, 1, 2):
+                eng_array[idx, t] = eng_with_dipole_field(t, h)
+        dip_elec_num = - (eng_array[0] - eng_array[1]) / (2 * h)
+
+        dip_nuc = np.einsum("A, At -> t", mol.atom_charges(), mol.atom_coords())
+        dip_anal = mf_resp.make_dipole()
+        dip_num = dip_elec_num + dip_nuc
+        np.allclose(dip_anal, dip_num, rtol=1e-5, atol=1e-6)
+        print(dip_anal)
+        print(dip_num)
+
+    # main_1()
+    # main_2()
+    # main_3()
+    # main_4()
+    main_5()
