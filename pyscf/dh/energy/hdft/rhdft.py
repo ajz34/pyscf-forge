@@ -1,3 +1,5 @@
+from functools import cached_property
+
 from pyscf.dh import util
 from pyscf.dh.util import XCList, XCType, XCInfo
 from pyscf.dh.energy import EngBase
@@ -413,15 +415,15 @@ class RHDFT(EngBase):
         else:
             xc_scf = self.xc
 
-        self._scf = custom_mf(mf, xc_scf)
+        self.hdft = custom_mf(mf, xc_scf)
 
-    @property
+    @cached_property
     def restricted(self):
-        return isinstance(self.scf, scf.rhf.RHF)
+        return isinstance(self.hdft, scf.rhf.RHF)
 
-    @property
+    @cached_property
     def e_tot(self) -> float:
-        return self.scf.e_tot
+        return self.hdft.energy_tot()
 
     def make_energy_purexc(self, xc_lists, numint=None, dm=None):
         """ Evaluate energy contributions of pure (DFT) exchange-correlation effects.
@@ -439,9 +441,9 @@ class RHDFT(EngBase):
         --------
         get_energy_purexc
         """
-        grids = self.scf.grids
+        grids = self.hdft.grids
         if dm is None:
-            dm = self.scf.make_rdm1()
+            dm = self.hdft.make_rdm1()
         dm = np.asarray(dm)
         if (self.restricted and dm.ndim != 2) or (not self.restricted and (dm.ndim != 3 or dm.shape[0] != 2)):
             raise ValueError("Dimension of input density matrix is not correct.")
@@ -450,7 +452,9 @@ class RHDFT(EngBase):
             xc_lists, rho, grids.weights, self.restricted, numint=numint)
 
     def kernel(self, *args, **kwargs):
-        return self.scf.kernel(*args, **kwargs)
+        if not self.scf.converged:
+            self.scf.kernel(*args, **kwargs)
+        return self.e_tot
 
     get_energy_exactx = staticmethod(get_energy_restricted_exactx)
     get_energy_noxc = staticmethod(get_energy_restricted_noxc)
