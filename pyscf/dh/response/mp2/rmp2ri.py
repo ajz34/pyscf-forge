@@ -3,6 +3,7 @@
 from pyscf.dh import RMP2RI
 from pyscf.dh import util
 from pyscf import scf, lib, __config__
+from pyscf.dh.response import RespBase
 from pyscf.scf import cphf
 import h5py
 import numpy as np
@@ -303,7 +304,7 @@ def get_rdm1_corr_resp(
     return tensors
 
 
-class RMP2RespRI(RMP2RI):
+class RMP2RespRI(RMP2RI, RespBase):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -411,6 +412,7 @@ class RMP2RespRI(RMP2RI):
             c_os, c_ss, incore_t_oovv,
             verbose=verbose, max_memory=max_memory, h5file=h5file)
         self.tensors.update(tensors)
+        results = {util.pad_omega(key, self.omega): val for (key, val) in results.items()}
         util.update_results(self.results, results)
 
     def make_t_oovv(self):
@@ -557,22 +559,6 @@ class RMP2RespRI(RMP2RI):
         dip = dip_elec + dip_nuc
         self.tensors["dipole"] = dip
         return dip
-
-    @property
-    def Ax0_Core(self):
-        """ Fock response of underlying SCF object in MO basis. """
-        if self._Ax0_Core is NotImplemented:
-            restricted = isinstance(self.scf, scf.rhf.RHF)
-            from pyscf.dh.response.hdft import RHDFTResp
-            UHDFTResp = NotImplemented
-            HDFTResp = RHDFTResp if restricted else UHDFTResp
-            mf_scf = HDFTResp(self.scf)
-            self._Ax0_Core = mf_scf.Ax0_Core
-        return self._Ax0_Core
-
-    @Ax0_Core.setter
-    def Ax0_Core(self, Ax0_Core):
-        self._Ax0_Core = Ax0_Core
 
     kernel = driver_eng_mp2
     get_mp2_integrals = staticmethod(get_mp2_integrals)

@@ -2,7 +2,8 @@
 
 from pyscf.dh import RHDFT
 from pyscf.dh import util
-from pyscf import gto, dft, lib, __config__
+from pyscf import gto, dft, lib, __config__, scf
+from pyscf.dh.response import RespBase
 from pyscf.scf import _response_functions  # this import is not unnecessary
 from pyscf.dh.energy.hdft.rhdft import get_rho
 import numpy as np
@@ -236,7 +237,7 @@ def get_xc_integral(ni, mol, grids, xc, dm):
     return tensors
 
 
-class RHDFTResp(RHDFT):
+class RHDFTResp(RHDFT, RespBase):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -284,7 +285,7 @@ class RHDFTResp(RHDFT):
         self.tensors.update(tensors)
         return cderi_uaa
 
-    def Ax0_Core(self, sp, sq, sr, ss):
+    def get_Ax0_Core(self, sp, sq, sr, ss):
         r""" Convenient function for evaluation of Fock response in MO basis
         :math:`\sum_{rs} A_{pq, rs} X_{rs}^\mathbb{A}`.
 
@@ -305,7 +306,7 @@ class RHDFTResp(RHDFT):
         """
         # if not RI, then use general Ax0_Core_resp
         if not hasattr(self.scf, "with_df") or not self.use_eri_cpks:
-            return self.Ax0_Core_resp(sp, sq, sr, ss)
+            return self.get_Ax0_Core_resp(sp, sq, sr, ss)
 
         # try if satisfies CPKS evaluation (vovo)
         lst_nmo = np.arange(self.nmo)
@@ -315,15 +316,15 @@ class RHDFTResp(RHDFT):
             if (
                     np.all(lst_nmo[sp] == lst_vir) and np.all(lst_nmo[sq] == lst_occ) and
                     np.all(lst_nmo[sr] == lst_vir) and np.all(lst_nmo[ss] == lst_occ)):
-                return self.Ax0_cpks()
+                return self.get_Ax0_cpks()
             else:
                 # otherwise, use response by PySCF
-                return self.Ax0_Core_resp(sp, sq, sr, ss)
+                return self.get_Ax0_Core_resp(sp, sq, sr, ss)
         except ValueError:
             # dimension not match
-            return self.Ax0_Core_resp(sp, sq, sr, ss)
+            return self.get_Ax0_Core_resp(sp, sq, sr, ss)
 
-    def Ax0_Core_resp(self, sp, sq, sr, ss, vresp=None, mo_coeff=None):
+    def get_Ax0_Core_resp(self, sp, sq, sr, ss, vresp=None, mo_coeff=None):
         r""" Convenient function for evaluation of Fock response in MO basis
         :math:`\sum_{rs} A_{pq, rs} X_{rs}^\mathbb{A}` by PySCF's response function.
 
@@ -394,7 +395,7 @@ class RHDFTResp(RHDFT):
         self.tensors["eri_cpks_vovo"] = eri_cpks_vovo
         return eri_cpks_vovo
 
-    def Ax0_cpks_HF(self):
+    def get_Ax0_cpks_HF(self):
         eri_cpks_vovo = self.tensors.get("eri_cpks_vovo", self.make_eri_cpks_vovo())
         ax0_cpks_hf = Ax0_cpks_HF(eri_cpks_vovo, self.max_memory, self.verbose)
         return ax0_cpks_hf
@@ -420,7 +421,7 @@ class RHDFTResp(RHDFT):
         self.tensors.update(tensors)
         return tensors
 
-    def Ax0_Core_KS(self, sp, sq, sr, ss):
+    def get_Ax0_Core_KS(self, sp, sq, sr, ss):
         ni = self.scf._numint
         mol = self.mol
         grids = self.grids_cpks
@@ -443,16 +444,39 @@ class RHDFTResp(RHDFT):
             verbose=self.verbose)
         return ax0_core_ks
 
-    def Ax0_cpks(self):
+    def get_Ax0_cpks(self):
         nocc, nmo = self.nocc, self.nmo
         so, sv = slice(0, nocc), slice(nocc, nmo)
-        ax0_core_ks = self.Ax0_Core_KS(sv, so, sv, so)
-        ax0_cpks_hf = self.Ax0_cpks_HF()
+        ax0_core_ks = self.get_Ax0_Core_KS(sv, so, sv, so)
+        ax0_cpks_hf = self.get_Ax0_cpks_HF()
 
         def Ax0_cpks_inner(X):
             res = ax0_cpks_hf(X) + ax0_core_ks(X)
             return res
         return Ax0_cpks_inner
+
+    @property
+    def Ax0_Core(self):
+        """ Fock response of underlying SCF object in MO basis. """
+        if self._Ax0_Core is NotImplemented:
+            self._Ax0_Core = self.get_Ax0_Core
+        return self._Ax0_Core
+
+    @Ax0_Core.setter
+    def Ax0_Core(self, Ax0_Core):
+        self._Ax0_Core = Ax0_Core
+
+    def make_lag_vo(self):
+        r""" Generate hybrid DFT contribution to Lagrangian vir-occ block :math:`L_{ai}`. """
+        if "lag_vo" in self.tensors:
+            return self.tensors["lag_vo"]
+
+        nocc, nmo = self.nocc, self.nmo
+        so, sv = slice(0, nocc), slice(nocc, nmo)
+        mo_coeff = self.mo_coeff
+        lag_vo = 4 * mo_coeff[:, sv].T @ self.hdft.get_fock(dm=self.scf.make_rdm1()) @ mo_coeff[:, so]
+        self.tensors["lag_vo"] = lag_vo
+        return lag_vo
 
 
 if __name__ == '__main__':
@@ -470,8 +494,8 @@ if __name__ == '__main__':
         nocc, nvir, nmo = mf_scf.nocc, mf_scf.nvir, mf_scf.nmo
         so, sv = slice(0, nocc), slice(nocc, nmo)
         X = np.random.randn(3, nvir, nocc)
-        ax_cpks = mf_scf.Ax0_cpks()(X)
-        ax_core = mf_scf.Ax0_Core_resp(sv, so, sv, so)(X)
+        ax_cpks = mf_scf.get_Ax0_cpks()(X)
+        ax_core = mf_scf.get_Ax0_Core_resp(sv, so, sv, so)(X)
         print(np.allclose(ax_cpks, ax_core))
         # print(ax_core[0])
         # print(ax_cpks[0])
@@ -490,8 +514,8 @@ if __name__ == '__main__':
         nocc, nvir, nmo = mf_scf.nocc, mf_scf.nvir, mf_scf.nmo
         so, sv = slice(0, nocc), slice(nocc, nmo)
         X = np.random.randn(3, nvir, nocc)
-        ax_cpks = mf_scf.Ax0_cpks()(X)
-        ax_core = mf_scf.Ax0_Core_resp(sv, so, sv, so)(X)
+        ax_cpks = mf_scf.get_Ax0_cpks()(X)
+        ax_core = mf_scf.get_Ax0_Core_resp(sv, so, sv, so)(X)
         print(np.allclose(ax_cpks, ax_core))
         # print(ax_core[0])
         # print(ax_cpks[0])

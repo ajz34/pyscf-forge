@@ -456,6 +456,10 @@ class RHDFT(EngBase):
             self.scf.kernel(*args, **kwargs)
         return self.e_tot
 
+    def to_resp(self):
+        from pyscf.dh.response.hdft.rhdft import RHDFTResp
+        return RHDFTResp.from_cls(self, self.scf, copy_all=True)
+
     get_energy_exactx = staticmethod(get_energy_restricted_exactx)
     get_energy_noxc = staticmethod(get_energy_restricted_noxc)
     get_energy_vv10 = staticmethod(get_energy_vv10)

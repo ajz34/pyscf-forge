@@ -149,10 +149,10 @@ class EngBase(lib.StreamObject, ABC):
             return frozen_core.mask
 
     @classmethod
-    def from_cls(cls, mf_dh: "EngBase", *args, **kwargs):
+    def from_cls(cls, mf_dh: "EngBase", *args, copy_all=False, **kwargs):
         """ Build a new (inherited) instance by a base EngBase instance.
 
-        Only some attributes are copied. Excluded attributes including
+        By default only some attributes are copied. Excluded attributes including
         - ``results``
         - ``tensors``
         - ``_tmpfile``
@@ -160,8 +160,12 @@ class EngBase(lib.StreamObject, ABC):
         """
         mf_new = cls(*args, **kwargs)
         mf_new.__dict__.update(mf_dh.__dict__)
-        mf_new.results = dict()
-        mf_new.tensors = dict()
-        mf_new._tmpfile = lib.H5TmpFile()
-        mf_new.e_corr = NotImplemented
+        if not copy_all:
+            mf_new.results = dict()
+            mf_new.tensors = dict()
+            mf_new._tmpfile = lib.H5TmpFile()
+            mf_new.e_corr = NotImplemented
         return mf_new
+
+    def to_resp(self):
+        raise NotImplementedError
