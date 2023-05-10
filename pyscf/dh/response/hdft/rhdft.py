@@ -359,8 +359,13 @@ class RHDFTResp(RHDFT, RespBase):
 
         # This function will utilize mf.scf._numint to specify hybrid and omega coefficients
 
-        ni = self.scf._numint  # type: dft.numint.NumInt
-        omega, alpha, hyb = ni.rsh_and_hybrid_coeff(self.scf.xc)
+        if not hasattr(self.scf, "xc"):
+            # not a DFT instance, configure as HF instance
+            omega, alpha, hyb = 0, 0, 1
+        else:
+            ni = self.scf._numint  # type: dft.numint.NumInt
+            omega, alpha, hyb = ni.rsh_and_hybrid_coeff(self.scf.xc)
+
         nvir, nocc = self.nvir, self.nocc
         cderi_uaa = self.tensors.get("cderi_uaa", self.make_cderi_uaa())
 
@@ -422,6 +427,10 @@ class RHDFTResp(RHDFT, RespBase):
         return tensors
 
     def get_Ax0_Core_KS(self, sp, sq, sr, ss):
+        if not hasattr(self.scf, "xc"):
+            # not a DFT instance, KS contribution is zero
+            return lambda *args, **kwargs: 0
+
         ni = self.scf._numint
         mol = self.mol
         grids = self.grids_cpks
