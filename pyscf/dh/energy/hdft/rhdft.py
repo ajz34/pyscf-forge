@@ -282,13 +282,23 @@ def numint_customized(xc, _mol=None):
 
     def array_add_with_diff_rows(mat1, mat2):
         assert len(mat1.shape) == len(mat2.shape)
-        assert mat1.shape[1:] == mat2.shape[1:]
-        if len(mat1) >= len(mat2):
-            mat1[:len(mat2)] += mat2
-            return mat1
+        assert mat1.shape[-1] == mat2.shape[-1]
+        if len(mat1) < len(mat2):
+            mat1, mat2 = mat2, mat1
+
+        if mat1.ndim == 1:
+            mat1 += mat2
+        elif mat1.ndim == 2:
+            mat1[:mat2.shape[0]] += mat2
+        elif mat1.ndim == 3:
+            mat1[:mat2.shape[0], :mat2.shape[1]] += mat2
+        elif mat1.ndim == 4:
+            mat1[:mat2.shape[0], :mat2.shape[1], :mat2.shape[2]] += mat2
+        elif mat1.ndim == 5:
+            mat1[:mat2.shape[0], :mat2.shape[1], :mat2.shape[2], :mat2.shape[3]] += mat2
         else:
-            mat2[:len(mat1)] += mat1
-            return mat2
+            raise NotImplementedError
+        return mat1
 
     def eval_xc_eff(*args, **kwargs):
         exc, vxc, fxc, kxc = gen_lists[0](*args, **kwargs)
