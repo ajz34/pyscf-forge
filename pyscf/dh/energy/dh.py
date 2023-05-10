@@ -2,9 +2,9 @@ from pyscf.dh.energy import EngBase
 from typing import Tuple, List
 from pyscf.dh import util
 from pyscf.dh.util import XCType, XCList, XCDH, update_results, pad_omega
-from pyscf.dh.energy.rhdft import get_rho, numint_customized
+from pyscf.dh.energy.hdft.rhdft import get_rho, numint_customized
 from pyscf import lib, scf, gto, dft, df, __config__
-from pyscf.dh.energy.rhdft import custom_mf
+from pyscf.dh.energy.hdft.rhdft import custom_mf
 
 
 CONFIG_etb_first = getattr(__config__, "etb_first", False)
@@ -614,15 +614,17 @@ class DH(EngBase):
     def e_tot(self):
         return self.results[f"eng_dh_{self.xc.xc_eng.token}"]
 
-    def to_scf(self, **kwargs):
+    def to_scf(self, xc=None, **kwargs):
         # import
         if self.restricted:
             from pyscf.dh import RHDFT as HDFT
         else:
             from pyscf.dh import UHDFT as HDFT
 
+        xc = xc if xc is not None else self.xc.xc_scf
+
         # generate instance
-        mf = HDFT.from_rdh(self, self.scf, self.xc.xc_scf, **kwargs)
+        mf = HDFT.from_cls(self, self.scf, xc, **kwargs)
 
         return mf
 
@@ -641,9 +643,9 @@ class DH(EngBase):
 
         # generate instance
         if route_mp2.lower().startswith("ri"):
-            mf = MP2RI.from_rdh(self, self.scf, **kwargs)
+            mf = MP2RI.from_cls(self, self.scf, **kwargs)
         elif route_mp2.lower().startswith("conv"):
-            mf = MP2Conv.from_rdh(self, self.scf, **kwargs)
+            mf = MP2Conv.from_cls(self, self.scf, **kwargs)
         else:
             assert False, "Not recognized route_mp2."
 
@@ -670,9 +672,9 @@ class DH(EngBase):
 
         # generate instance
         if route_iepa.lower().startswith("ri"):
-            mf = IEPARI.from_rdh(self, self.scf, **kwargs)
+            mf = IEPARI.from_cls(self, self.scf, **kwargs)
         elif route_iepa.lower().startswith("conv"):
-            mf = IEPAConv.from_rdh(self, self.scf, **kwargs)
+            mf = IEPAConv.from_cls(self, self.scf, **kwargs)
         else:
             assert False, "Not recognized route_iepa."
 
@@ -699,7 +701,7 @@ class DH(EngBase):
         max_cycle_ring_ccd = self.flags.get("max_cycle_ring_ccd", NotImplemented)
 
         # generated instance
-        mf = RingCCDConv.from_rdh(self, self.scf, **kwargs)
+        mf = RingCCDConv.from_cls(self, self.scf, **kwargs)
 
         # fill configurations
         if tol_eng_ring_ccd is not NotImplemented:

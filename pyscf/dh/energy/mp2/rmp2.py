@@ -401,6 +401,10 @@ class RMP2RI(MP2Base):
         self.results.update(results)
         return results
 
+    def to_resp(self):
+        from pyscf.dh.response.mp2.rmp2ri import RMP2RespRI
+        return RMP2RespRI.from_cls(self, self.scf, copy_all=True)
+
     kernel_energy_mp2 = staticmethod(kernel_energy_rmp2_ri_incore)
     kernel = driver_eng_mp2
 

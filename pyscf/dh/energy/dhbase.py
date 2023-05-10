@@ -149,19 +149,23 @@ class EngBase(lib.StreamObject, ABC):
             return frozen_core.mask
 
     @classmethod
-    def from_rdh(cls, mf_dh: "EngBase", *args, **kwargs):
+    def from_cls(cls, mf_dh: "EngBase", *args, copy_all=False, **kwargs):
         """ Build a new (inherited) instance by a base EngBase instance.
 
-        Only some attributes are copied. Excluded attributes including
+        By default only some attributes are copied. Excluded attributes including
         - ``results``
         - ``tensors``
         - ``_tmpfile``
         - ``e_corr``
         """
         mf_new = cls(*args, **kwargs)
-        mf_new.with_df = mf_dh.with_df
-        mf_new.frozen = mf_dh.frozen
-        mf_new.verbose = mf_dh.verbose
-        mf_new.max_memory = mf_dh.max_memory
-        mf_new.base = mf_dh
+        mf_new.__dict__.update(mf_dh.__dict__)
+        if not copy_all:
+            mf_new.results = dict()
+            mf_new.tensors = dict()
+            mf_new._tmpfile = lib.H5TmpFile()
+            mf_new.e_corr = NotImplemented
         return mf_new
+
+    def to_resp(self):
+        raise NotImplementedError

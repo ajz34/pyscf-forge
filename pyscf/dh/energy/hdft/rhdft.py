@@ -1,8 +1,11 @@
+from functools import cached_property
+
 from pyscf.dh import util
 from pyscf.dh.util import XCList, XCType, XCInfo
 from pyscf.dh.energy import EngBase
 from pyscf import dft, lib, scf, df, __config__
 import numpy as np
+import copy
 from types import MethodType
 
 CONFIG_ssr_x_fr = getattr(__config__, "ssr_x_fr", "LDA_X")
@@ -279,13 +282,23 @@ def numint_customized(xc, _mol=None):
 
     def array_add_with_diff_rows(mat1, mat2):
         assert len(mat1.shape) == len(mat2.shape)
-        assert mat1.shape[1:] == mat2.shape[1:]
-        if len(mat1) >= len(mat2):
-            mat1[:len(mat2)] += mat2
-            return mat1
+        assert mat1.shape[-1] == mat2.shape[-1]
+        if len(mat1) < len(mat2):
+            mat1, mat2 = mat2, mat1
+
+        if mat1.ndim == 1:
+            mat1 += mat2
+        elif mat1.ndim == 2:
+            mat1[:mat2.shape[0]] += mat2
+        elif mat1.ndim == 3:
+            mat1[:mat2.shape[0], :mat2.shape[1]] += mat2
+        elif mat1.ndim == 4:
+            mat1[:mat2.shape[0], :mat2.shape[1], :mat2.shape[2]] += mat2
+        elif mat1.ndim == 5:
+            mat1[:mat2.shape[0], :mat2.shape[1], :mat2.shape[2], :mat2.shape[3]] += mat2
         else:
-            mat2[:len(mat1)] += mat1
-            return mat2
+            raise NotImplementedError
+        return mat1
 
     def eval_xc_eff(*args, **kwargs):
         exc, vxc, fxc, kxc = gen_lists[0](*args, **kwargs)
@@ -333,6 +346,7 @@ def custom_mf(mf, xc, auxbasis_or_with_df=None):
     Note that if no with_df object passed in, the density-fitting setting of an SCF object is left as is.
     So leaving option ``auxbasis_or_with_df=None`` will not convert density-fitting SCF to conventional SCF.
     """
+    mf = copy.copy(mf)
     verbose = mf.verbose
     log = lib.logger.new_logger(verbose=verbose)
     restricted = isinstance(mf, scf.hf.RHF)
@@ -394,9 +408,14 @@ class RHDFT(EngBase):
     It's better to initialize this object first, before actually running SCF iterations.
     """
 
-    def __init__(self, mf, xc):
+    def __init__(self, mf, xc=None):
         super().__init__(mf)
-        self.xc = xc  # type: XCList
+        if xc is not None:
+            self.xc = xc
+        elif not hasattr(mf, "xc"):
+            self.xc = "HF"
+        else:
+            self.xc = self.scf.xc
         if isinstance(self.xc, str):
             xc_scf = XCList(self.xc, code_scf=True)
             xc_eng = XCList(self.xc, code_scf=False)
@@ -405,15 +424,16 @@ class RHDFT(EngBase):
             self.xc = xc_scf
         else:
             xc_scf = self.xc
-        self._scf = custom_mf(mf, xc_scf)
 
-    @property
+        self.hdft = custom_mf(mf, xc_scf)
+
+    @cached_property
     def restricted(self):
-        return isinstance(self.scf, scf.rhf.RHF)
+        return isinstance(self.hdft, scf.rhf.RHF)
 
-    @property
+    @cached_property
     def e_tot(self) -> float:
-        return self.scf.e_tot
+        return self.hdft.energy_tot()
 
     def make_energy_purexc(self, xc_lists, numint=None, dm=None):
         """ Evaluate energy contributions of pure (DFT) exchange-correlation effects.
@@ -431,9 +451,9 @@ class RHDFT(EngBase):
         --------
         get_energy_purexc
         """
-        grids = self.scf.grids
+        grids = self.hdft.grids
         if dm is None:
-            dm = self.scf.make_rdm1()
+            dm = self.hdft.make_rdm1()
         dm = np.asarray(dm)
         if (self.restricted and dm.ndim != 2) or (not self.restricted and (dm.ndim != 3 or dm.shape[0] != 2)):
             raise ValueError("Dimension of input density matrix is not correct.")
@@ -442,7 +462,13 @@ class RHDFT(EngBase):
             xc_lists, rho, grids.weights, self.restricted, numint=numint)
 
     def kernel(self, *args, **kwargs):
-        return self.scf.kernel(*args, **kwargs)
+        if not self.scf.converged:
+            self.scf.kernel(*args, **kwargs)
+        return self.e_tot
+
+    def to_resp(self):
+        from pyscf.dh.response.hdft.rhdft import RHDFTResp
+        return RHDFTResp.from_cls(self, self.scf, copy_all=True)
 
     get_energy_exactx = staticmethod(get_energy_restricted_exactx)
     get_energy_noxc = staticmethod(get_energy_restricted_noxc)
