@@ -4,7 +4,7 @@ from pyscf.dh import RMP2RI
 from pyscf.dh import util
 from pyscf import scf, lib, __config__
 from pyscf.dh.response import RespBase
-from pyscf.scf import cphf
+from pyscf.dh.response.respbase import get_rdm1_resp_vo_restricted
 import h5py
 import numpy as np
 
@@ -284,19 +284,16 @@ def get_rdm1_corr_resp(
     nocc = (mo_occ > 0).sum()
     nvir = (mo_occ == 0).sum()
     nmo = nocc + nvir
-    assert lag_vo.shape == (nvir, nocc)
     assert rdm1_corr.shape == (nmo, nmo)
-    assert len(mo_energy) == nmo
-    assert len(mo_occ) == nmo
 
     # prepare essential matrices and slices
     so, sv = slice(0, nocc), slice(nocc, nmo)
 
     # cp-ks evaluation
     rdm1_corr_resp = rdm1_corr.copy()
-    rdm1_corr_resp_vo = cphf.solve(
-        Ax0_Core(sv, so, sv, so), mo_energy, mo_occ, lag_vo,
-        max_cycle=max_cycle, tol=tol)[0]
+    rdm1_corr_resp_vo = get_rdm1_resp_vo_restricted(
+        lag_vo, mo_energy, mo_occ, Ax0_Core,
+        max_cycle=max_cycle, tol=tol, verbose=verbose)
     rdm1_corr_resp[sv, so] = rdm1_corr_resp_vo
 
     log.timer("get_rdm1_corr_resp", *time0)

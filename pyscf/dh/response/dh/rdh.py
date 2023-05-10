@@ -4,7 +4,7 @@ import numpy as np
 from pyscf.dh.energy.dh import RDH
 from pyscf.dh.response import RespBase
 from pyscf.dh.response.hdft.rhdft import RHDFTResp
-from pyscf.scf import cphf
+from pyscf.dh.response.respbase import get_rdm1_resp_vo_restricted
 
 
 class RDHResp(RDH, RespBase):
@@ -106,11 +106,12 @@ class RDHResp(RDH, RespBase):
         lag_vo = self.make_lag_vo()
         max_cycle = self.max_cycle_cpks
         tol = self.tol_cpks
-
         Ax0_Core = self.Ax0_Core
-        rdm1_resp_vo = cphf.solve(
-            Ax0_Core(sv, so, sv, so), mo_energy, mo_occ, lag_vo,
-            max_cycle=max_cycle, tol=tol)[0]
+        verbose = self.verbose
+
+        rdm1_resp_vo = get_rdm1_resp_vo_restricted(
+            lag_vo, mo_energy, mo_occ, Ax0_Core,
+            max_cycle=max_cycle, tol=tol, verbose=verbose)
 
         rdm1_resp[sv, so] += rdm1_resp_vo
 
@@ -140,7 +141,7 @@ if __name__ == '__main__':
         mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
         mf_resp = RDHResp(mol, xc="XYG3").run()
         mf = RDH(mol, xc="XYG3").run()
-        print(np.allclose(mf_resp.e_tot, mf.e_tot))
+        assert np.allclose(mf_resp.e_tot, mf.e_tot)
 
     def main_2():
         # test RSH functional
@@ -150,10 +151,7 @@ if __name__ == '__main__':
         print(mf.results)
         mf_resp = RDHResp(mol, xc="RS-PBE-P86").run()
         print(mf_resp.results)
-        print(np.allclose(mf_resp.e_tot, mf.e_tot))
-
-        from pyscf import lib
-        lib.num_threads()
+        assert np.allclose(mf_resp.e_tot, mf.e_tot)
 
     def main_3():
         # test unbalanced OS contribution
@@ -161,9 +159,7 @@ if __name__ == '__main__':
         mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
         mf = RDH(mol, xc="XYGJ-OS").run()
         mf_resp = RDHResp(mol, xc="XYGJ-OS").run()
-        print(np.allclose(mf_resp.e_tot, mf.e_tot))
-
-        from pyscf import lib
+        assert np.allclose(mf_resp.e_tot, mf.e_tot)
 
     def main_4():
         # try response density and dipole
@@ -191,7 +187,11 @@ if __name__ == '__main__':
         dip_nuc = np.einsum("A, At -> t", mol.atom_charges(), mol.atom_coords())
         dip_anal = mf_resp.make_dipole()
         dip_num = dip_elec_num + dip_nuc
+        np.allclose(dip_anal, dip_num, rtol=1e-5, atol=1e-6)
         print(dip_anal)
         print(dip_num)
 
+    main_1()
+    main_2()
+    main_3()
     main_4()
