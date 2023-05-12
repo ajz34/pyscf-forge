@@ -550,18 +550,6 @@ class RMP2RespRI(RMP2RI, RespBase):
             rdm1 = self.mo_coeff @ rdm1 @ self.mo_coeff.T
         return rdm1
 
-    def make_dipole(self):
-        # prepare input
-        mol = self.mol
-        rdm1_ao = self.make_rdm1_resp(ao=True)
-        int1e_r = mol.intor("int1e_r")
-
-        dip_elec = - np.einsum("uv, tuv -> t", rdm1_ao, int1e_r)
-        dip_nuc = np.einsum("A, At -> t", mol.atom_charges(), mol.atom_coords())
-        dip = dip_elec + dip_nuc
-        self.tensors["dipole"] = dip
-        return dip
-
     kernel = driver_eng_mp2
     get_mp2_integrals = staticmethod(get_mp2_integrals)
 
@@ -574,69 +562,4 @@ if __name__ == '__main__':
         mf_mp2 = RMP2RespRI(mf)
         print(mf_mp2.make_dipole())
 
-    def main_2():
-        # test numerical dipole
-        from pyscf import gto, scf, mp, df
-        np.set_printoptions(8, suppress=True, linewidth=150)
-        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
-
-        def eng_with_dipole_field(t, h):
-            mf_scf = scf.RHF(mol).density_fit("cc-pVDZ-jkfit")
-            mf_scf.get_hcore = lambda *args, **kwargs: scf.hf.get_hcore(mol) - h * mol.intor("int1e_r")[t]
-            mf_scf.run(conv_tol=1e-12)
-            mf_mp = RMP2RI(mf_scf).run()
-            # mf_mp = mp.dfmp2.DFMP2(mf_scf)
-            # mf_mp.with_df = df.DF(mol, df.make_auxbasis(mol, mp2fit=True))
-            # mf_mp.run()
-            return mf_mp.e_tot
-
-        mf_scf = scf.RHF(mol).density_fit("cc-pVDZ-jkfit").run()
-        mf_mp = RMP2RespRI(mf_scf).run()
-        dip_anal = mf_mp.make_dipole()
-
-        eng_array = np.zeros((2, 3))
-        h = 1e-4
-        for idx, h in [(0, h), [1, -h]]:
-            for t in (0, 1, 2):
-                eng_array[idx, t] = eng_with_dipole_field(t, h)
-        dip_elec_num = - (eng_array[0] - eng_array[1]) / (2 * h)
-        dip_nuc = np.einsum("A, At -> t", mol.atom_charges(), mol.atom_coords())
-        dip_num = dip_elec_num + dip_nuc
-
-        print(mf_scf.dip_moment(unit="AU"))
-        print(dip_num)
-        print(dip_anal)
-
-    def main_3():
-        # test numerical dipole for DFT PT2
-        from pyscf import gto, scf, dft
-        np.set_printoptions(8, suppress=True, linewidth=150)
-        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
-
-        c_os, c_ss = 1.3, 0.6
-
-        def eng_with_dipole_field(t, h):
-            mf_scf = dft.RKS(mol, xc="B3LYPg").density_fit("cc-pVDZ-jkfit")
-            mf_scf.get_hcore = lambda *args, **kwargs: scf.hf.get_hcore(mol) - h * mol.intor("int1e_r")[t]
-            mf_scf.run(conv_tol=1e-12)
-            mf_mp = RMP2RI(mf_scf).run()
-            return mf_mp.scf.e_tot + c_os * mf_mp.results["eng_corr_MP2_OS"] + c_ss * mf_mp.results["eng_corr_MP2_SS"]
-
-        mf_scf = dft.RKS(mol, xc="B3LYPg").density_fit("cc-pVDZ-jkfit").run()
-        mf_mp = RMP2RespRI(mf_scf).run(c_os=c_os, c_ss=c_ss)
-        dip_anal = mf_mp.make_dipole()
-
-        eng_array = np.zeros((2, 3))
-        h = 1e-4
-        for idx, h in [(0, h), [1, -h]]:
-            for t in (0, 1, 2):
-                eng_array[idx, t] = eng_with_dipole_field(t, h)
-        dip_elec_num = - (eng_array[0] - eng_array[1]) / (2 * h)
-        dip_nuc = np.einsum("A, At -> t", mol.atom_charges(), mol.atom_coords())
-        dip_num = dip_elec_num + dip_nuc
-
-        print(mf_scf.dip_moment(unit="AU"))
-        print(dip_num)
-        print(dip_anal)
-
-    main_3()
+    main_1()
