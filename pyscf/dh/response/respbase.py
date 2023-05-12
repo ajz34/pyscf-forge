@@ -3,13 +3,14 @@
 from pyscf.dh.energy import EngBase
 from pyscf import scf, __config__, lib
 from pyscf.scf import cphf
-
+import numpy as np
+from abc import ABC, abstractmethod
 
 CONFIG_max_cycle_cpks = getattr(__config__, "max_cycle_cpks", 20)
 CONFIG_tol_cpks = getattr(__config__, "tol_cpks", 1e-9)
 
 
-class RespBase(EngBase):
+class RespBase(EngBase, ABC):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -32,6 +33,26 @@ class RespBase(EngBase):
     @Ax0_Core.setter
     def Ax0_Core(self, Ax0_Core):
         self._Ax0_Core = Ax0_Core
+
+    @abstractmethod
+    def make_lag_vo(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def make_rdm1_resp(self, ao=False):
+        raise NotImplementedError
+
+    def make_dipole(self):
+        # prepare input
+        mol = self.mol
+        rdm1_ao = self.make_rdm1_resp(ao=True)
+        int1e_r = mol.intor("int1e_r")
+
+        dip_elec = - np.einsum("uv, tuv -> t", rdm1_ao, int1e_r)
+        dip_nuc = np.einsum("A, At -> t", mol.atom_charges(), mol.atom_coords())
+        dip = dip_elec + dip_nuc
+        self.tensors["dipole"] = dip
+        return dip
 
 
 def get_rdm1_resp_vo_restricted(

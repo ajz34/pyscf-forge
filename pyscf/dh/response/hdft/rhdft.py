@@ -4,6 +4,7 @@ from pyscf.dh import RHDFT
 from pyscf.dh import util
 from pyscf import gto, dft, lib, __config__, scf
 from pyscf.dh.response import RespBase
+from pyscf.dh.response.respbase import get_rdm1_resp_vo_restricted
 from pyscf.scf import _response_functions  # this import is not unnecessary
 from pyscf.dh.energy.hdft.rhdft import get_rho
 import numpy as np
@@ -318,6 +319,8 @@ class RHDFTResp(RHDFT, RespBase):
         Notes
         -----
         This function acts as a wrapper of various possible Fock response algorithms.
+
+        The exch-corr functional of this function refers to `self.hdft` (energy evaluation) instead of `self.scf` (SCF).
         """
         # if not RI, then use general Ax0_Core_resp
         if not hasattr(self.scf, "with_df") or not self.use_eri_cpks:
@@ -479,17 +482,6 @@ class RHDFTResp(RHDFT, RespBase):
             return res
         return Ax0_cpks_inner
 
-    @property
-    def Ax0_Core(self):
-        """ Fock response of underlying SCF object in MO basis. """
-        if self._Ax0_Core is NotImplemented:
-            self._Ax0_Core = self.get_Ax0_Core
-        return self._Ax0_Core
-
-    @Ax0_Core.setter
-    def Ax0_Core(self, Ax0_Core):
-        self._Ax0_Core = Ax0_Core
-
     def make_lag_vo(self):
         r""" Generate hybrid DFT contribution to Lagrangian vir-occ block :math:`L_{ai}`. """
         if "lag_vo" in self.tensors:
@@ -502,47 +494,38 @@ class RHDFTResp(RHDFT, RespBase):
         self.tensors["lag_vo"] = lag_vo
         return lag_vo
 
+    def make_rdm1_resp_vo(self):
+        r""" Generate 1-RDM (response) of hybrid DFT contribution :math:`D_{ai}`. """
+        if "rdm1_resp_vo" in self.tensors:
+            return self.tensors["rdm1_resp_vo"]
+
+        # prepare input
+        lag_vo = self.tensors.get("lag_vo", self.make_lag_vo())
+        mo_energy = self.mo_energy
+        mo_occ = self.mo_occ
+        Ax0_Core = self.Ax0_Core
+        max_cycle = self.max_cycle_cpks
+        tol = self.tol_cpks
+        verbose = self.verbose
+
+        rdm1_resp_vo = get_rdm1_resp_vo_restricted(
+            lag_vo, mo_energy, mo_occ, Ax0_Core,
+            max_cycle=max_cycle, tol=tol, verbose=verbose)
+        self.tensors["rdm1_resp_vo"] = rdm1_resp_vo
+        return rdm1_resp_vo
+
+    def make_rdm1_resp(self, ao=False):
+        r""" Generate 1-RDM (response) of hybrid DFT :math:`D_{pq}` in MO or :math:`D_{\mu \nu}` in AO. """
+
+        nocc, nmo = self.nocc, self.nmo
+        so, sv = slice(0, nocc), slice(nocc, nmo)
+        rdm1 = np.diag(self.mo_occ)
+        rdm1[sv, so] = self.tensors.get("rdm1_resp_vo", self.make_rdm1_resp_vo())
+        self.tensors["rdm1_resp"] = rdm1
+        if ao:
+            rdm1 = self.mo_coeff @ rdm1 @ self.mo_coeff.T
+        return rdm1
+
 
 if __name__ == '__main__':
-    def main_1():
-        # test that RSH functional is correct for Ax0_cpks
-        from pyscf import gto, scf
-        np.set_printoptions(5, suppress=True)
-        np.random.seed(0)
-
-        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
-        mf = dft.RKS(mol, xc="CAM-B3LYP").density_fit().run()
-        mf_scf = RHDFTResp(mf)
-        mf_scf.grids_cpks = mf_scf.scf.grids
-
-        nocc, nvir, nmo = mf_scf.nocc, mf_scf.nvir, mf_scf.nmo
-        so, sv = slice(0, nocc), slice(nocc, nmo)
-        X = np.random.randn(3, nvir, nocc)
-        ax_cpks = mf_scf.get_Ax0_cpks()(X)
-        ax_core = mf_scf.get_Ax0_Core_resp(sv, so, sv, so)(X)
-        print(np.allclose(ax_cpks, ax_core))
-        # print(ax_core[0])
-        # print(ax_cpks[0])
-
-    def main_2():
-        # test that meta-GGA functional is correct for Ax0_cpks
-        from pyscf import gto, scf
-        np.set_printoptions(5, suppress=True)
-        np.random.seed(0)
-
-        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
-        mf = dft.RKS(mol, xc="TPSS0").density_fit().run()
-        mf_scf = RHDFTResp(mf)
-        mf_scf.grids_cpks = mf_scf.scf.grids
-
-        nocc, nvir, nmo = mf_scf.nocc, mf_scf.nvir, mf_scf.nmo
-        so, sv = slice(0, nocc), slice(nocc, nmo)
-        X = np.random.randn(3, nvir, nocc)
-        ax_cpks = mf_scf.get_Ax0_cpks()(X)
-        ax_core = mf_scf.get_Ax0_Core_resp(sv, so, sv, so)(X)
-        print(np.allclose(ax_cpks, ax_core))
-        # print(ax_core[0])
-        # print(ax_cpks[0])
-
-    main_1()
-    main_2()
+    pass
