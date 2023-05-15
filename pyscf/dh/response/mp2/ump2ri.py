@@ -148,6 +148,46 @@ def get_mp2_integrals(
     return tensors, results
 
 
+def get_W_I(cderi_uov, cderi_uoo, G_uov, verbose=lib.logger.NOTE):
+    r""" Part I of MO-energy-weighted density matrix.
+
+    Parameters
+    ----------
+    cderi_uov : list[np.ndarray]
+    cderi_uoo : list[np.ndarray]
+    G_uov : list[np.ndarray]
+    verbose : int
+
+    Returns
+    -------
+    dict[str, np.ndarray]
+    """
+
+    log = lib.logger.new_logger(verbose=verbose)
+    time0 = lib.logger.process_clock(), lib.logger.perf_counter()
+
+    # dimension definition and check sanity
+    nocc = [cderi_uov[σ].shape[1] for σ in (α, β)]
+    nvir = [cderi_uov[σ].shape[2] for σ in (α, β)]
+
+    nmo = nocc[0] + nvir[0]
+    if nocc[1] + nvir[1] != nmo:
+        raise NotImplementedError("Frozen core not implemented.")
+
+    so = [slice(0, nocc[σ]) for σ in (α, β)]  # active only
+    sv = [slice(nocc[σ], nmo) for σ in (α, β)]  # active only
+
+    W_I = np.zeros((2, nmo, nmo))
+    for σ in (α, β):
+        W_I[σ, so[σ], so[σ]] = - 0.5 * lib.einsum("Pia, Pja -> ij", G_uov[σ], cderi_uov[σ])
+        W_I[σ, sv[σ], sv[σ]] = - 0.5 * lib.einsum("Pia, Pib -> ab", G_uov[σ], cderi_uov[σ])
+        W_I[σ, sv[σ], so[σ]] = - lib.einsum("Pja, Pij -> ai", G_uov[σ], cderi_uoo[σ])
+
+    log.timer("get_W_I", *time0)
+    tensors = {"W_I": W_I}
+    return tensors
+
+
 class UMP2RespRI(RMP2RespRI):
 
     def make_cderi_uaa(self):
@@ -199,12 +239,11 @@ class UMP2RespRI(RMP2RespRI):
         return cderi_uov
 
     def make_cderi_uoo(self):
-        if "cderi_uov" in self.tensors:
-            return self.tensors["cderi_uov"]
+        if "cderi_uoo" in self.tensors:
+            return self.tensors["cderi_uoo"]
 
         # dimension and mask
         mask_occ = self.mask_occ
-        mask_vir = self.mask_vir
 
         cderi_uaa = self.tensors.get("cderi_uaa", self.make_cderi_uaa())
         cderi_uoo = [cderi_uaa[σ][:, mask_occ[σ], :][:, :, mask_occ[σ]] for σ in (α, β)]
@@ -214,6 +253,7 @@ class UMP2RespRI(RMP2RespRI):
         return cderi_uoo
 
     get_mp2_integrals = staticmethod(get_mp2_integrals)
+    get_W_I = staticmethod(get_W_I)
 
 
 if __name__ == '__main__':
@@ -228,4 +268,11 @@ if __name__ == '__main__':
         print(mf_mp2.results)
         print(mf_resp.results)
 
-    main_1()
+    def main_2():
+        from pyscf import gto, scf
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G", charge=1, spin=1).build()
+        mf = scf.UHF(mol).run()
+        mf_resp = UMP2RespRI(mf)
+        print(mf_resp.make_W_I())
+
+    main_2()

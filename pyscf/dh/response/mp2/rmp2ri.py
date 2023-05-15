@@ -474,7 +474,7 @@ class RMP2RespRI(RMP2RI, RespBase):
         G_uov = self.tensors.get("G_uov", self.make_G_uov())
 
         # main function
-        tensors = get_W_I(cderi_uov, cderi_uoo, G_uov, verbose=self.verbose)
+        tensors = self.get_W_I(cderi_uov, cderi_uoo, G_uov, verbose=self.verbose)
         self.tensors.update(tensors)
         return tensors["W_I"]
 
@@ -491,7 +491,7 @@ class RMP2RespRI(RMP2RI, RespBase):
         Ax0_Core = self.Ax0_Core
 
         # main function
-        tensors = get_lag_vo(
+        tensors = self.get_lag_vo(
             G_uov, cderi_uaa, W_I, rdm1_corr, Ax0_Core,
             max_memory=self.max_memory, verbose=self.verbose)
 
@@ -552,6 +552,8 @@ class RMP2RespRI(RMP2RI, RespBase):
 
     kernel = driver_eng_mp2
     get_mp2_integrals = staticmethod(get_mp2_integrals)
+    get_W_I = staticmethod(get_W_I)
+    get_lag_vo = staticmethod(get_lag_vo)
 
 
 if __name__ == '__main__':
