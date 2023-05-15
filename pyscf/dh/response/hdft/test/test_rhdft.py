@@ -18,8 +18,8 @@ class TestRHDFTResp(unittest.TestCase):
         nocc, nvir, nmo = mf_scf.nocc, mf_scf.nvir, mf_scf.nmo
         so, sv = slice(0, nocc), slice(nocc, nmo)
         X = np.random.randn(3, nvir, nocc)
-        ax_cpks = mf_scf.get_Ax0_cpks()(X)
-        ax_core = mf_scf.get_Ax0_Core_resp(sv, so, sv, so)(X)
+        ax_cpks = mf_scf.make_Ax0_cpks()(X)
+        ax_core = mf_scf.make_Ax0_Core_resp(sv, so, sv, so)(X)
         self.assertTrue("eri_cpks_vovo" in mf_scf.tensors)
         self.assertTrue(np.allclose(ax_cpks, ax_core))
 
@@ -35,8 +35,8 @@ class TestRHDFTResp(unittest.TestCase):
         nocc, nvir, nmo = mf_scf.nocc, mf_scf.nvir, mf_scf.nmo
         so, sv = slice(0, nocc), slice(nocc, nmo)
         X = np.random.randn(3, nvir, nocc)
-        ax_cpks = mf_scf.get_Ax0_Core(sv, so, sv, so)(X)
-        ax_core = mf_scf.get_Ax0_Core_resp(sv, so, sv, so)(X)
+        ax_cpks = mf_scf.make_Ax0_Core(sv, so, sv, so)(X)
+        ax_core = mf_scf.make_Ax0_Core_resp(sv, so, sv, so)(X)
         self.assertTrue("eri_cpks_vovo" in mf_scf.tensors)
         self.assertTrue(np.allclose(ax_cpks, ax_core))
 
@@ -52,8 +52,8 @@ class TestRHDFTResp(unittest.TestCase):
         nocc, nvir, nmo = mf_scf.nocc, mf_scf.nvir, mf_scf.nmo
         so, sv = slice(0, nocc), slice(nocc, nmo)
         X = np.random.randn(3, nvir, nocc)
-        ax_cpks = mf_scf.get_Ax0_Core(sv, so, sv, so)(X)
-        ax_core = mf_scf.get_Ax0_Core_resp(sv, so, sv, so)(X)
+        ax_cpks = mf_scf.make_Ax0_Core(sv, so, sv, so)(X)
+        ax_core = mf_scf.make_Ax0_Core_resp(sv, so, sv, so)(X)
         self.assertTrue(np.allclose(ax_cpks, ax_core))
 
     def test_dipole_b3_cam(self):

@@ -27,7 +27,7 @@ class RespBase(EngBase, ABC):
             UHDFTResp = NotImplemented
             HDFTResp = RHDFTResp if restricted else UHDFTResp
             mf_scf = HDFTResp(self.scf)
-            self._Ax0_Core = mf_scf.get_Ax0_Core
+            self._Ax0_Core = mf_scf.make_Ax0_Core
         return self._Ax0_Core
 
     @Ax0_Core.setter

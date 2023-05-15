@@ -213,7 +213,7 @@ class UMP2RespRI(RMP2RespRI):
             cderi_uaa.append(util.allocate_array(
                 incore_cderi_uaa, (naux, nmo, nmo), mem_avail,
                 h5file=self._tmpfile, name=f"cderi_uaa_{σ}", zero_init=False))
-        log.info(f"[INFO] Store type of cderi_uaa: {type(cderi_uaa)}")
+            log.info(f"[INFO] Store type of cderi_uaa (spin {σ}): {type(cderi_uaa)}")
 
         # generate array
         for σ in α, β:
