@@ -2,6 +2,7 @@ import numpy as np
 from typing import Tuple
 
 from pyscf import gto, data, lib
+from pyscf.lib.numpy_helper import HERMITIAN
 import pyscf.data.elements
 
 
@@ -253,3 +254,31 @@ def restricted_biorthogonalize(t_ijab, cc, c_os, c_ss):
         res *= coef_1
         res += coef_0 * t_ijab
         return res
+
+
+def hermi_sum_last2dim(tsr, inplace=True, hermi=HERMITIAN):
+    r""" Perform tensor summation :math:`t_{...ij} + t_{...ji}` or substraction :math:`t_{...ij} - t_{...ji}`.
+
+    Parameters
+    ----------
+    tsr : np.ndarray
+        Input tensor.
+    inplace : bool
+        Perform tensor summation inplace or return a new tensor.
+    hermi : bool
+        Flag for add (hermi) or substract (anti-hermi).
+
+    Returns
+    -------
+    np.ndarray
+
+    Notes
+    -----
+    Shameless call ``pyscf.lib.hermi_sum``, just for a tensor wrapper.
+    """
+    tsr_shape = tsr.shape
+    tsr = tsr.reshape(-1, tsr.shape[-2], tsr.shape[-1])
+    res = lib.hermi_sum(tsr, axes=(0, 2, 1), hermi=hermi, inplace=inplace)
+    tsr.shape = tsr_shape
+    res.shape = tsr_shape
+    return res

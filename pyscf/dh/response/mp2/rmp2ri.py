@@ -409,7 +409,7 @@ class RMP2RespRI(RMP2RI, RespBase):
         verbose = self.verbose
         max_memory = self.max_memory
         h5file = self._tmpfile
-        tensors, results = get_mp2_integrals(
+        tensors, results = self.get_mp2_integrals(
             cderi_uov, mo_occ, mo_energy, mask_act,
             c_os, c_ss, incore_t_oovv,
             verbose=verbose, max_memory=max_memory, h5file=h5file)
