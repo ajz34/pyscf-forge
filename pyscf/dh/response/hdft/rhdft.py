@@ -88,7 +88,7 @@ def get_eri_cpks_vovo(
     return eri_cpks_vovo
 
 
-def Ax0_cpks_HF(eri_cpks_vovo, max_memory=2000, verbose=CONFIG_dh_verbose):
+def get_Ax0_cpks_HF(eri_cpks_vovo, max_memory=2000, verbose=CONFIG_dh_verbose):
     r""" Convenient function for evaluation of HF contribution of Fock response in MO basis
     :math:`\sum_{rs} A_{ai, bj} X_{bj}^\mathbb{A}` by explicitly contraction to MO ERI :math:`(ai|bj)`.
     
@@ -130,7 +130,7 @@ def Ax0_cpks_HF(eri_cpks_vovo, max_memory=2000, verbose=CONFIG_dh_verbose):
     return Ax0_cpks_HF_inner
 
 
-def Ax0_Core_KS(
+def get_Ax0_Core_KS(
         sp, sq, sr, ss,
         mo_coeff, xc_setting, xc_kernel,
         max_memory=2000, verbose=CONFIG_dh_verbose):
@@ -173,7 +173,7 @@ def Ax0_Core_KS(
     return Ax0_Core_KS_inner
 
 
-def Ax0_Core_resp(
+def get_Ax0_Core_resp(
         sp, sq, sr, ss, vresp, mo_coeff,
         verbose=CONFIG_dh_verbose):
     r""" Convenient function for evaluation of Fock response in MO basis
@@ -368,7 +368,7 @@ class RHDFTResp(RHDFT, RespBase):
         """
         vresp = vresp if vresp is not None else self.vresp
         mo_coeff = mo_coeff if mo_coeff is not None else self.mo_coeff
-        return Ax0_Core_resp(sp, sq, sr, ss, vresp, mo_coeff)
+        return self.get_Ax0_Core_resp(sp, sq, sr, ss, vresp, mo_coeff)
 
     def make_eri_cpks_vovo(self):
         r""" Generate ERI for CP-KS evaluation :math:`(ai, bj)` for current exch-corr setting. """
@@ -420,7 +420,7 @@ class RHDFTResp(RHDFT, RespBase):
 
     def make_Ax0_cpks_HF(self):
         eri_cpks_vovo = self.tensors.get("eri_cpks_vovo", self.make_eri_cpks_vovo())
-        ax0_cpks_hf = Ax0_cpks_HF(eri_cpks_vovo, self.max_memory, self.verbose)
+        ax0_cpks_hf = self.get_Ax0_cpks_HF(eri_cpks_vovo, self.max_memory, self.verbose)
         return ax0_cpks_hf
 
     def make_xc_integral(self):
@@ -464,7 +464,7 @@ class RHDFTResp(RHDFT, RespBase):
         xc_kernel = rho, vxc, fxc
         mo_coeff = self.mo_coeff
 
-        ax0_core_ks = Ax0_Core_KS(
+        ax0_core_ks = self.get_Ax0_Core_KS(
             sp, sq, sr, ss,
             mo_coeff, xc_setting, xc_kernel,
             max_memory=self.max_memory,
@@ -525,6 +525,10 @@ class RHDFTResp(RHDFT, RespBase):
         if ao:
             rdm1 = self.mo_coeff @ rdm1 @ self.mo_coeff.T
         return rdm1
+
+    get_Ax0_Core_resp = staticmethod(get_Ax0_Core_resp)
+    get_Ax0_cpks_HF = staticmethod(get_Ax0_cpks_HF)
+    get_Ax0_Core_KS = staticmethod(get_Ax0_Core_KS)
 
 
 if __name__ == '__main__':
