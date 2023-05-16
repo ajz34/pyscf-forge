@@ -395,7 +395,7 @@ class RHDFTResp(RHDFT, RespBase):
             name="eri_cpks_vovo",
             chunk=(1, nocc, nvir, nocc))
 
-        get_eri_cpks_vovo(
+        self.get_eri_cpks_vovo(
             cderi_uaa=cderi_uaa,
             mo_occ=self.mo_occ,
             cj=1, ck=hyb,
@@ -406,7 +406,7 @@ class RHDFTResp(RHDFT, RespBase):
 
         if abs(omega) > 1e-10:
             cderi_uaa = self.make_cderi_uaa(omega=omega)
-            get_eri_cpks_vovo(
+            self.get_eri_cpks_vovo(
                 cderi_uaa=cderi_uaa,
                 mo_occ=self.mo_occ,
                 cj=0, ck=alpha-hyb,
@@ -429,7 +429,7 @@ class RHDFTResp(RHDFT, RespBase):
         grids = self.scf.grids
         xc_token = self.xc.token
         dm = self.scf.make_rdm1()
-        tensors = get_xc_integral(ni, mol, grids, xc_token, dm)
+        tensors = self.get_xc_integral(ni, mol, grids, xc_token, dm)
         self.tensors.update(tensors)
         return tensors
 
@@ -439,7 +439,7 @@ class RHDFTResp(RHDFT, RespBase):
         grids = self.grids_cpks
         xc_token = self.xc.token
         dm = self.scf.make_rdm1()
-        tensors = get_xc_integral(ni, mol, grids, xc_token, dm)
+        tensors = self.get_xc_integral(ni, mol, grids, xc_token, dm)
         tensors = {key + "/cpks": val for key, val in tensors.items()}
         self.tensors.update(tensors)
         return tensors
@@ -529,6 +529,8 @@ class RHDFTResp(RHDFT, RespBase):
     get_Ax0_Core_resp = staticmethod(get_Ax0_Core_resp)
     get_Ax0_cpks_HF = staticmethod(get_Ax0_cpks_HF)
     get_Ax0_Core_KS = staticmethod(get_Ax0_Core_KS)
+    get_eri_cpks_vovo = staticmethod(get_eri_cpks_vovo)
+    get_xc_integral = staticmethod(get_xc_integral)
 
 
 if __name__ == '__main__':
