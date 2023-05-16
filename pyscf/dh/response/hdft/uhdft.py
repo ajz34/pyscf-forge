@@ -376,48 +376,4 @@ class UHDFTResp(UHDFT, RHDFTResp):
 
 
 if __name__ == '__main__':
-    def main_1():
-        from pyscf import gto, scf
-
-        np.set_printoptions(5, suppress=True, linewidth=150)
-        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G", charge=1, spin=1).build()
-
-        mf = dft.UKS(mol, xc="HF").density_fit().run()
-        mf_scf = UHDFTResp(mf)
-        mf_scf.grids_cpks = mf_scf.scf.grids
-        np.random.seed(0)
-
-        nocc, nvir, nmo = mf_scf.nocc, mf_scf.nvir, mf_scf.nmo
-        so = [slice(0, nocc[σ]) for σ in (α, β)]
-        sv = [slice(nocc[σ], nmo) for σ in (α, β)]
-        X = [np.random.randn(3, nvir[σ], nocc[σ]) for σ in (α, β)]
-
-        ax_cpks = mf_scf.make_Ax0_cpks_HF()(X)
-        ax_core = mf_scf.make_Ax0_Core_resp(sv, so, sv, so)(X)
-        print("eri_cpks_vovo" in mf_scf.tensors)
-        print(np.allclose(ax_cpks[0], 0.5 * ax_core[0]))
-        print(ax_cpks[0][0])
-        print(ax_core[0][0])
-
-    def main_2():
-        # test that RSH functional is correct for Ax0_cpks
-
-        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
-        mf = dft.UKS(mol, xc="B3LYPg").density_fit().run()
-        mf_scf = UHDFTResp(mf)
-        mf_scf.grids_cpks = mf_scf.scf.grids
-
-        np.random.seed(0)
-        np.set_printoptions(5, suppress=True, linewidth=150)
-
-        nocc, nvir, nmo = mf_scf.nocc, mf_scf.nvir, mf_scf.nmo
-        so = [slice(0, nocc[σ]) for σ in (α, β)]
-        sv = [slice(nocc[σ], nmo) for σ in (α, β)]
-        X = [np.random.randn(3, nvir[σ], nocc[σ]) for σ in (α, β)]
-        ax_cpks = mf_scf.make_Ax0_cpks()(X)
-        ax_core = mf_scf.make_Ax0_Core_resp(sv, so, sv, so)(X)
-        assert "eri_cpks_vovo" in mf_scf.tensors
-        assert np.allclose(ax_cpks[0], ax_core[0])
-        assert np.allclose(ax_cpks[1], ax_core[1])
-
-    main_2()
+    pass
