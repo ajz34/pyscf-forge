@@ -196,6 +196,50 @@ def get_Ax0_cpks_HF(eri_cpks_vovo, max_memory=2000, verbose=CONFIG_dh_verbose):
     return Ax0_cpks_HF_inner
 
 
+def get_Ax0_Core_KS(
+        sp, sq, sr, ss,
+        mo_coeff, xc_setting, xc_kernel,
+        max_memory=2000, verbose=CONFIG_dh_verbose):
+    r""" Convenient function for evaluation of pure DFT contribution of Fock response in MO basis
+    :math:`\sum_{rs} A_{pq, rs} X_{rs}^\mathbb{A}`.
+
+    Parameters
+    ----------
+    sp, sq, sr, ss : list[slice or list]
+    mo_coeff : np.ndarray
+    xc_setting : tuple[dft.numint.NumInt, gto.Mole, dft.Grids, str, np.ndarray]
+    xc_kernel : tuple[np.ndarray, np.ndarray, np.ndarray]
+    max_memory : float
+    verbose : int
+
+    Returns
+    -------
+    callable
+    """
+    C = mo_coeff
+    ni, mol, grids, xc, dm = xc_setting
+    rho, _, fxc = xc_kernel
+
+    def Ax0_Core_KS_inner(X):
+        log = lib.logger.new_logger(verbose=verbose)
+        time0 = lib.logger.process_clock(), lib.logger.perf_counter()
+        mem_avail = max_memory - lib.current_memory()[0]
+
+        prop_shape = X[0].shape[:-2]
+        X = [X[σ].reshape(-1, X[σ].shape[-2], X[σ].shape[-1]) for σ in (α, β)]
+        dmX = np.array([C[σ][:, sr[σ]] @ X[σ] @ C[σ][:, ss[σ]].T for σ in (α, β)])
+        dmX += dmX.swapaxes(-1, -2)
+        ax_ao = ni.nr_uks_fxc(mol, grids, xc, dm, dmX, hermi=1, rho0=rho, fxc=fxc, max_memory=mem_avail)
+        res = [C[σ][:, sp[σ]].T @ ax_ao[σ] @ C[σ][:, sq[σ]] for σ in (α, β)]
+        for σ in α, β:
+            res[σ].shape = list(prop_shape) + list(res[σ].shape[-2:])
+
+        log.timer("Ax0_Core_KS_inner", *time0)
+        return res
+
+    return Ax0_Core_KS_inner
+
+
 class UHDFTResp(UHDFT, RHDFTResp):
 
     def make_cderi_uaa(self, omega=0):
@@ -281,9 +325,54 @@ class UHDFTResp(UHDFT, RHDFTResp):
         self.tensors["eri_cpks_vovo"] = eri_cpks_vovo
         return eri_cpks_vovo
 
+    def make_Ax0_cpks(self):
+        so, sv = self.mask_occ, self.mask_vir
+        ax0_core_ks = self.make_Ax0_Core_KS(sv, so, sv, so)
+        ax0_cpks_hf = self.make_Ax0_cpks_HF()
+
+        def Ax0_cpks_inner(X):
+            res_hf = ax0_cpks_hf(X)
+            res_ks = ax0_core_ks(X)
+            res = [res_hf[σ] + res_ks[σ] for σ in (α, β)]
+            return res
+        return Ax0_cpks_inner
+
+    def make_Ax0_Core(self, sp, sq, sr, ss):
+        r""" Convenient function for evaluation of Fock response in MO basis
+        :math:`\sum_{rs} A_{pq, rs} X_{rs}^\mathbb{A}`.
+
+        Parameters
+        ----------
+        sp, sq, sr, ss : list[slice or list]
+            Slice of molecular orbital indices.
+        """
+        # if not RI, then use general Ax0_Core_resp
+        if not hasattr(self.scf, "with_df") or not self.use_eri_cpks:
+            return self.make_Ax0_Core_resp(sp, sq, sr, ss)
+
+        # try if satisfies CPKS evaluation (vovo)
+        lst_nmo = np.arange(self.nmo)
+        lst_occ = [lst_nmo[:self.nocc[σ]] for σ in (α, β)]
+        lst_vir = [lst_nmo[self.nocc[σ]:] for σ in (α, β)]
+        try:
+            if (
+                    np.all(lst_nmo[sp[α]] == lst_vir[α]) and np.all(lst_nmo[sq[α]] == lst_occ[α]) and
+                    np.all(lst_nmo[sr[α]] == lst_vir[α]) and np.all(lst_nmo[ss[α]] == lst_occ[α]) and
+                    np.all(lst_nmo[sp[β]] == lst_vir[β]) and np.all(lst_nmo[sq[β]] == lst_occ[β]) and
+                    np.all(lst_nmo[sr[β]] == lst_vir[β]) and np.all(lst_nmo[ss[β]] == lst_occ[β])):
+                print("goto make_Ax0_cpks")
+                return self.make_Ax0_cpks()
+            else:
+                # otherwise, use response by PySCF
+                return self.make_Ax0_Core_resp(sp, sq, sr, ss)
+        except ValueError:
+            # dimension not match
+            return self.make_Ax0_Core_resp(sp, sq, sr, ss)
+
     get_Ax0_Core_resp = staticmethod(get_Ax0_Core_resp)
     get_eri_cpks_vovo = staticmethod(get_eri_cpks_vovo)
     get_Ax0_cpks_HF = staticmethod(get_Ax0_cpks_HF)
+    get_Ax0_Core_KS = staticmethod(get_Ax0_Core_KS)
 
 
 if __name__ == '__main__':
@@ -310,4 +399,25 @@ if __name__ == '__main__':
         print(ax_cpks[0][0])
         print(ax_core[0][0])
 
-    main_1()
+    def main_2():
+        # test that RSH functional is correct for Ax0_cpks
+
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
+        mf = dft.UKS(mol, xc="B3LYPg").density_fit().run()
+        mf_scf = UHDFTResp(mf)
+        mf_scf.grids_cpks = mf_scf.scf.grids
+
+        np.random.seed(0)
+        np.set_printoptions(5, suppress=True, linewidth=150)
+
+        nocc, nvir, nmo = mf_scf.nocc, mf_scf.nvir, mf_scf.nmo
+        so = [slice(0, nocc[σ]) for σ in (α, β)]
+        sv = [slice(nocc[σ], nmo) for σ in (α, β)]
+        X = [np.random.randn(3, nvir[σ], nocc[σ]) for σ in (α, β)]
+        ax_cpks = mf_scf.make_Ax0_cpks()(X)
+        ax_core = mf_scf.make_Ax0_Core_resp(sv, so, sv, so)(X)
+        assert "eri_cpks_vovo" in mf_scf.tensors
+        assert np.allclose(ax_cpks[0], ax_core[0])
+        assert np.allclose(ax_cpks[1], ax_core[1])
+
+    main_2()

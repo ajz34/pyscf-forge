@@ -472,8 +472,7 @@ class RHDFTResp(RHDFT, RespBase):
         return ax0_core_ks
 
     def make_Ax0_cpks(self):
-        nocc, nmo = self.nocc, self.nmo
-        so, sv = slice(0, nocc), slice(nocc, nmo)
+        so, sv = self.mask_occ, self.mask_vir
         ax0_core_ks = self.make_Ax0_Core_KS(sv, so, sv, so)
         ax0_cpks_hf = self.make_Ax0_cpks_HF()
 
