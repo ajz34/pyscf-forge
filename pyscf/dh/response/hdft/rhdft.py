@@ -4,7 +4,6 @@ from pyscf.dh import RHDFT
 from pyscf.dh import util
 from pyscf import gto, dft, lib, __config__, scf
 from pyscf.dh.response import RespBase
-from pyscf.dh.response.respbase import get_rdm1_resp_vo_restricted
 from pyscf.scf import _response_functions  # this import is not unnecessary
 from pyscf.dh.energy.hdft.rhdft import get_rho
 import numpy as np
@@ -500,16 +499,8 @@ class RHDFTResp(RHDFT, RespBase):
 
         # prepare input
         lag_vo = self.tensors.get("lag_vo", self.make_lag_vo())
-        mo_energy = self.mo_energy
-        mo_occ = self.mo_occ
-        Ax0_Core = self.Ax0_Core
-        max_cycle = self.max_cycle_cpks
-        tol = self.tol_cpks
-        verbose = self.verbose
 
-        rdm1_resp_vo = get_rdm1_resp_vo_restricted(
-            lag_vo, mo_energy, mo_occ, Ax0_Core,
-            max_cycle=max_cycle, tol=tol, verbose=verbose)
+        rdm1_resp_vo = self.solve_cpks(lag_vo)
         self.tensors["rdm1_resp_vo"] = rdm1_resp_vo
         return rdm1_resp_vo
 

@@ -6,7 +6,6 @@ from pyscf.dh.energy.hdft import UHDFT
 from pyscf.dh import util
 from pyscf import gto, dft, lib, __config__, scf
 from pyscf.dh.response import RespBase
-from pyscf.dh.response.respbase import get_rdm1_resp_vo_restricted
 from pyscf.dh.energy.hdft.rhdft import get_rho
 import numpy as np
 
@@ -360,7 +359,6 @@ class UHDFTResp(UHDFT, RHDFTResp):
                     np.all(lst_nmo[sr[α]] == lst_vir[α]) and np.all(lst_nmo[ss[α]] == lst_occ[α]) and
                     np.all(lst_nmo[sp[β]] == lst_vir[β]) and np.all(lst_nmo[sq[β]] == lst_occ[β]) and
                     np.all(lst_nmo[sr[β]] == lst_vir[β]) and np.all(lst_nmo[ss[β]] == lst_occ[β])):
-                print("goto make_Ax0_cpks")
                 return self.make_Ax0_cpks()
             else:
                 # otherwise, use response by PySCF
@@ -369,6 +367,35 @@ class UHDFTResp(UHDFT, RHDFTResp):
             # dimension not match
             return self.make_Ax0_Core_resp(sp, sq, sr, ss)
 
+    def make_lag_vo(self):
+        r""" Generate hybrid DFT contribution to Lagrangian vir-occ block :math:`L_{ai}`. """
+        if "lag_vo" in self.tensors:
+            return self.tensors["lag_vo"]
+
+        so, sv = self.mask_occ, self.mask_vir
+        mo_coeff = self.mo_coeff
+        lag_vo = []
+        fock_ao = self.hdft.get_fock(dm=self.scf.make_rdm1())
+        for σ in (α, β):
+            lag_vo.append(2 * mo_coeff[σ][:, sv[σ]].T @ fock_ao[σ] @ mo_coeff[σ][:, so[σ]])
+        self.tensors["lag_vo"] = lag_vo
+        return lag_vo
+
+    def make_rdm1_resp(self, ao=False):
+        r""" Generate 1-RDM (response) of hybrid DFT :math:`D_{pq}` in MO or :math:`D_{\mu \nu}` in AO. """
+
+        nocc, nmo = self.nocc, self.nmo
+        so, sv = self.mask_occ, self.mask_vir
+        rdm1 = np.zeros((2, nmo, nmo))
+        make_rdm1_resp_vo = self.make_rdm1_resp_vo()
+        for σ in α, β:
+            rdm1[σ] = np.diag(self.mo_occ[σ])
+            rdm1[σ][np.ix_(sv[σ], so[σ])] = make_rdm1_resp_vo[σ]
+        self.tensors["rdm1_resp"] = rdm1
+        if ao:
+            rdm1 = lib.einsum("sup, spq, svq -> suv", self.mo_coeff, rdm1, self.mo_coeff)
+        return rdm1
+
     get_Ax0_Core_resp = staticmethod(get_Ax0_Core_resp)
     get_eri_cpks_vovo = staticmethod(get_eri_cpks_vovo)
     get_Ax0_cpks_HF = staticmethod(get_Ax0_cpks_HF)
@@ -376,4 +403,35 @@ class UHDFTResp(UHDFT, RHDFTResp):
 
 
 if __name__ == '__main__':
-    pass
+
+    def main_1():
+        from pyscf import gto, scf, dft
+        np.set_printoptions(10, suppress=True, linewidth=150)
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G", charge=1, spin=1).build()
+
+        mf = dft.UKS(mol, xc="B3LYP").density_fit("cc-pVDZ-jkfit").run(conv_tol=1e-12)
+        mf_hdft = UHDFTResp(mf, xc="CAM-B3LYP")
+        dip_anal = mf_hdft.make_dipole()
+
+        # generation of numerical result
+
+        def eng_with_dipole_field(t, h):
+            mf_scf = dft.UKS(mol, xc="B3LYP").density_fit("cc-pVDZ-jkfit")
+            mf_scf.get_hcore = lambda *args, **kwargs: scf.hf.get_hcore(mol) - h * mol.intor("int1e_r")[t]
+            mf_scf.run(conv_tol=1e-12)
+            mf_mp = UHDFTResp(mf_scf, xc="CAM-B3LYP").run()
+            return mf_mp.e_tot
+
+        eng_array = np.zeros((2, 3))
+        h = 1e-4
+        for idx, h in [(0, h), [1, -h]]:
+            for t in (0, 1, 2):
+                eng_array[idx, t] = eng_with_dipole_field(t, h)
+        dip_elec_num = - (eng_array[0] - eng_array[1]) / (2 * h)
+        dip_nuc = np.einsum("A, At -> t", mol.atom_charges(), mol.atom_coords())
+        dip_num = dip_elec_num + dip_nuc
+
+        print(dip_num)
+        print(dip_anal)
+
+    main_1()

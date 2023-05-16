@@ -4,7 +4,6 @@ from pyscf.dh import RMP2RI
 from pyscf.dh import util
 from pyscf import scf, lib, __config__
 from pyscf.dh.response import RespBase
-from pyscf.dh.response.respbase import get_rdm1_resp_vo_restricted
 import h5py
 import numpy as np
 
@@ -246,61 +245,6 @@ def get_lag_vo(
     return tensors
 
 
-def get_rdm1_corr_resp(
-        rdm1_corr, lag_vo,
-        mo_energy, mo_occ, Ax0_Core,
-        max_cycle=20, tol=1e-9, verbose=lib.logger.NOTE):
-    r""" 1-RDM of response MP2 correlation by MO basis.
-
-    For other parts, response density matrix is the same to the usual 1-RDM.
-
-    .. math::
-        A'_{ai, bj} D_{bj}^\mathrm{(2)} &= L_{ai}
-
-    Parameters
-    ----------
-    rdm1_corr : np.ndarray
-    lag_vo : np.ndarray
-    mo_energy : np.ndarray
-    mo_occ : np.ndarray
-    Ax0_Core : callable
-    max_cycle : int
-    tol : float
-    verbose : int
-
-    Returns
-    -------
-    dict[str, np.ndarray]
-
-    See Also
-    --------
-    get_rdm1_corr
-    """
-
-    log = lib.logger.new_logger(verbose=verbose)
-    time0 = lib.logger.process_clock(), lib.logger.perf_counter()
-
-    # dimension definition and check sanity
-    nocc = (mo_occ > 0).sum()
-    nvir = (mo_occ == 0).sum()
-    nmo = nocc + nvir
-    assert rdm1_corr.shape == (nmo, nmo)
-
-    # prepare essential matrices and slices
-    so, sv = slice(0, nocc), slice(nocc, nmo)
-
-    # cp-ks evaluation
-    rdm1_corr_resp = rdm1_corr.copy()
-    rdm1_corr_resp_vo = get_rdm1_resp_vo_restricted(
-        lag_vo, mo_energy, mo_occ, Ax0_Core,
-        max_cycle=max_cycle, tol=tol, verbose=verbose)
-    rdm1_corr_resp[sv, so] = rdm1_corr_resp_vo
-
-    log.timer("get_rdm1_corr_resp", *time0)
-    tensors = {"rdm1_corr_resp": rdm1_corr_resp}
-    return tensors
-
-
 class RMP2RespRI(RMP2RI, RespBase):
     
     def __init__(self, *args, **kwargs):
@@ -499,12 +443,13 @@ class RMP2RespRI(RMP2RI, RespBase):
         verbose = self.verbose
 
         # main function
-        tensors = get_rdm1_corr_resp(
-            rdm1_corr, lag_vo, mo_energy, mo_occ, Ax0_Core,
-            max_cycle=max_cycle, tol=tol, verbose=verbose)
+        rdm1_corr_resp_vo = self.solve_cpks(lag_vo)
+        rdm1_corr_resp = rdm1_corr.copy()
+        mask_occ, mask_vir = self.mask_occ, self.mask_vir
+        rdm1_corr_resp[np.ix_(mask_vir, mask_occ)] = rdm1_corr_resp_vo
 
-        self.tensors.update(tensors)
-        return tensors["rdm1_corr_resp"]
+        self.tensors["rdm1_corr_resp"] = rdm1_corr_resp
+        return rdm1_corr_resp
 
     def make_rdm1(self, ao=False):
         r""" Generate 1-RDM (non-response) of MP2 :math:`D_{pq}^{MP2}` in MO or :math:`D_{\mu \nu}^{MP2}` in AO. """

@@ -4,7 +4,6 @@ import numpy as np
 from pyscf.dh.energy.dh import RDH
 from pyscf.dh.response import RespBase
 from pyscf.dh.response.hdft.rhdft import RHDFTResp
-from pyscf.dh.response.respbase import get_rdm1_resp_vo_restricted
 
 
 class RDHResp(RDH, RespBase):
@@ -101,18 +100,9 @@ class RDHResp(RDH, RespBase):
 
         nocc, nvir, nmo = self.nocc, self.nvir, self.nmo
         so, sv = slice(0, nocc), slice(nocc, nmo)
-        mo_energy = self.mo_energy
-        mo_occ = self.mo_occ
         lag_vo = self.make_lag_vo()
-        max_cycle = self.max_cycle_cpks
-        tol = self.tol_cpks
-        Ax0_Core = self.Ax0_Core
-        verbose = self.verbose
 
-        rdm1_resp_vo = get_rdm1_resp_vo_restricted(
-            lag_vo, mo_energy, mo_occ, Ax0_Core,
-            max_cycle=max_cycle, tol=tol, verbose=verbose)
-
+        rdm1_resp_vo = self.solve_cpks(lag_vo)
         rdm1_resp[sv, so] += rdm1_resp_vo
 
         self.tensors["rdm1_resp"] = rdm1_resp

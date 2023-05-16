@@ -4,8 +4,6 @@ from pyscf.dh.response.mp2.rmp2ri import RMP2RespRI
 from pyscf.dh import util
 from pyscf import scf, lib
 from pyscf.lib.numpy_helper import ANTIHERMI
-from pyscf.dh.response import RespBase
-from pyscf.dh.response.respbase import get_rdm1_resp_vo_restricted
 import h5py
 import numpy as np
 
