@@ -126,6 +126,26 @@ class EngBase(lib.StreamObject, ABC):
         return nvir
 
     @property
+    def mask_occ(self):
+        """ Mask list of occupied orbitals. """
+        return self.mo_occ != 0
+
+    @property
+    def mask_occ_act(self):
+        """ Mask list of occupied active orbitals. """
+        return self.get_frozen_mask() & (self.mo_occ != 0)
+
+    @property
+    def mask_vir(self):
+        """ Mask list of virtual orbitals. """
+        return self.mo_occ == 0
+
+    @property
+    def mask_vir_act(self):
+        """ Mask list of virtual active orbitals. """
+        return self.get_frozen_mask() & (self.mo_occ == 0)
+
+    @property
     def e_tot(self):
         # type: () -> float
         return self.scf.e_tot + self.e_corr

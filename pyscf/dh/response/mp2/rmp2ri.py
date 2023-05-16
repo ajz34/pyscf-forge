@@ -313,22 +313,6 @@ class RMP2RespRI(RMP2RI, RespBase):
         self.tol_cpks = CONFIG_tol_cpks
         self._Ax0_Core = NotImplemented
 
-    @property
-    def mask_occ(self):
-        return self.mo_occ != 0
-
-    @property
-    def mask_occ_act(self):
-        return self.get_frozen_mask() & (self.mo_occ != 0)
-
-    @property
-    def mask_vir(self):
-        return self.mo_occ == 0
-
-    @property
-    def mask_vir_act(self):
-        return self.get_frozen_mask() & (self.mo_occ == 0)
-
     def make_cderi_uaa(self):
         """ Generate cholesky decomposed ERI (all block, full orbitals, s1 symm, in memory/disk). """
         if "cderi_uaa" in self.tensors:
