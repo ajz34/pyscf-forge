@@ -235,10 +235,15 @@ def get_lag_vo(
     lag_vo = np.zeros((nvir, nocc))
     lag_vo += W_I[sv, so]
     lag_vo += Ax0_Core(sv, so, sa, sa)(rdm1_corr)
+
+    def load_cderi_Uaa(slc):
+        return cderi_uaa[slc, sv, sv]
+
     mem_avail = max_memory - lib.current_memory()[0]
     nbatch = util.calc_batch_size(nvir ** 2 + nocc * nvir, mem_avail)
-    for saux in util.gen_batch(0, naux, nbatch):
-        lag_vo += 4 * lib.einsum("Pib, Pab -> ai", G_uov[saux], cderi_uaa[saux, sv, sv])
+    batches = util.gen_batch(0, naux, nbatch)
+    for saux, cderi_Uaa in zip(batches, lib.map_with_prefetch(load_cderi_Uaa, batches)):
+        lag_vo += 4 * lib.einsum("Pib, Pab -> ai", G_uov[saux], cderi_Uaa)
 
     log.timer("get_lag_vo", *time0)
     tensors = {"lag_vo": lag_vo}

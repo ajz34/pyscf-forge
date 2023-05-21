@@ -332,6 +332,9 @@ class UHDFTResp(UHDFT, RHDFTResp):
         def Ax0_cpks_inner(X):
             res_hf = ax0_cpks_hf(X)
             res_ks = ax0_core_ks(X)
+            if res_ks == 0:
+                # case that KS is omitted, then give alpha and beta values
+                res_ks = (0, 0)
             res = [res_hf[σ] + res_ks[σ] for σ in (α, β)]
             return res
         return Ax0_cpks_inner
