@@ -1,4 +1,5 @@
 from pyscf import dft
+import numpy as np
 
 
 def eval_xc_eff_ssr_generator(name_code, name_fr, name_sr, omega=0.7, cutoff=1e-13):
@@ -32,6 +33,9 @@ def eval_xc_eff_ssr_generator(name_code, name_fr, name_sr, omega=0.7, cutoff=1e-
     xc_type_code = ni._xc_type(name_code)
 
     def eval_xc_eff(numint, xc_code, rho, xctype=None, *args, **kwargs):
+        # for unrestricted methods, input rho can be tuple
+        rho = np.asarray(rho)
+
         if xctype is None:
             xctype = numint._xc_type(xc_code)
         if xctype == 'LDA':
@@ -125,7 +129,16 @@ def eval_xc_eff_ssr_generator(name_code, name_fr, name_sr, omega=0.7, cutoff=1e-
         if deriv >= 0:
             exc = exc_code * ratio
             exc[mask] = 0
+        if deriv >= 1:
+            vxc = vxc_code.copy()
+            vxc[:, 0] = (
+                + vxc_code[:, 0] * exc_sr / exc_fr
+                + exc_code * vxc_sr[:, 0] / exc_fr
+                - exc_code * exc_sr * vxc_fr[:, 0] / exc_fr ** 2
+            )
+            vxc[:, 1:] *= ratio
+            vxc[:, :, mask] = 0
         else:
-            raise NotImplementedError("vxc, fxc and kxc for scaled short-range functionals are not implemented.")
+            raise NotImplementedError("fxc and kxc for scaled short-range functionals are not implemented.")
         return exc, vxc, fxc, kxc
     return eval_xc_eff
