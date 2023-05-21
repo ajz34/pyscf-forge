@@ -1,3 +1,5 @@
+import itertools
+
 from pyscf import dft
 import numpy as np
 
@@ -89,6 +91,7 @@ def eval_xc_eff_ssr_generator(name_code, name_fr, name_sr, omega=0.7, cutoff=1e-
             fxc = fxc_code.copy()
             r = rho0
             c, dc, ddc = exc_code * r, vxc_code[0], fxc_code[0, 0]
+            pc, dpc = vxc_code[1:], fxc_code[0, 1:]
             s, ds, dds = exc_sr * r, vxc_sr[0], fxc_sr[0, 0]
             f, df, ddf = exc_fr * r, vxc_fr[0], fxc_fr[0, 0]
             fxc *= ratio
@@ -97,6 +100,12 @@ def eval_xc_eff_ssr_generator(name_code, name_fr, name_sr, omega=0.7, cutoff=1e-
                 - (c * s * ddf + 2 * c * ds * df + 2 * dc * s * df) / f**2
                 + 2 * c * s * df**2 / f**3
             )
+            fxc[0, 1:] = (
+                + dpc * s / f
+                + pc * ds / f
+                - pc * s * df / f**2
+            )
+            fxc[1:, 0] = fxc[0, 1:]
             fxc[:, :, mask] = 0
         if deriv >= 3:
             raise NotImplementedError("kxc for scaled short-range functionals is not implemented.")
@@ -138,7 +147,38 @@ def eval_xc_eff_ssr_generator(name_code, name_fr, name_sr, omega=0.7, cutoff=1e-
             )
             vxc[:, 1:] *= ratio
             vxc[:, :, mask] = 0
-        else:
+        if deriv >= 2:
+            # derivative of (c * s / f), c -> code, s -> short-range, f -> full-range
+            fxc = fxc_code.copy()
+            r = rho0.sum(axis=0)
+            c, dc, ddc = exc_code * r, vxc_code[:, 0], fxc_code[:, 0, :, 0]
+            pc, dpc = vxc_code[:, 1:], fxc_code[:, 0, :, 1:]
+            s, ds, dds = exc_sr * r, vxc_sr[:, 0], fxc_sr[:, 0, :, 0]
+            f, df, ddf = exc_fr * r, vxc_fr[:, 0], fxc_fr[:, 0, :, 0]
+            fxc *= ratio
+            for s1, s2 in itertools.product((0, 1), (0, 1)):
+                # handle actual derivatives, iterate by spin
+                fxc[s1, 0, s2, 0] = (
+                    + (c * dds[s1, s2] + dc[s1] * ds[s2] + dc[s2] * ds[s1] + ddc[s1, s2] * s) / f
+                    - (
+                        + c * s * ddf[s1, s2]
+                        + c * ds[s1] * df[s2] + c * ds[s2] * df[s1]
+                        + dc[s1] * s * df[s2] + dc[s2] * s * df[s1]
+                    ) / f**2
+                    + 2 * c * s * df[s1] * df[s2] / f**3
+                )
+                fxc[s1, 0, s2, 1:] = (
+                    + dpc[s1, s2] * s / f
+                    + pc[s2] * ds[s1] / f
+                    - pc[s2] * s * df[s1] / f**2
+                )
+                fxc[s1, 1:, s2, 0] = (
+                    + dpc[s2, s1] * s / f
+                    + pc[s1] * ds[s2] / f
+                    - pc[s1] * s * df[s2] / f**2
+                )
+            fxc[:, :, :, :, mask] = 0
+        if deriv >= 3:
             raise NotImplementedError("fxc and kxc for scaled short-range functionals are not implemented.")
         return exc, vxc, fxc, kxc
     return eval_xc_eff

@@ -281,23 +281,22 @@ def numint_customized(xc, _mol=None):
             raise ValueError("Some type of xc is not available!")
 
     def array_add_with_diff_rows(mat1, mat2):
-        assert len(mat1.shape) == len(mat2.shape)
-        assert mat1.shape[-1] == mat2.shape[-1]
-        if len(mat1) < len(mat2):
+        assert mat1.ndim == mat2.ndim
+        assert mat1.shape[-1] == mat2.shape[-1], "Last dimension must be DFT grid and should be same."
+
+        # determine which matrix is larger
+        larger_arr = np.array(mat1.shape) > np.array(mat2.shape)
+        if np.all(larger_arr):
+            larger = True
+        elif np.all(~larger_arr):
+            larger = False
+        else:
+            assert False, "One array must be larger in all dimensions compared to another array."
+        if not larger:
             mat1, mat2 = mat2, mat1
 
-        if mat1.ndim == 1:
-            mat1 += mat2
-        elif mat1.ndim == 2:
-            mat1[:mat2.shape[0]] += mat2
-        elif mat1.ndim == 3:
-            mat1[:mat2.shape[0], :mat2.shape[1]] += mat2
-        elif mat1.ndim == 4:
-            mat1[:mat2.shape[0], :mat2.shape[1], :mat2.shape[2]] += mat2
-        elif mat1.ndim == 5:
-            mat1[:mat2.shape[0], :mat2.shape[1], :mat2.shape[2], :mat2.shape[3]] += mat2
-        else:
-            raise NotImplementedError
+        # perform addition
+        mat1[np.ix_(*[np.arange(0, mat2.shape[idx]) for idx in range(mat2.ndim)])] += mat2
         return mat1
 
     def eval_xc_eff(*args, **kwargs):

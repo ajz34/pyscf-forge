@@ -4,6 +4,7 @@ import numpy as np
 from pyscf.dh.energy.dh import RDH
 from pyscf.dh.response import RespBase
 from pyscf.dh.response.hdft.rhdft import RHDFTResp
+from pyscf.dh.response.hdft.uhdft import UHDFTResp
 
 
 class RDHResp(RDH, RespBase):
@@ -12,7 +13,7 @@ class RDHResp(RDH, RespBase):
         super().__init__(*args, **kwargs)
 
         # generate response instance for SCF (to obtain Ax0_Core)
-        HDFTResp = RHDFTResp if self.restricted else NotImplemented
+        HDFTResp = RHDFTResp if self.restricted else UHDFTResp
         self.scf_resp = HDFTResp(self.scf)
         self._inherited_updated = False
 
@@ -57,7 +58,7 @@ class RDHResp(RDH, RespBase):
 
         # for energy evaluation, instance of low_rung may not be generated.
         if len(self.inherited["low_rung"][1]) == 0:
-            HDFTResp = RHDFTResp if self.restricted else NotImplemented
+            HDFTResp = RHDFTResp if self.restricted else UHDFTResp
             self.inherited["low_rung"][1].append(HDFTResp(self.scf, xc=self.inherited["low_rung"][0]))
 
         # transform instances to response functions
@@ -110,18 +111,6 @@ class RDHResp(RDH, RespBase):
         if ao:
             rdm1_resp = self.mo_coeff @ rdm1_resp @ self.mo_coeff.T
         return rdm1_resp
-
-    def make_dipole(self):
-        # prepare input
-        mol = self.mol
-        rdm1_ao = self.make_rdm1_resp(ao=True)
-        int1e_r = mol.intor("int1e_r")
-
-        dip_elec = - np.einsum("uv, tuv -> t", rdm1_ao, int1e_r)
-        dip_nuc = np.einsum("A, At -> t", mol.atom_charges(), mol.atom_coords())
-        dip = dip_elec + dip_nuc
-        self.tensors["dipole"] = dip
-        return dip
 
 
 if __name__ == '__main__':

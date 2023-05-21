@@ -4,9 +4,7 @@
 from pyscf.dh.response.hdft import RHDFTResp
 from pyscf.dh.energy.hdft import UHDFT
 from pyscf.dh import util
-from pyscf import gto, dft, lib, __config__, scf
-from pyscf.dh.response import RespBase
-from pyscf.dh.energy.hdft.rhdft import get_rho
+from pyscf import gto, dft, lib, __config__
 import numpy as np
 
 CONFIG_dh_verbose = getattr(__config__, "dh_verbose", lib.logger.NOTE)

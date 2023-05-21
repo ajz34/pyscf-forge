@@ -351,6 +351,10 @@ class UMP2RI(RMP2RI):
         self.results.update(results)
         return results
 
+    def to_resp(self):
+        from pyscf.dh.response.mp2.ump2ri import UMP2RespRI
+        return UMP2RespRI.from_cls(self, self.scf, copy_all=True)
+
     kernel_energy_mp2 = staticmethod(kernel_energy_ump2_ri_incore)
     kernel = driver_eng_mp2
 
