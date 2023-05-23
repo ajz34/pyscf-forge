@@ -320,7 +320,7 @@ class UMP2RespRI(UMP2RI, RMP2RespRI):
         self.tensors["rdm1_corr_resp"] = rdm1_corr_resp
         return rdm1_corr_resp
 
-    def make_rdm1(self, ao=False):
+    def make_rdm1(self, ao_repr=False):
         r""" Generate 1-RDM (non-response) of MP2 :math:`D_{pq}^{MP2}` in MO or :math:`D_{\mu \nu}^{MP2}` in AO. """
         # prepare input
         rdm1_corr = self.tensors.get("rdm1_corr", self.make_rdm1_corr())
@@ -328,11 +328,11 @@ class UMP2RespRI(UMP2RI, RMP2RespRI):
         rdm1 = np.array([np.diag(self.mo_occ[σ]) for σ in (α, β)])
         rdm1 += rdm1_corr
         self.tensors["rdm1"] = rdm1
-        if ao:
+        if ao_repr:
             rdm1 = np.array([self.mo_coeff[σ] @ rdm1[σ] @ self.mo_coeff[σ].T for σ in (α, β)])
         return rdm1
 
-    def make_rdm1_resp(self, ao=False):
+    def make_rdm1_resp(self, ao_repr=False):
         r""" Generate 1-RDM (response) of MP2 :math:`D_{pq}^{MP2}` in MO or :math:`D_{\mu \nu}^{MP2}` in AO. """
         # prepare input
         rdm1_corr_resp = self.tensors.get("rdm1_corr_resp", self.make_rdm1_corr_resp())
@@ -341,7 +341,7 @@ class UMP2RespRI(UMP2RI, RMP2RespRI):
         rdm1_resp += rdm1_corr_resp
 
         self.tensors["rdm1_resp"] = rdm1_resp
-        if ao:
+        if ao_repr:
             rdm1_resp = np.array([self.mo_coeff[σ] @ rdm1_resp[σ] @ self.mo_coeff[σ].T for σ in (α, β)])
         return rdm1_resp
 

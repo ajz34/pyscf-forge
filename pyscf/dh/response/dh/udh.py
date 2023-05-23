@@ -28,7 +28,7 @@ class UDHResp(UDH, RDHResp):
         self.tensors["lag_vo"] = lag_vo
         return lag_vo
 
-    def make_rdm1_resp(self, ao=False):
+    def make_rdm1_resp(self, ao_repr=False):
         # prepare input
         if "rdm1_resp" in self.tensors:
             return self.tensors["rdm1_resp"]
@@ -48,6 +48,6 @@ class UDHResp(UDH, RDHResp):
             rdm1_resp[np.ix_([σ], mask_vir[σ], mask_occ[σ])] = rdm1_resp_vo[σ]
 
         self.tensors["rdm1_resp"] = rdm1_resp
-        if ao:
+        if ao_repr:
             rdm1_resp = np.array([self.mo_coeff[σ] @ rdm1_resp[σ] @ self.mo_coeff[σ].T for σ in (α, β)])
         return rdm1_resp

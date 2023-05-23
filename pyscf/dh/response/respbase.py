@@ -41,13 +41,13 @@ class RespBase(EngBase, ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def make_rdm1_resp(self, ao=False):
+    def make_rdm1_resp(self, ao_repr=False):
         raise NotImplementedError
 
     def make_dipole(self):
         # prepare input
         mol = self.mol
-        rdm1_ao = self.make_rdm1_resp(ao=True)
+        rdm1_ao = self.make_rdm1_resp(ao_repr=True)
         int1e_r = mol.intor("int1e_r")
         restricted = isinstance(self.scf, scf.rhf.RHF)
         rdm1_ao = rdm1_ao if restricted else rdm1_ao.sum(axis=0)

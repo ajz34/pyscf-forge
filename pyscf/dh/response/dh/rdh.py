@@ -87,7 +87,7 @@ class RDHResp(RDH, RespBase):
         self.tensors["lag_vo"] = lag_vo
         return lag_vo
 
-    def make_rdm1_resp(self, ao=False):
+    def make_rdm1_resp(self, ao_repr=False):
         if "rdm1_resp" in self.tensors:
             return self.tensors["rdm1_resp"]
 
@@ -108,7 +108,7 @@ class RDHResp(RDH, RespBase):
 
         self.tensors["rdm1_resp"] = rdm1_resp
 
-        if ao:
+        if ao_repr:
             rdm1_resp = self.mo_coeff @ rdm1_resp @ self.mo_coeff.T
         return rdm1_resp
 

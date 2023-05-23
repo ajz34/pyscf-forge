@@ -504,7 +504,7 @@ class RHDFTResp(RHDFT, RespBase):
         self.tensors["rdm1_resp_vo"] = rdm1_resp_vo
         return rdm1_resp_vo
 
-    def make_rdm1_resp(self, ao=False):
+    def make_rdm1_resp(self, ao_repr=False):
         r""" Generate 1-RDM (response) of hybrid DFT :math:`D_{pq}` in MO or :math:`D_{\mu \nu}` in AO. """
 
         nocc, nmo = self.nocc, self.nmo
@@ -512,7 +512,7 @@ class RHDFTResp(RHDFT, RespBase):
         rdm1 = np.diag(self.mo_occ)
         rdm1[sv, so] = self.tensors.get("rdm1_resp_vo", self.make_rdm1_resp_vo())
         self.tensors["rdm1_resp"] = rdm1
-        if ao:
+        if ao_repr:
             rdm1 = self.mo_coeff @ rdm1 @ self.mo_coeff.T
         return rdm1
 

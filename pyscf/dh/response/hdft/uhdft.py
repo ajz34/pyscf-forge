@@ -382,7 +382,7 @@ class UHDFTResp(UHDFT, RHDFTResp):
         self.tensors["lag_vo"] = lag_vo
         return lag_vo
 
-    def make_rdm1_resp(self, ao=False):
+    def make_rdm1_resp(self, ao_repr=False):
         r""" Generate 1-RDM (response) of hybrid DFT :math:`D_{pq}` in MO or :math:`D_{\mu \nu}` in AO. """
 
         nocc, nmo = self.nocc, self.nmo
@@ -393,7 +393,7 @@ class UHDFTResp(UHDFT, RHDFTResp):
             rdm1[σ] = np.diag(self.mo_occ[σ])
             rdm1[σ][np.ix_(sv[σ], so[σ])] = make_rdm1_resp_vo[σ]
         self.tensors["rdm1_resp"] = rdm1
-        if ao:
+        if ao_repr:
             rdm1 = lib.einsum("sup, spq, svq -> suv", self.mo_coeff, rdm1, self.mo_coeff)
         return rdm1
 

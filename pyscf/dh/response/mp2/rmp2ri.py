@@ -459,7 +459,7 @@ class RMP2RespRI(RMP2RI, RespBase):
         self.tensors["rdm1_corr_resp"] = rdm1_corr_resp
         return rdm1_corr_resp
 
-    def make_rdm1(self, ao=False):
+    def make_rdm1(self, ao_repr=False):
         r""" Generate 1-RDM (non-response) of MP2 :math:`D_{pq}^{MP2}` in MO or :math:`D_{\mu \nu}^{MP2}` in AO. """
         # prepare input
         rdm1_corr = self.tensors.get("rdm1_corr", self.make_rdm1_corr())
@@ -469,11 +469,11 @@ class RMP2RespRI(RMP2RI, RespBase):
         ix_act = np.ix_(mask, mask)
         rdm1[ix_act] += rdm1_corr
         self.tensors["rdm1"] = rdm1
-        if ao:
+        if ao_repr:
             rdm1 = self.mo_coeff @ rdm1 @ self.mo_coeff.T
         return rdm1
 
-    def make_rdm1_resp(self, ao=False):
+    def make_rdm1_resp(self, ao_repr=False):
         r""" Generate 1-RDM (response) of MP2 :math:`D_{pq}^{MP2}` in MO or :math:`D_{\mu \nu}^{MP2}` in AO. """
         # prepare input
         rdm1_corr_resp = self.tensors.get("rdm1_corr_resp", self.make_rdm1_corr_resp())
@@ -483,7 +483,7 @@ class RMP2RespRI(RMP2RI, RespBase):
         ix_act = np.ix_(mask, mask)
         rdm1[ix_act] += rdm1_corr_resp
         self.tensors["rdm1_resp"] = rdm1
-        if ao:
+        if ao_repr:
             rdm1 = self.mo_coeff @ rdm1 @ self.mo_coeff.T
         return rdm1
 
