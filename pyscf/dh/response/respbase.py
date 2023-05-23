@@ -68,7 +68,7 @@ class RespBase(EngBase, ABC):
         elif not self.restricted:
             is_zero = True
             for σ in α, β:
-                if not np.abs(rhs).max() < self.tol_cpks:
+                if not np.abs(rhs[σ]).max() < self.tol_cpks:
                     is_zero = False
             if is_zero:
                 return [np.zeros_like(rhs[σ]) for σ in (α, β)]
