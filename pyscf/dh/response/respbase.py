@@ -58,9 +58,20 @@ class RespBase(EngBase, ABC):
         return dip
 
     def solve_cpks(self, rhs):
-        """ Solve CP-KS equation by given RHS (right-hand-side of equation).  """
+        """ Solve CP-KS equation by given RHS (right-hand-side of equation). """
         log = lib.logger.new_logger(verbose=self.verbose)
         time0 = lib.logger.process_clock(), lib.logger.perf_counter()
+
+        # special case handling: RHS is zero
+        if self.restricted and np.abs(rhs).max() < self.tol_cpks:
+            return np.zeros_like(rhs)
+        elif not self.restricted:
+            is_zero = True
+            for σ in α, β:
+                if not np.abs(rhs).max() < self.tol_cpks:
+                    is_zero = False
+            if is_zero:
+                return [np.zeros_like(rhs[σ]) for σ in (α, β)]
 
         restricted = isinstance(self.scf, scf.rhf.RHF)
         Ax0_Core = self.Ax0_Core
