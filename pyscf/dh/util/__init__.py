@@ -21,7 +21,7 @@ from .helper import (
 from .df_addon import get_cderi_mo, get_with_df_omega
 
 from .helper_pyscf import (
-    parse_frozen_numbers, parse_frozen_list, restricted_biorthogonalize)
+    parse_frozen_numbers, parse_frozen_list, restricted_biorthogonalize, hermi_sum_last2dim)
 from .xccode.xccode import XCInfo, XCList, XCDH
 from .xccode.xctype import XCType
 from .numint_addon import eval_xc_eff_ssr_generator

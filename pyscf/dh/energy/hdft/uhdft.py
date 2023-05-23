@@ -73,6 +73,17 @@ class UHDFT(RHDFT):
     get_energy_exactx = staticmethod(get_energy_unrestricted_exactx)
     get_energy_noxc = staticmethod(get_energy_unrestricted_noxc)
 
+    @property
+    def restricted(self):
+        return False
+
+    def to_resp(self, key):
+        from pyscf.dh.response.hdft.uhdft import UHDFTResp
+        resp_dict = {
+            "resp": UHDFTResp,
+        }
+        return resp_dict[key].from_cls(self, self.scf, copy_all=True)
+
 
 if __name__ == '__main__':
     def main_1():
