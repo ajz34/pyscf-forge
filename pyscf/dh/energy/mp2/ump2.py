@@ -30,7 +30,9 @@ None
 
 class UMP2ConvPySCF(mp.ump2.UMP2, RMP2ConvPySCF):
     """ Unrestricted MP2 class of doubly hybrid with conventional integral evaluated by PySCF. """
-    pass
+    @property
+    def restricted(self):
+        return False
 
 # endregion
 
@@ -138,6 +140,10 @@ def kernel_energy_ump2_conv_full_incore(
 
 class UMP2Conv(RMP2Conv):
     """ Unrestricted MP2 class of doubly hybrid with conventional integral. """
+
+    @property
+    def restricted(self):
+        return False
 
     def driver_eng_mp2(self, **kwargs):
         mask = self.get_frozen_mask()
@@ -288,6 +294,10 @@ def kernel_energy_ump2_ri_incore(
 class UMP2RI(RMP2RI):
     """ Unrestricted MP2 class of doubly hybrid with RI integral. """
 
+    @property
+    def restricted(self):
+        return False
+
     def driver_eng_mp2(self, **kwargs):
         mask = self.get_frozen_mask()
         nocc_act = tuple((mask & (self.mo_occ != 0)).sum(axis=-1))
@@ -351,9 +361,12 @@ class UMP2RI(RMP2RI):
         self.results.update(results)
         return results
 
-    def to_resp(self):
+    def to_resp(self, key):
         from pyscf.dh.response.mp2.ump2ri import UMP2RespRI
-        return UMP2RespRI.from_cls(self, self.scf, copy_all=True)
+        resp_dict = {
+            "resp": UMP2RespRI,
+        }
+        return resp_dict[key].from_cls(self, self.scf, copy_all=True)
 
     kernel_energy_mp2 = staticmethod(kernel_energy_ump2_ri_incore)
     kernel = driver_eng_mp2

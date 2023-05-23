@@ -136,6 +136,10 @@ def kernel_energy_uring_ccd_conv(
 
 class URingCCDConv(RRingCCDConv):
 
+    @property
+    def restricted(self):
+        return False
+
     def driver_eng_ring_ccd(self, **kwargs):
         mask = self.get_frozen_mask()
         mol = self.mol

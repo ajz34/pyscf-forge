@@ -1,7 +1,7 @@
 """ RI-MP2 Response-Related Utilities. """
 
 from pyscf.dh.response.mp2.rmp2ri import RMP2RespRI
-from pyscf.dh import util
+from pyscf.dh import util, UMP2RI
 from pyscf import scf, lib
 from pyscf.lib.numpy_helper import ANTIHERMI
 import h5py
@@ -237,7 +237,7 @@ def get_lag_vo(
     return tensors
 
 
-class UMP2RespRI(RMP2RespRI):
+class UMP2RespRI(UMP2RI, RMP2RespRI):
 
     def make_cderi_uaa(self):
         if "cderi_uaa" in self.tensors:

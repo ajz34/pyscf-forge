@@ -1,5 +1,5 @@
 from pyscf import lib, dh
-from abc import ABC
+from abc import ABC, abstractmethod
 import numpy as np
 from pyscf import gto, dft, df, scf
 
@@ -57,6 +57,11 @@ class EngBase(lib.StreamObject, ABC):
         self.tensors = dict()
         self._tmpfile = lib.H5TmpFile()
         self.e_corr = NotImplemented
+
+    @property
+    @abstractmethod
+    def restricted(self):
+        raise NotImplementedError
 
     @property
     def scf(self):
@@ -187,5 +192,12 @@ class EngBase(lib.StreamObject, ABC):
             mf_new.e_corr = NotImplemented
         return mf_new
 
-    def to_resp(self):
+    def to_resp(self, key):
+        """ Transform base class instance to derived (response property) class.
+
+        To perform transformation, one need to fill values in class dictionary.
+        Currently, derived class can be
+
+        - `resp`: First-order response class.
+        """
         raise NotImplementedError

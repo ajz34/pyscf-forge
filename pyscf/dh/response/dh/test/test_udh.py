@@ -5,7 +5,7 @@ from pyscf import gto, dft, scf
 import numpy as np
 
 
-class TestRDHResp(unittest.TestCase):
+class TestUDHResp(unittest.TestCase):
     def test_same_eng_XYG3(self):
         mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G", charge=1, spin=1).build()
         mf_resp = UDHResp(mol, xc="XYG3").run()

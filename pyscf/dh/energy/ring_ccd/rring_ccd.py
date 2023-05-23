@@ -19,6 +19,7 @@ direct ring-CCD instead of full ring-CCD).
 from pyscf.dh.energy import EngBase
 from pyscf import ao2mo, lib, df, __config__
 import numpy as np
+from abc import ABC
 
 from pyscf.dh.util import pad_omega
 
@@ -30,7 +31,7 @@ CONFIG_diis_space_ring_ccd = getattr(__config__, "diis_space_ring_ccd", 6)
 CONFIG_etb_first = getattr(__config__, "etb_first", False)
 
 
-class RingCCDBase(EngBase):
+class RingCCDBase(EngBase, ABC):
     def __init__(self, mf, frozen=None, omega=0, with_df=None, **kwargs):
         super().__init__(mf)
         self.omega = omega
@@ -156,6 +157,10 @@ class RRingCCDConv(RingCCDBase):
         self.conv_tol_amp = CONFIG_tol_amp_ring_ccd
         self.max_cycle = CONFIG_max_cycle_ring_ccd
         self.set(**kwargs)
+
+    @property
+    def restricted(self):
+        return True
 
     def driver_eng_ring_ccd(self, **_kwargs):
         mask = self.get_frozen_mask()

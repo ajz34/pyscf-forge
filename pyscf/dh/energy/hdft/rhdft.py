@@ -428,7 +428,7 @@ class RHDFT(EngBase):
 
     @cached_property
     def restricted(self):
-        return isinstance(self.hdft, scf.rhf.RHF)
+        return True
 
     @cached_property
     def e_tot(self) -> float:
@@ -465,9 +465,12 @@ class RHDFT(EngBase):
             self.scf.kernel(*args, **kwargs)
         return self.e_tot
 
-    def to_resp(self):
+    def to_resp(self, key):
         from pyscf.dh.response.hdft.rhdft import RHDFTResp
-        return RHDFTResp.from_cls(self, self.scf, copy_all=True)
+        resp_dict = {
+            "resp": RHDFTResp,
+        }
+        return resp_dict[key].from_cls(self, self.scf, copy_all=True)
 
     get_energy_exactx = staticmethod(get_energy_restricted_exactx)
     get_energy_noxc = staticmethod(get_energy_restricted_noxc)

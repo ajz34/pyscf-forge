@@ -30,13 +30,13 @@ class RDHResp(RDH, RespBase):
 
     # in response instance, we first transfer all child instances into response
     def to_scf(self, *args, **kwargs):
-        mf_resp = super().to_scf(*args, **kwargs).to_resp()
+        mf_resp = super().to_scf(*args, **kwargs).to_resp(key="resp")
         mf_resp.Ax0_Core = self.scf_resp.Ax0_Core
         return mf_resp
 
     def to_mp2(self, *args, **kwargs):
         assert len(args) == 0
-        mf_resp = super().to_mp2(**kwargs).to_resp()
+        mf_resp = super().to_mp2(**kwargs).to_resp(key="resp")
         mf_resp.Ax0_Core = self.scf_resp.Ax0_Core
         return mf_resp
 
@@ -67,7 +67,7 @@ class RDHResp(RDH, RespBase):
             for idx in range(len(self.inherited[key][1])):
                 instance = self.inherited[key][1][idx]
                 if not hasattr(instance, "Ax0_Core"):
-                    instance = instance.to_resp()
+                    instance = instance.to_resp(key="resp")
                     self.inherited[key][1][idx] = instance
 
         self._inherited_updated = True
