@@ -253,6 +253,9 @@ def get_lag_vo(
 class RMP2RespRI(RMP2RI, RespBase):
     
     def __init__(self, *args, **kwargs):
+        if self.frozen not in (None, []):
+            raise NotImplementedError("Frozen orbitals is not implemented currently!")
+
         super().__init__(*args, **kwargs)
         self.c_os = kwargs.get("c_os", 1)
         self.c_ss = kwargs.get("c_ss", 1)
