@@ -17,19 +17,32 @@ class RespBase(EngBase, ABC):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        self._scf_resp = NotImplemented
         self._Ax0_Core = NotImplemented
         self.max_cycle_cpks = CONFIG_max_cycle_cpks
         self.tol_cpks = CONFIG_tol_cpks
+        self.base = None
+
+    @property
+    def scf_resp(self):
+        if self._scf_resp is NotImplemented:
+            restricted = self.restricted
+            from pyscf.dh.response.hdft.rhdft import RSCFResp
+            from pyscf.dh.response.hdft.uhdft import USCFResp
+            SCFResp = RSCFResp if restricted else USCFResp
+            scf_resp = SCFResp(self.scf)
+            self._scf_resp = scf_resp
+        return self._scf_resp
+
+    @scf_resp.setter
+    def scf_resp(self, scf_resp):
+        self._scf_resp = scf_resp
 
     @property
     def Ax0_Core(self):
         """ Fock response of underlying SCF object in MO basis. """
         if self._Ax0_Core is NotImplemented:
-            restricted = isinstance(self.scf, scf.rhf.RHF)
-            from pyscf.dh.response.hdft import RHDFTResp, UHDFTResp
-            HDFTResp = RHDFTResp if restricted else UHDFTResp
-            mf_scf = HDFTResp(self.scf)
-            self._Ax0_Core = mf_scf.make_Ax0_Core
+            self._Ax0_Core = self.scf_resp.Ax0_Core
         return self._Ax0_Core
 
     @Ax0_Core.setter
@@ -63,6 +76,13 @@ class RespBase(EngBase, ABC):
         time0 = lib.logger.process_clock(), lib.logger.perf_counter()
 
         # special case handling: RHS is zero
+        # zero value by definition
+        if isinstance(rhs, int) and rhs == 0:
+            return 0
+        if isinstance(rhs, tuple) and isinstance(rhs[0], int) and all([r == 0 for r in rhs]):
+            return rhs
+
+        # zero by computation
         if self.restricted and np.abs(rhs).max() < self.tol_cpks:
             return np.zeros_like(rhs)
         elif not self.restricted:

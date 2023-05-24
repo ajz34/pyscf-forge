@@ -1,4 +1,4 @@
-from pyscf.dh.energy.hdft.rhdft import RHDFT
+from pyscf.dh.energy.hdft.rhdft import RSCF, RHDFT
 from pyscf.dh import util
 import numpy as np
 
@@ -67,8 +67,8 @@ def get_energy_unrestricted_noxc(mf, dm):
     return results
 
 
-class UHDFT(RHDFT):
-    """ Unrestricted hybrid (low-rung) DFT wrapper class of convenience. """
+class USCF(RSCF):
+    """ Unrestricted SCF hybrid (low-rung) DFT wrapper class of convenience. """
 
     get_energy_exactx = staticmethod(get_energy_unrestricted_exactx)
     get_energy_noxc = staticmethod(get_energy_unrestricted_noxc)
@@ -76,6 +76,13 @@ class UHDFT(RHDFT):
     @property
     def restricted(self):
         return False
+
+
+class UHDFT(USCF, RHDFT):
+    """ Unrestricted hybrid (low-rung) DFT wrapper class of convenience. """
+
+    def __init__(self, *args, **kwargs):
+        RHDFT.__init__(self, *args, **kwargs)
 
     def to_resp(self, key):
         from pyscf.dh.response.hdft.uhdft import UHDFTResp
