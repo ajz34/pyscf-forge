@@ -5,7 +5,7 @@ from pyscf.dh import util
 from pyscf import gto, dft, lib, __config__, scf
 from pyscf.dh.response import RespBase
 from pyscf.scf import _response_functions  # this import is not unnecessary
-from pyscf.dh.energy.hdft.rhdft import get_rho
+from pyscf.dh.energy.hdft.rhdft import get_rho, RSCF
 import numpy as np
 from functools import cached_property
 
@@ -90,7 +90,7 @@ def get_eri_cpks_vovo(
 def get_Ax0_cpks_HF(eri_cpks_vovo, max_memory=2000, verbose=CONFIG_dh_verbose):
     r""" Convenient function for evaluation of HF contribution of Fock response in MO basis
     :math:`\sum_{rs} A_{ai, bj} X_{bj}^\mathbb{A}` by explicitly contraction to MO ERI :math:`(ai|bj)`.
-    
+
     Parameters
     ----------
     eri_cpks_vovo : np.ndarray
@@ -106,7 +106,7 @@ def get_Ax0_cpks_HF(eri_cpks_vovo, max_memory=2000, verbose=CONFIG_dh_verbose):
     def Ax0_cpks_HF_inner(X):
         log = lib.logger.new_logger(verbose=verbose)
         time0 = lib.logger.process_clock(), lib.logger.perf_counter()
-        
+
         X_shape = X.shape
         X = X.reshape((-1, X_shape[-2], X_shape[-1]))
         res = np.zeros_like(X)
@@ -117,15 +117,15 @@ def get_Ax0_cpks_HF(eri_cpks_vovo, max_memory=2000, verbose=CONFIG_dh_verbose):
         mem_avail = max_memory - lib.current_memory()[0]
         nbatch = util.calc_batch_size(nocc**2 * nvir, mem_avail)
         batches = util.gen_batch(0, nvir, nbatch)
-        
+
         for sA, eri_cpks_Vovo in zip(batches, lib.map_with_prefetch(load_eri_cpks_vovo, batches)):
             res[:, sA] = lib.einsum("aibj, Abj -> Aai", eri_cpks_Vovo, X)
-        
+
         res.shape = list(X_shape[:-2]) + [res.shape[-2], res.shape[-1]]
 
         log.timer("Ax0_cpks_HF_inner", *time0)
         return res
-    
+
     return Ax0_cpks_HF_inner
 
 
@@ -135,7 +135,7 @@ def get_Ax0_Core_KS(
         max_memory=2000, verbose=CONFIG_dh_verbose):
     r""" Convenient function for evaluation of pure DFT contribution of Fock response in MO basis
     :math:`\sum_{rs} A_{pq, rs} X_{rs}^\mathbb{A}`.
-    
+
     Parameters
     ----------
     sp, sq, sr, ss : slice or list
@@ -152,7 +152,7 @@ def get_Ax0_Core_KS(
     C = mo_coeff
     ni, mol, grids, xc, dm = xc_setting
     rho, _, fxc = xc_kernel
-    
+
     def Ax0_Core_KS_inner(X):
         log = lib.logger.new_logger(verbose=verbose)
         time0 = lib.logger.process_clock(), lib.logger.perf_counter()
@@ -237,10 +237,11 @@ def get_xc_integral(ni, mol, grids, xc, dm):
     return tensors
 
 
-class RHDFTResp(RHDFT, RespBase):
+class RSCFResp(RSCF, RespBase):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
         self.incore_cderi_uaa = CONFIG_incore_cderi_uaa_hdft
         self.incore_eri_cpks_vovo = CONFIG_incore_eri_cpks_vovo
         self.use_eri_cpks = CONFIG_use_eri_cpks
@@ -480,6 +481,37 @@ class RHDFTResp(RHDFT, RespBase):
             return res
         return Ax0_cpks_inner
 
+    @property
+    def scf_resp(self):
+        self._scf_resp = self
+        return self
+
+    @property
+    def Ax0_Core(self):
+        if self._Ax0_Core is NotImplemented:
+            self._Ax0_Core = self.make_Ax0_Core
+        return self._Ax0_Core
+
+    def make_lag_vo(self):
+        return 0
+
+    def make_rdm1_resp(self, ao_repr=False):
+        r""" Generate 1-RDM (response) of hybrid DFT :math:`D_{pq}` in MO or :math:`D_{\mu \nu}` in AO. """
+
+        rdm1 = np.diag(self.mo_occ)
+        if ao_repr:
+            rdm1 = self.mo_coeff @ rdm1 @ self.mo_coeff.T
+        return rdm1
+
+    get_Ax0_Core_resp = staticmethod(get_Ax0_Core_resp)
+    get_Ax0_cpks_HF = staticmethod(get_Ax0_cpks_HF)
+    get_Ax0_Core_KS = staticmethod(get_Ax0_Core_KS)
+    get_eri_cpks_vovo = staticmethod(get_eri_cpks_vovo)
+    get_xc_integral = staticmethod(get_xc_integral)
+
+
+class RHDFTResp(RHDFT, RSCFResp):
+
     def make_lag_vo(self):
         r""" Generate hybrid DFT contribution to Lagrangian vir-occ block :math:`L_{ai}`. """
         if "lag_vo" in self.tensors:
@@ -504,7 +536,7 @@ class RHDFTResp(RHDFT, RespBase):
         self.tensors["rdm1_resp_vo"] = rdm1_resp_vo
         return rdm1_resp_vo
 
-    def make_rdm1_resp(self, ao=False):
+    def make_rdm1_resp(self, ao_repr=False):
         r""" Generate 1-RDM (response) of hybrid DFT :math:`D_{pq}` in MO or :math:`D_{\mu \nu}` in AO. """
 
         nocc, nmo = self.nocc, self.nmo
@@ -512,15 +544,12 @@ class RHDFTResp(RHDFT, RespBase):
         rdm1 = np.diag(self.mo_occ)
         rdm1[sv, so] = self.tensors.get("rdm1_resp_vo", self.make_rdm1_resp_vo())
         self.tensors["rdm1_resp"] = rdm1
-        if ao:
+        if ao_repr:
             rdm1 = self.mo_coeff @ rdm1 @ self.mo_coeff.T
         return rdm1
 
-    get_Ax0_Core_resp = staticmethod(get_Ax0_Core_resp)
-    get_Ax0_cpks_HF = staticmethod(get_Ax0_cpks_HF)
-    get_Ax0_Core_KS = staticmethod(get_Ax0_Core_KS)
-    get_eri_cpks_vovo = staticmethod(get_eri_cpks_vovo)
-    get_xc_integral = staticmethod(get_xc_integral)
+    scf_resp = RespBase.scf_resp
+    Ax0_Core = RespBase.Ax0_Core
 
 
 if __name__ == '__main__':

@@ -1,11 +1,12 @@
 """ Hybrid-DFT Response-Related Utilities. """
-
-
-from pyscf.dh.response.hdft import RHDFTResp
+from pyscf.dh.response import RespBase
+from pyscf.dh.response.hdft.rhdft import RSCFResp, RHDFTResp
+from pyscf.dh.energy.hdft.uhdft import USCF
 from pyscf.dh.energy.hdft import UHDFT
 from pyscf.dh import util
 from pyscf import gto, dft, lib, __config__
 import numpy as np
+
 
 CONFIG_dh_verbose = getattr(__config__, "dh_verbose", lib.logger.NOTE)
 
@@ -237,7 +238,7 @@ def get_Ax0_Core_KS(
     return Ax0_Core_KS_inner
 
 
-class UHDFTResp(UHDFT, RHDFTResp):
+class USCFResp(USCF, RSCFResp):
 
     def make_cderi_uaa(self, omega=0):
         """ Generate cholesky decomposed ERI (all block, full orbitals, s1 symm, in memory/disk). """
@@ -369,6 +370,28 @@ class UHDFTResp(UHDFT, RHDFTResp):
             return self.make_Ax0_Core_resp(sp, sq, sr, ss)
 
     def make_lag_vo(self):
+        return 0, 0
+
+    def make_rdm1_resp(self, ao_repr=False):
+        r""" Generate 1-RDM (response) of hybrid DFT :math:`D_{pq}` in MO or :math:`D_{\mu \nu}` in AO. """
+        nmo = self.nmo
+        rdm1 = np.zeros((2, nmo, nmo))
+        for σ in α, β:
+            rdm1[σ] = np.diag(self.mo_occ[σ])
+        self.tensors["rdm1_resp"] = rdm1
+        if ao_repr:
+            rdm1 = lib.einsum("sup, spq, svq -> suv", self.mo_coeff, rdm1, self.mo_coeff)
+        return rdm1
+
+    get_Ax0_Core_resp = staticmethod(get_Ax0_Core_resp)
+    get_eri_cpks_vovo = staticmethod(get_eri_cpks_vovo)
+    get_Ax0_cpks_HF = staticmethod(get_Ax0_cpks_HF)
+    get_Ax0_Core_KS = staticmethod(get_Ax0_Core_KS)
+
+
+class UHDFTResp(UHDFT, USCFResp):
+
+    def make_lag_vo(self):
         r""" Generate hybrid DFT contribution to Lagrangian vir-occ block :math:`L_{ai}`. """
         if "lag_vo" in self.tensors:
             return self.tensors["lag_vo"]
@@ -382,7 +405,7 @@ class UHDFTResp(UHDFT, RHDFTResp):
         self.tensors["lag_vo"] = lag_vo
         return lag_vo
 
-    def make_rdm1_resp(self, ao=False):
+    def make_rdm1_resp(self, ao_repr=False):
         r""" Generate 1-RDM (response) of hybrid DFT :math:`D_{pq}` in MO or :math:`D_{\mu \nu}` in AO. """
 
         nocc, nmo = self.nocc, self.nmo
@@ -393,14 +416,13 @@ class UHDFTResp(UHDFT, RHDFTResp):
             rdm1[σ] = np.diag(self.mo_occ[σ])
             rdm1[σ][np.ix_(sv[σ], so[σ])] = make_rdm1_resp_vo[σ]
         self.tensors["rdm1_resp"] = rdm1
-        if ao:
+        if ao_repr:
             rdm1 = lib.einsum("sup, spq, svq -> suv", self.mo_coeff, rdm1, self.mo_coeff)
         return rdm1
 
-    get_Ax0_Core_resp = staticmethod(get_Ax0_Core_resp)
-    get_eri_cpks_vovo = staticmethod(get_eri_cpks_vovo)
-    get_Ax0_cpks_HF = staticmethod(get_Ax0_cpks_HF)
-    get_Ax0_Core_KS = staticmethod(get_Ax0_Core_KS)
+    make_rdm1_resp_vo = RHDFTResp.make_rdm1_resp_vo
+    scf_resp = RespBase.scf_resp
+    Ax0_Core = RespBase.Ax0_Core
 
 
 if __name__ == '__main__':
