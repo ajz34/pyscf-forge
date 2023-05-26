@@ -217,23 +217,19 @@ def get_Ax0_Core_resp(
 
 def get_xc_integral(ni, mol, grids, xc, dm):
     rho = get_rho(mol, grids, dm)
-    try:
-        exc, vxc, fxc, kxc = ni.eval_xc_eff(xc, rho, deriv=3)
-        tensors = {
-            "rho": rho,
-            f"exc_{xc}": exc,
-            f"vxc_{xc}": vxc,
-            f"fxc_{xc}": fxc,
-            f"kxc_{xc}": kxc,
-        }
-    except NotImplementedError:
-        exc, vxc, fxc, _ = ni.eval_xc_eff(xc, rho, deriv=2)
-        tensors = {
-            "rho": rho,
-            f"exc_{xc}": exc,
-            f"vxc_{xc}": vxc,
-            f"fxc_{xc}": fxc,
-        }
+    spin_polarized = dm.ndim == 3
+    if ni._xc_type(xc) == "LDA":
+        rho_eval = rho[0] if not spin_polarized else rho[:, 0]
+    else:
+        rho_eval = rho
+
+    exc, vxc, fxc, _ = ni.eval_xc_eff(xc, rho_eval, deriv=2)
+    tensors = {
+        "rho": rho_eval,
+        f"exc_{xc}": exc,
+        f"vxc_{xc}": vxc,
+        f"fxc_{xc}": fxc,
+    }
     return tensors
 
 
@@ -511,6 +507,26 @@ class RSCFResp(RSCF, RespBase):
 
 
 class RHDFTResp(RHDFT, RSCFResp):
+
+    @cached_property
+    def vresp(self):
+        """ Fock response function (derivative w.r.t. molecular coefficient in AO basis). """
+        try:
+            return self.hdft.gen_response()
+        except ValueError:
+            # case that have customized xc
+            # should pass check of ni.libxc.test_deriv_order and ni.libxc.is_hybrid_xc
+            ni = self.hdft._numint
+            omega, alpha, hyb = ni.rsh_and_hybrid_coeff(self.hdft.xc, self.mol.spin)
+            if abs(hyb) > 1e-10 or abs(omega) > 1e-10:
+                fake_xc = "B3LYPg"
+            else:
+                fake_xc = "PBE"
+            actual_xc = self.hdft.xc
+            self.hdft.xc = fake_xc
+            resp = self.hdft.gen_response()
+            self.hdft.xc = actual_xc
+            return resp
 
     def make_lag_vo(self):
         r""" Generate hybrid DFT contribution to Lagrangian vir-occ block :math:`L_{ai}`. """

@@ -91,11 +91,11 @@ def get_rho(mol, grids, dm):
     Returns
     -------
     np.ndarray
-        Density grid of dimension (6, ngrid) or (nset, 6, ngrid).
+        Density grid of dimension (5, ngrid) or (nset, 5, ngrid).
     """
     ngrid = grids.weights.size
     ni = dft.numint.NumInt()
-    make_rho, nset, nao = ni._gen_rho_evaluator(mol, dm)
+    make_rho, nset, nao = ni._gen_rho_evaluator(mol, dm, with_lapl=False)
     rho = np.empty((nset, 6, ngrid))
     p1 = 0
     for ao, mask, weight, coords in ni.block_loop(mol, grids, nao, deriv=2, max_memory=2000):
@@ -456,6 +456,15 @@ class RSCF(EngBase):
         if not self.scf.converged:
             self.scf.kernel(*args, **kwargs)
         return self.e_tot
+
+    def to_resp(self, key):
+        from pyscf.dh.response.hdft.rhdft import RSCFResp
+        from pyscf.dh.dipole.hdft.rhdft import RSCFDipole
+        resp_dict = {
+            "resp": RSCFResp,
+            "dipole": RSCFDipole,
+        }
+        return resp_dict[key].from_cls(self, self.scf, copy_all=True)
 
     get_energy_exactx = staticmethod(get_energy_restricted_exactx)
     get_energy_noxc = staticmethod(get_energy_restricted_noxc)
