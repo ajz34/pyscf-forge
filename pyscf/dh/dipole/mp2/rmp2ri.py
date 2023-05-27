@@ -1,5 +1,4 @@
-from pyscf.dh.dipole.dipolebase import DipoleBase
-from pyscf.dh.dipole.hdft.rhdft import get_Ax1_contrib_pure_dft
+from pyscf.dh.dipole.dipolebase import DipoleBase, PolarBase
 from pyscf.dh.response.mp2.rmp2ri import RMP2RespRI
 from pyscf.dh import util
 from pyscf import lib
@@ -262,56 +261,10 @@ class RMP2DipoleRI(DipoleBase, RMP2RespRI):
     get_SCR3 = staticmethod(get_SCR3)
 
 
-class RMP2PolarRI(RMP2RespRI):
+class RMP2PolarRI(RMP2RespRI, PolarBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, *kwargs)
         self.deriv_dipole = RMP2DipoleRI.from_cls(self, self.scf, copy_all=True)
-
-    def make_polar(self):
-        if "polar" in self.tensors:
-            return self.tensors["polar"]
-
-        # todo: resolve attributes of self not passing into self.deriv_dipole
-        self.deriv_dipole.__dict__.update(self.__dict__)
-
-        nocc, nmo = self.nocc, self.nmo
-        so, sv, sa = slice(0, nocc), slice(nocc, nmo), slice(0, nmo)
-        mo_coeff = self.mo_coeff
-
-        rdm1_corr_resp = self.make_rdm1_corr_resp()
-        pd_rdm1_corr = self.deriv_dipole.make_pd_rdm1_corr()
-        hcore_1_mo = self.deriv_dipole.make_hcore_1_mo()
-        U_1 = self.deriv_dipole.make_U_1()
-        SCR1 = self.Ax0_Core(sa, sa, sa, sa)(rdm1_corr_resp)
-        SCR2 = hcore_1_mo + self.Ax0_Core(sa, sa, sv, so)(U_1[:, sv, so])
-        SCR3 = self.deriv_dipole.make_SCR3()
-        pd_fock_mo_scf = self.deriv_dipole.scf_prop.make_pd_fock_mo()
-
-        dmU = mo_coeff @ U_1[:, :, so] @ mo_coeff[:, so].T
-        dmU += dmU.swapaxes(-1, -2)
-        dmR = mo_coeff @ rdm1_corr_resp @ mo_coeff.T
-        dmR += dmR.swapaxes(-1, -2)
-        ax1_contrib_pure_dft = get_Ax1_contrib_pure_dft(
-            self.scf._numint, self.mol, self.scf.grids, self.scf.xc, self.scf.make_rdm1(), dmU, dmR,
-            max_memory=2000, verbose=self.verbose)
-
-        polar_scf = - 4 * lib.einsum("Api, Bpi -> AB", hcore_1_mo[:, :, so], U_1[:, :, so])
-        polar_corr = - (
-            + lib.einsum("Aai, Bma, mi -> AB", U_1[:, sv, so], U_1[:, :, sv], SCR1[:, so])
-            + lib.einsum("Aai, Bmi, ma -> AB", U_1[:, sv, so], U_1[:, :, so], SCR1[:, sv])
-            + lib.einsum("Apm, Bmq, pq -> AB", SCR2, U_1, rdm1_corr_resp)
-            + lib.einsum("Amq, Bmp, pq -> AB", SCR2, U_1, rdm1_corr_resp)
-            + lib.einsum("Apq, Bpq -> AB", SCR2, pd_rdm1_corr)
-            + lib.einsum("Bai, Aai -> AB", SCR3, U_1[:, sv, so])
-            - lib.einsum("Bki, Aai, ak -> AB", pd_fock_mo_scf[:, so, so], U_1[:, sv, so], rdm1_corr_resp[sv, so])
-            + lib.einsum("Bca, Aai, ci -> AB", pd_fock_mo_scf[:, sv, sv], U_1[:, sv, so], rdm1_corr_resp[sv, so])
-            + ax1_contrib_pure_dft
-        )
-
-        self.tensors["pol_scf"] = polar_scf
-        self.tensors["polar_corr"] = polar_corr
-        self.tensors["polar"] = polar_scf + polar_corr
-        return self.tensors["polar"]
 
     @property
     def de(self):
