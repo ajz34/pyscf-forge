@@ -3,9 +3,6 @@ from pyscf.dh.response.hdft.rhdft import RSCFResp, RHDFTResp
 from pyscf import lib, dft, gto
 import numpy as np
 
-α, β = 0, 1
-αα, αβ, ββ = 0, 1, 2
-
 
 def get_pd_fock_mo(
         fock_mo, hcore_1_mo, mo_occ,
@@ -61,10 +58,7 @@ class RSCFDipole(DipoleBase, RSCFResp):
             return self.tensors[self.pad_prop("hcore_1_mo")]
 
         hcore_1_ao = self.make_hcore_1_ao()
-        if self.restricted:
-            hcore_1_mo = self.mo_coeff.T @ hcore_1_ao @ self.mo_coeff
-        else:
-            hcore_1_mo = [self.mo_coeff[σ].T @ hcore_1_ao @ self.mo_coeff[σ] for σ in (α, β)]
+        hcore_1_mo = self.mo_coeff.T @ hcore_1_ao @ self.mo_coeff
 
         self.tensors[self.pad_prop("hcore_1_mo")] = hcore_1_mo
         return hcore_1_mo
@@ -98,7 +92,7 @@ class RSCFDipole(DipoleBase, RSCFResp):
         U_1 = self.make_U_1()
         Ax0_Core = self.Ax0_Core
         verbose = self.verbose
-        pd_fock_mo = get_pd_fock_mo(
+        pd_fock_mo = self.get_pd_fock_mo(
             fock_mo=fock_mo,
             hcore_1_mo=hcore_1_mo,
             mo_occ=mo_occ,
@@ -115,6 +109,8 @@ class RSCFDipole(DipoleBase, RSCFResp):
     def make_pd_rdm1_corr(self):
         return 0
 
+    get_pd_fock_mo = staticmethod(get_pd_fock_mo)
+
 
 class RHDFTDipole(DipoleBase, RHDFTResp):
     def make_pd_fock_mo(self):
@@ -128,7 +124,7 @@ class RHDFTDipole(DipoleBase, RHDFTResp):
         U_1 = self.make_U_1()
         Ax0_Core = self.make_Ax0_Core
         verbose = self.verbose
-        pd_fock_mo = get_pd_fock_mo(
+        pd_fock_mo = self.get_pd_fock_mo(
             fock_mo=fock_mo,
             hcore_1_mo=hcore_1_mo,
             mo_occ=mo_occ,
@@ -152,6 +148,8 @@ class RHDFTDipole(DipoleBase, RHDFTResp):
 
     def make_pd_rdm1_corr(self):
         return np.zeros((self.nprop, self.nmo, self.nmo))
+
+    get_pd_fock_mo = staticmethod(get_pd_fock_mo)
 
 
 class RSCFPolar(RSCFResp):
