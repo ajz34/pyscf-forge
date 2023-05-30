@@ -140,9 +140,15 @@ class RHDFTDipole(DipoleBase, RHDFTResp):
         return pd_fock_mo
 
     def make_SCR3(self):
+        if self.pad_prop("SCR3") in self.tensors:
+            return self.tensors[self.pad_prop("SCR3")]
+
         nocc, nmo = self.nocc, self.nmo
         so, sv = slice(0, nocc), slice(nocc, nmo)
-        return 4 * self.make_pd_fock_mo()[:, sv, so]
+        SCR3 = 4 * self.make_pd_fock_mo()[:, sv, so]
+
+        self.tensors[self.pad_prop("SCR3")] = SCR3
+        return SCR3
 
     def make_pd_rdm1_corr(self):
         return np.zeros((self.nprop, self.nmo, self.nmo))
@@ -177,7 +183,3 @@ class RHDFTPolar(RHDFTResp, PolarBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.deriv_dipole = RHDFTDipole.from_cls(self, self.scf, copy_all=True)
-
-    @property
-    def de(self):
-        return self.make_polar()

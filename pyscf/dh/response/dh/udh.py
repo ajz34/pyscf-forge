@@ -15,7 +15,7 @@ class UDHResp(UDH, RDHResp):
         if "lag_vo" in self.tensors:
             return self.tensors["lag_vo"]
 
-        self.update_inherited()
+        self.update_inherited(self.resp_type)
 
         nocc, nvir, nmo = self.nocc, self.nvir, self.nmo
         lag_vo = [np.zeros((nvir[σ], nocc[σ])) for σ in (α, β)]
@@ -33,7 +33,7 @@ class UDHResp(UDH, RDHResp):
         if "rdm1_resp" in self.tensors:
             return self.tensors["rdm1_resp"]
 
-        self.update_inherited()
+        self.update_inherited(self.resp_type)
 
         rdm1_resp = np.array([np.diag(self.mo_occ[σ]) for σ in (α, β)])
         for key in self.inherited:

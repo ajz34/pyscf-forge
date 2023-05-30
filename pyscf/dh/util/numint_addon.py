@@ -108,7 +108,35 @@ def eval_xc_eff_ssr_generator(name_code, name_fr, name_sr, omega=0.7, cutoff=1e-
             fxc[1:, 0] = fxc[0, 1:]
             fxc[:, :, mask] = 0
         if deriv >= 3:
-            raise NotImplementedError("kxc for scaled short-range functionals is not implemented.")
+            # derivative of (c * s / f), c -> code, s -> short-range, f -> full-range
+            kxc = kxc_code.copy()
+            r = rho0
+            c, dc, ddc, dddc = exc_code * r, vxc_code[0], fxc_code[0, 0], kxc_code[0, 0, 0]
+            pc, dpc, ddpc = vxc_code[1:], fxc_code[0, 1:], kxc_code[0, 0, 1:]
+            ppc, dppc = fxc_code[1:, 1:], kxc_code[0, 1:, 1:]
+            s, ds, dds, ddds = exc_sr * r, vxc_sr[0], fxc_sr[0, 0], kxc_sr[0, 0, 0]
+            f, df, ddf, dddf = exc_fr * r, vxc_fr[0], fxc_fr[0, 0], kxc_fr[0, 0, 0]
+
+            kxc *= ratio
+            kxc[0, 0, 0] = (
+                + (c * ddds + 3 * dc * dds + 3 * ddc * ds + dddc * s) / f
+                - (
+                    + c * s * dddf + 3 * c * ds * ddf + 3 * c * dds * df + 3 * dc * s * ddf
+                    + 6 * dc * ds * df + 3 * ddc * s * df) / f**2
+                + 6 * (c * ds * df**2 + dc * s * df**2 + c * s * df * ddf) / f**3
+                - 6 * c * s * df**3 / f**4
+            )
+            kxc[0, 0, 1:] = kxc[0, 1:, 0] = kxc[1:, 0, 0] = (
+                + (pc * dds + 2 * dpc * ds + ddpc * s) / f
+                - (pc * s * ddf + 2 * pc * ds * df + 2 * dpc * s * df) / f**2
+                + 2 * pc * s * df**2 / f**3
+            )
+            kxc[0, 1:, 1:] = kxc[1:, 0, 1:] = kxc[1:, 1:, 0] = (
+                + dppc * s / f
+                + ppc * ds / f
+                - ppc * s * df / f**2
+            )
+            kxc[:, :, :, mask] = 0
         return exc, vxc, fxc, kxc
 
     def eval_xc_eff_spin_polarized(numint, xc_code, rho, deriv=1, omega=omega, xctype=None, *_args, **_kwargs):

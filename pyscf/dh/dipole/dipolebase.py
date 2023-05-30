@@ -55,7 +55,7 @@ def get_Ax1_contrib_pure_dft_restricted(
         rho_U = np.zeros(tuple([nprop] + list(rho.shape)))
         for idx in range(nprop):
             rho_U[idx] = ni.eval_rho(mol, ao, dmU[idx], xctype=xctype, with_lapl=False)
-        _, _, _, kxc = ni.eval_xc_eff(xc, rho, deriv=3, omega=ni.omega)
+        _, _, _, kxc = ni.eval_xc_eff(xc, rho, deriv=3)
         if xctype == "LDA":
             kxc = kxc.reshape(-1)
             prop += 2 * lib.einsum("g, Ag, Bg, g, g -> AB", kxc, rho_U, rho_U, rho_R, weights)
@@ -183,5 +183,9 @@ class PolarBase(RespBase, ABC):
             return self.make_polar_restricted()
         else:
             raise NotImplementedError
+
+    @property
+    def de(self):
+        return self.make_polar()
 
     get_Ax1_contrib_pure_dft_restricted = staticmethod(get_Ax1_contrib_pure_dft_restricted)

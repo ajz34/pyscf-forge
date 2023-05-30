@@ -419,8 +419,10 @@ class RMP2RI(MP2Base):
 
     def to_resp(self, key):
         from pyscf.dh.response.mp2.rmp2ri import RMP2RespRI
+        from pyscf.dh.dipole.mp2.rmp2ri import RMP2DipoleRI
         resp_dict = {
             "resp": RMP2RespRI,
+            "dipole": RMP2DipoleRI,
         }
         return resp_dict[key].from_cls(self, self.scf, copy_all=True)
 

@@ -254,6 +254,7 @@ class RMP2DipoleRI(DipoleBase, RMP2RespRI):
             verbose=lib.logger.NOTE,
             max_memory=2000)
 
+        self.tensors[self.pad_prop("SCR3")] = SCR3
         return SCR3
 
     get_pd_cderi_uov = staticmethod(get_pd_cderi_uov)
@@ -265,10 +266,6 @@ class RMP2PolarRI(RMP2RespRI, PolarBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, *kwargs)
         self.deriv_dipole = RMP2DipoleRI.from_cls(self, self.scf, copy_all=True)
-
-    @property
-    def de(self):
-        return self.make_polar()
 
 
 if __name__ == '__main__':
