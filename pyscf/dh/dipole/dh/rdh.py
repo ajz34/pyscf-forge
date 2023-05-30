@@ -29,6 +29,9 @@ class RDHDipole(RDHResp, DipoleBase):
         return super().make_rdm1_resp(ao_repr=ao_repr)
 
     def make_SCR3(self):
+        if self.pad_prop("SCR3") in self.tensors:
+            return self.tensors[self.pad_prop("SCR3")]
+
         self.update_inherited(self.resp_type)
 
         nprop, nocc, nvir = self.nprop, self.nocc, self.nvir
@@ -38,9 +41,13 @@ class RDHDipole(RDHResp, DipoleBase):
                 if hasattr(instance, "make_SCR3"):
                     SCR3 += instance.make_SCR3()
 
+        self.tensors[self.pad_prop("SCR3")] = SCR3
         return SCR3
 
     def make_pd_rdm1_corr(self):
+        if self.pad_prop("pd_rdm1_corr") in self.tensors:
+            return self.tensors[self.pad_prop("pd_rdm1_corr")]
+
         self.update_inherited(self.resp_type)
 
         nprop, nmo = self.nprop, self.nmo
@@ -50,6 +57,7 @@ class RDHDipole(RDHResp, DipoleBase):
                 if hasattr(instance, "make_pd_rdm1_corr"):
                     pd_rdm1_corr += instance.make_pd_rdm1_corr()
 
+        self.tensors[self.pad_prop("pd_rdm1_corr")] = pd_rdm1_corr
         return pd_rdm1_corr
 
 
