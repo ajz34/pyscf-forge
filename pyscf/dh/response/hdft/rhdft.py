@@ -450,7 +450,7 @@ class RSCFResp(RSCF, RespBase):
         grids = self.grids_cpks
         xc_token = self.xc.token
         dm = self.scf.make_rdm1()
-        if f"fxc_{xc_token}" not in self.tensors:
+        if f"fxc_{xc_token}/cpks" not in self.tensors:
             self.make_xc_integral_cpks()
         rho = self.tensors[f"rho/cpks"]
         vxc = self.tensors[f"vxc_{xc_token}/cpks"]
