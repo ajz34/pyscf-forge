@@ -92,14 +92,15 @@ def get_mp2_integrals(
                 log.debug(f"[DEBUG] Loop in get_mp2_integrals, spin {σ, ς} slice {sI} of {nocc_act} orbitals.")
                 D_Oovv = eo[σ][sI, None, None, None] + D_ovv[σς]
                 g_Oovv = lib.einsum("Pia, Pjb -> ijab", cderi_uov[σ][:, sI], cderi_uov[ς])
-                t_Oovv = g_Oovv / D_Oovv
+                t_Oovv_raw = g_Oovv / D_Oovv
+                async_write_t_oovv(σς, sI, t_Oovv_raw)
                 if σ == ς:  # same spin
                     # t_Oovv -= t_Oovv.swapaxes(-1, -2)
-                    util.hermi_sum_last2dim(t_Oovv, hermi=ANTIHERMI, inplace=True)
+                    t_Oovv = util.hermi_sum_last2dim(t_Oovv_raw, hermi=ANTIHERMI, inplace=False)
                     eng_spin[σς] += 0.25 * np.einsum("Ijab, Ijab, Ijab ->", t_Oovv, t_Oovv, D_Oovv)
                 else:
+                    t_Oovv = t_Oovv_raw
                     eng_spin[σς] += np.einsum("Ijab, Ijab, Ijab ->", t_Oovv, t_Oovv, D_Oovv)
-                async_write_t_oovv(σς, sI, t_Oovv)
 
                 if σ == ς:  # same spin
                     rdm1_corr[σ, so[σ], so[σ]] -= 0.5 * c_ss * lib.einsum("kiab, kjab -> ij", t_Oovv, t_Oovv)

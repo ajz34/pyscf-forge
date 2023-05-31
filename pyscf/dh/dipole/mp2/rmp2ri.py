@@ -25,7 +25,7 @@ def get_pd_cderi_uov(
         return cderi_uaa[slc]
 
     mem_avail = max_memory - lib.current_memory()[0]
-    nbatch = util.calc_batch_size(2 * nmo**2, mem_avail)
+    nbatch = util.calc_batch_size(2 * nmo**2 + 2 * nprop * nocc * nvir, mem_avail)
     batches = util.gen_batch(0, naux, nbatch)
     for saux, cderi_Uaa in zip(batches, lib.map_with_prefetch(load_cderi_Uaa, batches)):
         pd_cderi_uov[:, saux] = (
@@ -90,8 +90,8 @@ def get_mp2_integrals_deriv(
             t_Kjab = t_Ijab if sK == sI else t_oovv[sK]
             pd_t_Oovv -= lib.einsum("Aki, kjab -> Aijab", pd_fock_mo[:, sK, sI], t_Kjab)
         pd_t_Oovv -= lib.einsum("Akj, ikab -> Aijab", pd_fock_mo[:, so, so], t_Oovv)
-        pd_t_Oovv += lib.einsum("Acb, ijac -> Aijab", pd_fock_mo[:, sv, sv], t_Oovv)
         pd_t_Oovv += lib.einsum("Aca, ijcb -> Aijab", pd_fock_mo[:, sv, sv], t_Oovv)
+        pd_t_Oovv += lib.einsum("Acb, ijac -> Aijab", pd_fock_mo[:, sv, sv], t_Oovv)
         pd_t_Oovv /= D_Oovv
 
         T_Oovv = util.restricted_biorthogonalize(t_Oovv, 1, c_os, c_ss)
@@ -248,7 +248,7 @@ class RMP2DipoleRI(DipoleBase, RMP2RespRI):
         U_1 = self.make_U_1()
         mo_occ = self.mo_occ
 
-        SCR3 = get_SCR3(
+        SCR3 = self.get_SCR3(
             cderi_uaa, G_uov, pd_G_uov, U_1,
             mo_occ,
             verbose=lib.logger.NOTE,
