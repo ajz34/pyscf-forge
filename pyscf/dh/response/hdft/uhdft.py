@@ -389,7 +389,7 @@ class USCFResp(USCF, RSCFResp):
     get_Ax0_Core_KS = staticmethod(get_Ax0_Core_KS)
 
 
-class UHDFTResp(UHDFT, USCFResp):
+class UHDFTResp(UHDFT, USCFResp, RHDFTResp):
 
     def make_lag_vo(self):
         r""" Generate hybrid DFT contribution to Lagrangian vir-occ block :math:`L_{ai}`. """

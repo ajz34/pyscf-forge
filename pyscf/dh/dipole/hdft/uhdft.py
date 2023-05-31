@@ -1,10 +1,10 @@
 from pyscf.dh.dipole.dipolebase import DipoleBase, PolarBase
 from pyscf.dh.response.hdft.rhdft import RSCFResp, RHDFTResp
-from pyscf.dh.dipole.hdft.rhdft import RSCFDipole, RHDFTDipole
+from pyscf.dh.dipole.hdft.rhdft import RSCFDipole, RHDFTDipole, RHDFTPolar
 from pyscf import lib, dft, gto
 import numpy as np
 
-from pyscf.dh.response.hdft.uhdft import USCFResp
+from pyscf.dh.response.hdft.uhdft import USCFResp, UHDFTResp
 
 α, β = 0, 1
 αα, αβ, ββ = 0, 1, 2
@@ -113,6 +113,48 @@ class USCFDipole(USCFResp, RSCFDipole):
     get_pd_fock_mo = staticmethod(get_pd_fock_mo)
 
 
+class UHDFTDipole(UHDFTResp, DipoleBase):
+
+    def make_pd_fock_mo(self):
+        if self.pad_prop("pd_fock_mo") in self.tensors:
+            return self.tensors[self.pad_prop("pd_fock_mo")]
+
+        mo_coeff = self.mo_coeff
+        fock_mo = lib.einsum("sup, suv, svq -> spq", mo_coeff, self.hdft.get_fock(), mo_coeff)
+        hcore_1_mo = self.make_hcore_1_mo()
+        mo_occ = self.mo_occ
+        U_1 = self.make_U_1()
+        Ax0_Core = self.make_Ax0_Core
+        verbose = self.verbose
+        pd_fock_mo = self.get_pd_fock_mo(
+            fock_mo=fock_mo,
+            hcore_1_mo=hcore_1_mo,
+            mo_occ=mo_occ,
+            U_1=U_1,
+            Ax0_Core=Ax0_Core,
+            verbose=verbose)
+
+        self.tensors[self.pad_prop("pd_fock_mo")] = pd_fock_mo
+        return pd_fock_mo
+
+    def make_SCR3(self):
+        if self.pad_prop("SCR3") in self.tensors:
+            return self.tensors[self.pad_prop("SCR3")]
+
+        nocc, nmo, nprop = self.nocc, self.nmo, self.nprop
+        so = [slice(0, nocc[σ]) for σ in (α, β)]
+        sv = [slice(nocc[σ], nmo) for σ in (α, β)]
+        SCR3 = [2 * self.make_pd_fock_mo()[σ][:, sv[σ], so[σ]] for σ in (α, β)]
+
+        self.tensors[self.pad_prop("SCR3")] = SCR3
+        return SCR3
+
+    def make_pd_rdm1_corr(self):
+        return np.zeros((2, self.nprop, self.nmo, self.nmo))
+
+    get_pd_fock_mo = staticmethod(get_pd_fock_mo)
+
+
 class USCFPolar(USCFResp):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -141,12 +183,47 @@ class USCFPolar(USCFResp):
     kernel = make_polar
 
 
+class UHDFTPolar(UHDFTResp, PolarBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.deriv_dipole = UHDFTDipole.from_cls(self, self.scf, copy_all=True)
+
+
 if __name__ == '__main__':
     def main_1():
         from pyscf import gto, scf, dft
-        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G", spin=1, charge=1, verbose=0).build()
-        mf_scf = dft.UKS(mol, xc="B3LYP").density_fit().run()
-        mf_resp = USCFPolar(mf_scf)
-        print(mf_resp.de)
+        np.set_printoptions(10, suppress=True, linewidth=150)
+
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G", charge=0, spin=0, verbose=0).build()
+        mf = dft.UKS(mol, xc="B3LYPg").density_fit("cc-pVDZ-jkfit").run()
+        mf_pol = UHDFTPolar(mf, xc="TPSS0")
+        print(mf_pol.de)
+        REF = np.array(
+            [[5.6996863302, 0., -0.9570246008],
+             [0., 1.4947978961, -0.],
+             [-0.9570246008, -0., 5.2046766405]])
+        # self.assertTrue(np.allclose(mf_pol.de, REF, atol=1e-6, rtol=1e-4))
+
+
+        # generation of numerical result
+
+        def dipole_with_dipole_field(t, h):
+            mf_scf = dft.UKS(mol, xc="B3LYPg").density_fit("cc-pVDZ-jkfit")
+            mf_scf.get_hcore = lambda *args, **kwargs: scf.hf.get_hcore(mol) - h * mol.intor("int1e_r")[t]
+            mf_scf.run(conv_tol=1e-12)
+            mf_resp = UHDFTResp(mf_scf, xc="TPSS0")
+            return mf_resp.make_dipole()
+
+        dip_array = np.zeros((2, 3, 3))
+        h = 3e-4
+        for idx, h in [(0, h), [1, -h]]:
+            for t in (0, 1, 2):
+                dip_array[idx, t] = dipole_with_dipole_field(t, h)
+        pol_num = (dip_array[0] - dip_array[1]) / (2 * h)
+        print(pol_num)
+        print(mf_pol.de - pol_num)
+        print(np.allclose(mf_pol.de, pol_num, atol=1e-6, rtol=1e-4))
+
+        # self.assertTrue(np.allclose(mf_pol.de, pol_num, atol=1e-6, rtol=1e-4))
 
     main_1()
