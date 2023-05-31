@@ -86,7 +86,6 @@ def get_mp2_integrals(
     # prepare batch
     mem_avail = max_memory - lib.current_memory()[0]
     nbatch = util.calc_batch_size(4 * max(nocc_act) * max(nvir_act)**2 + naux * max(nvir_act), mem_avail)
-
     with lib.call_in_background(write_t_oovv) as async_write_t_oovv:
         for σ, ς, σς in ((α, α, αα), (α, β, αβ), (β, β, ββ)):
             for sI in util.gen_batch(0, nocc_act[σ], nbatch):
@@ -108,6 +107,8 @@ def get_mp2_integrals(
                     G_uov[σ][:, sI] += c_ss * lib.einsum("ijab, Pjb -> Pia", t_Oovv, cderi_uov[σ])
                 else:  # spin αβ
                     for sJ in util.gen_batch(0, nocc_act[α], nbatch):
+                        if sI.start < sJ.start:
+                            continue
                         t_Ikab = t_Oovv
                         t_Jkab = t_Oovv if sI == sJ else t_oovv[αβ][sJ]
                         rdm1_tmp = c_os * lib.einsum("ikab, jkab -> ij", t_Ikab, t_Jkab)
