@@ -86,8 +86,10 @@ class UHDFT(USCF, RHDFT):
 
     def to_resp(self, key):
         from pyscf.dh.response.hdft.uhdft import UHDFTResp
+        from pyscf.dh.dipole.hdft.uhdft import UHDFTDipole
         resp_dict = {
             "resp": UHDFTResp,
+            "dipole": UHDFTDipole,
         }
         return resp_dict[key].from_cls(self, self.scf, copy_all=True)
 

@@ -17,17 +17,6 @@ class RDHResp(RDH, RespBase):
     def resp_type(self):
         return "resp"
 
-    @property
-    def Ax0_Core(self):
-        """ Fock response of underlying SCF object in MO basis. """
-        if self._Ax0_Core is NotImplemented:
-            self._Ax0_Core = self.scf_resp.Ax0_Core
-        return self._Ax0_Core
-
-    @Ax0_Core.setter
-    def Ax0_Core(self, Ax0_Core):
-        self._Ax0_Core = Ax0_Core
-
     # in response instance, we first transfer all child instances into response
     def to_scf(self, *args, **kwargs):
         mf_resp = super().to_scf(*args, **kwargs).to_resp(key=self.resp_type)

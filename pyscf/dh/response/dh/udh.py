@@ -10,6 +10,10 @@ from pyscf.dh.response.dh.rdh import RDHResp
 
 class UDHResp(UDH, RDHResp):
 
+    @property
+    def resp_type(self):
+        return "resp"
+
     def make_lag_vo(self):
 
         if "lag_vo" in self.tensors:
@@ -51,3 +55,9 @@ class UDHResp(UDH, RDHResp):
         if ao_repr:
             rdm1_resp = np.array([self.mo_coeff[σ] @ rdm1_resp[σ] @ self.mo_coeff[σ].T for σ in (α, β)])
         return rdm1_resp
+
+    to_scf = RDHResp.to_scf
+    to_mp2 = RDHResp.to_mp2
+    to_iepa = RDHResp.to_iepa
+    to_ring_ccd = RDHResp.to_ring_ccd
+    update_inherited = RDHResp.update_inherited

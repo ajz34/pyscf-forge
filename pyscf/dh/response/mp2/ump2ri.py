@@ -347,6 +347,9 @@ class UMP2RespRI(UMP2RI, RMP2RespRI):
             rdm1_resp = np.array([self.mo_coeff[σ] @ rdm1_resp[σ] @ self.mo_coeff[σ].T for σ in (α, β)])
         return rdm1_resp
 
+    driver_eng_mp2 = RMP2RespRI.driver_eng_mp2
+    kernel = driver_eng_mp2
+
     get_mp2_integrals = staticmethod(get_mp2_integrals)
     get_W_I = staticmethod(get_W_I)
     get_lag_vo = staticmethod(get_lag_vo)

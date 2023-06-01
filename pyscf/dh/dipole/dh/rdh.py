@@ -66,6 +66,9 @@ class RDHPolar(RDHResp, PolarBase):
         super().__init__(*args, **kwargs)
         self.deriv_dipole = RDHDipole.from_cls(self, self.scf, xc=self.xc, copy_all=True)
 
+    def kernel(self, *_args, **_kwargs):
+        return self.make_polar()
+
 
 if __name__ == '__main__':
     pass
