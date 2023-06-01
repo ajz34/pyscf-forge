@@ -41,7 +41,7 @@ class RDHResp(RDH, RespBase):
 
         # if energy not evaluated, then evaluate energy first
         if len(self.inherited) == 0:
-            self.kernel()
+            self.driver_energy_dh(xc=self.xc.xc_eng, force_evaluate=self.flags.get("force_evaluate", False))
 
         # for energy evaluation, instance of low_rung may not be generated.
         if len(self.inherited["low_rung"][1]) == 0:

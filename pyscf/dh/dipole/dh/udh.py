@@ -55,6 +55,10 @@ class UDHPolar(UDHResp, PolarBase):
         super().__init__(*args, **kwargs)
         self.deriv_dipole = UDHDipole.from_cls(self, self.scf, xc=self.xc, copy_all=True)
 
+    def kernel(self, *_args, **_kwargs):
+        self.build()
+        return self.make_polar()
+
 
 if __name__ == '__main__':
     def main_1():
@@ -64,7 +68,7 @@ if __name__ == '__main__':
         np.set_printoptions(10, suppress=True, linewidth=150)
 
         mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G", charge=1, spin=1, verbose=0).build()
-        mf = UDHPolar(mol, xc=("B3LYPg", "PBE0")).run()
+        mf = UDHPolar(mol, xc="RS-PBE-P86").run()
         print(mf.de)
 
         # REF = np.array(
@@ -74,28 +78,21 @@ if __name__ == '__main__':
         # self.assertTrue(np.allclose(mf.de, REF, atol=1e-6, rtol=1e-4))
 
 
-        # # generation of numerical result
-        #
-        # def dipole_with_dipole_field(t, h):
-        #     mf_resp = UDHDipole(mol, xc=("B3LYPg", "PBE0")).build_scf()
-        #     mf_resp.scf.get_hcore = lambda *args, **kwargs: scf.hf.get_hcore(mol) - h * mol.intor("int1e_r")[t]
-        #     return mf_resp.make_dipole()
-        #
-        # dip_array = np.zeros((2, 3, 3))
-        # h = 1e-4
-        # for idx, h in [(0, h), [1, -h]]:
-        #     for t in (0, 1, 2):
-        #         dip_array[idx, t] = dipole_with_dipole_field(t, h)
-        # pol_num = (dip_array[0] - dip_array[1]) / (2 * h)
-        # print(pol_num)
-        # print(mf.de - pol_num)
+        # generation of numerical result
 
-        mf_scf = dft.UKS(mol, xc="B3LYPg").density_fit().run()
-        mf_hdft = UHDFTPolar(mf_scf, xc="PBE0").run()
-        print(mf_hdft.de)
-        print(mf_hdft.de - mf.de)
+        def dipole_with_dipole_field(t, h):
+            mf_resp = UDHDipole(mol, xc="RS-PBE-P86").build_scf()
+            mf_resp.scf.get_hcore = lambda *args, **kwargs: scf.hf.get_hcore(mol) - h * mol.intor("int1e_r")[t]
+            return mf_resp.make_dipole()
 
-        # self.assertTrue(np.allclose(mf.de, pol_num, atol=1e-6, rtol=1e-4))
+        dip_array = np.zeros((2, 3, 3))
+        h = 3e-4
+        for idx, h in [(0, h), [1, -h]]:
+            for t in (0, 1, 2):
+                dip_array[idx, t] = dipole_with_dipole_field(t, h)
+        pol_num = (dip_array[0] - dip_array[1]) / (2 * h)
+        print(pol_num)
+        print(mf.de - pol_num)
 
     main_1()
 
