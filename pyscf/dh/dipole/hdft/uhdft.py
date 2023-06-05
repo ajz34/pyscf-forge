@@ -113,7 +113,7 @@ class USCFDipole(USCFResp, RSCFDipole):
     get_pd_fock_mo = staticmethod(get_pd_fock_mo)
 
 
-class UHDFTDipole(UHDFTResp, DipoleBase):
+class UHDFTDipole(DipoleBase, UHDFTResp):
 
     def make_pd_fock_mo(self):
         if self.pad_prop("pd_fock_mo") in self.tensors:
@@ -183,7 +183,7 @@ class USCFPolar(USCFResp):
     kernel = make_polar
 
 
-class UHDFTPolar(UHDFTResp, PolarBase):
+class UHDFTPolar(PolarBase, UHDFTResp):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.deriv_dipole = UHDFTDipole.from_cls(self, self.scf, copy_all=True)

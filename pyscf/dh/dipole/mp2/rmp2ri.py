@@ -262,7 +262,7 @@ class RMP2DipoleRI(DipoleBase, RMP2RespRI):
     get_SCR3 = staticmethod(get_SCR3)
 
 
-class RMP2PolarRI(RMP2RespRI, PolarBase):
+class RMP2PolarRI(PolarBase, RMP2RespRI):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, *kwargs)
         self.deriv_dipole = RMP2DipoleRI.from_cls(self, self.scf, copy_all=True)

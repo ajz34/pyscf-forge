@@ -171,7 +171,7 @@ class UMP2DipoleRI(UMP2RespRI, RMP2DipoleRI):
     get_SCR3 = staticmethod(get_SCR3)
 
 
-class UMP2PolarRI(UMP2RespRI, PolarBase):
+class UMP2PolarRI(PolarBase, UMP2RespRI):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, *kwargs)
         self.deriv_dipole = UMP2DipoleRI.from_cls(self, self.scf, copy_all=True)

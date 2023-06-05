@@ -177,7 +177,7 @@ class RSCFPolar(RSCFResp):
     kernel = make_polar
 
 
-class RHDFTPolar(RHDFTResp, PolarBase):
+class RHDFTPolar(PolarBase, RHDFTResp):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.deriv_dipole = RHDFTDipole.from_cls(self, self.scf, copy_all=True)

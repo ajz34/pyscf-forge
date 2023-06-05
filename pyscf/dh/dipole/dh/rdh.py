@@ -5,7 +5,7 @@ from pyscf.dh.energy.dh import RDH
 from pyscf.dh.response.dh.rdh import RDHResp
 
 
-class RDHDipole(RDHResp, DipoleBase):
+class RDHDipole(DipoleBase, RDHResp):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

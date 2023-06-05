@@ -50,7 +50,7 @@ class UDHDipole(UDHResp, RDHDipole):
         return pd_rdm1_corr
 
 
-class UDHPolar(UDHResp, PolarBase):
+class UDHPolar(PolarBase, UDHResp):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.deriv_dipole = UDHDipole.from_cls(self, self.scf, xc=self.xc, copy_all=True)
