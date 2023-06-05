@@ -195,9 +195,8 @@ def get_Ax0_Core_resp(
         A function where input is :math:`X_{rs}^\mathbb{A}`, and output is
         :math:`\sum_{rs} A_{pq, rs} X_{rs}^\mathbb{A}`.
     """
-    C = mo_coeff
-
     def Ax0_Core_resp_inner(X):
+        C = mo_coeff
         log = lib.logger.new_logger(verbose=verbose)
         time0 = lib.logger.process_clock(), lib.logger.perf_counter()
 
@@ -389,7 +388,7 @@ class RSCFResp(RSCF, RespBase):
             max_memory=self.max_memory,
             h5file=self._tmpfile,
             name="eri_cpks_vovo",
-            chunk=(1, nocc, nvir, nocc))
+            chunks=(1, nocc, nvir, nocc))
 
         self.get_eri_cpks_vovo(
             cderi_uaa=cderi_uaa,

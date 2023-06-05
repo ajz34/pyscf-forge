@@ -76,7 +76,7 @@ def get_mp2_integrals(
         mem_avail = max_memory - lib.current_memory()[0]
         t_oovv.append(util.allocate_array(
             incore_t_oovv, (nocc_act[σ], nocc_act[ς], nvir_act[σ], nvir_act[ς]), mem_avail,
-            h5file=h5file, name=f"t_oovv_{σς}", zero_init=False, chunk=(1, 1, nvir_act[σ], nvir_act[ς])))
+            h5file=h5file, name=f"t_oovv_{σς}", zero_init=False, chunks=(1, 1, nvir_act[σ], nvir_act[ς])))
     eng_spin = np.array([0, 0, 0], dtype=float)
 
     # for async write t_oovv

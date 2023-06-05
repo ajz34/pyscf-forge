@@ -6,7 +6,7 @@ from pyscf.dh import RHDFT, UHDFT
 from pyscf.dh.response import RespBase
 
 
-class RDHResp(RDH, RespBase):
+class RDHResp(RespBase, RDH):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

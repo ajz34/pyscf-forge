@@ -298,7 +298,7 @@ class USCFResp(USCF, RSCFResp):
                 max_memory=self.max_memory,
                 h5file=self._tmpfile,
                 name="eri_cpks_vovo",
-                chunk=(1, nocc[σ], nvir[ς], nocc[ς])))
+                chunks=(1, nocc[σ], nvir[ς], nocc[ς])))
 
         self.get_eri_cpks_vovo(
             cderi_uaa=cderi_uaa,

@@ -179,6 +179,7 @@ class PolarBase(RespBase, ABC):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        _scf_resp = self.scf_resp  # generate scf_resp, then pass into deriv_dipole
         self.deriv_dipole = NotImplemented  # type: DipoleBase
 
     def make_polar_restricted(self):

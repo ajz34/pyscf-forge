@@ -93,7 +93,7 @@ def get_mp2_integrals(
     G_uov = np.zeros((naux, nocc_act, nvir_act))
     t_oovv = util.allocate_array(
         incore_t_oovv, (nocc_act, nocc_act, nvir_act, nvir_act), max_memory,
-        h5file=h5file, name="t_oovv", zero_init=False, chunk=(1, 1, nvir_act, nvir_act))
+        h5file=h5file, name="t_oovv", zero_init=False, chunks=(1, 1, nvir_act, nvir_act))
     eng_bi1 = eng_bi2 = 0
 
     # for async write t_oovv

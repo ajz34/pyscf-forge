@@ -61,7 +61,7 @@ class RDHDipole(RDHResp, DipoleBase):
         return pd_rdm1_corr
 
 
-class RDHPolar(RDHResp, PolarBase):
+class RDHPolar(PolarBase, RDHResp):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.deriv_dipole = RDHDipole.from_cls(self, self.scf, xc=self.xc, copy_all=True)
