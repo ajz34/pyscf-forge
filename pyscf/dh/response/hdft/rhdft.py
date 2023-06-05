@@ -241,7 +241,7 @@ class RSCFResp(RSCF, RespBase):
         self.incore_eri_cpks_vovo = CONFIG_incore_eri_cpks_vovo
         self.use_eri_cpks = CONFIG_use_eri_cpks
 
-        grid_level_cpks = max(CONFIG_dft_gen_grid_Grids_level - 1, 1)
+        grid_level_cpks = max(CONFIG_dft_gen_grid_Grids_level - 2, 1)
         self.grids_cpks = dft.Grids(self.mol)
         self.grids_cpks.level = grid_level_cpks
         self.grids_cpks.build()
