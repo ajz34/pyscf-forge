@@ -5,6 +5,7 @@ from pyscf.dh import util
 from pyscf import lib, ao2mo, __config__, df
 import numpy as np
 from scipy.special import erfc
+from abc import ABC
 import warnings
 
 from pyscf.dh.util import pad_omega
@@ -15,7 +16,7 @@ CONFIG_iepa_schemes = getattr(__config__, "iepa_schemes", ["MP2", "IEPA", "sIEPA
 CONFIG_etb_first = getattr(__config__, "etb_first", False)
 
 
-class IEPABase(EngBase):
+class IEPABase(EngBase, ABC):
     """ Restricted IEPA-like base class. """
 
     def __init__(self, mf, frozen=None, omega=0, with_df=None, **kwargs):
@@ -336,6 +337,10 @@ def get_rmp2cr2_norm(n2_aa, n2_ab):
 class RIEPAConv(IEPABase):
     """ Restricted IEPA-like class of doubly hybrid with conventional integral. """
 
+    @property
+    def restricted(self):
+        return True
+
     def driver_eng_iepa(self, **_kwargs):
         mask = self.get_frozen_mask()
         mask_occ = mask & (self.mo_occ != 0)
@@ -379,6 +384,10 @@ class RIEPAConv(IEPABase):
 
 class RIEPARI(IEPABase):
     """ Restricted IEPA-like class of doubly hybrid with RI integral. """
+
+    @property
+    def restricted(self):
+        return True
 
     def driver_eng_iepa(self, **_kwargs):
         mask = self.get_frozen_mask()

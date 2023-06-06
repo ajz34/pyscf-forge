@@ -32,6 +32,7 @@ from pyscf.dh import util
 from pyscf.dh.util import pad_omega
 from pyscf import ao2mo, lib, mp, __config__, df
 import numpy as np
+from abc import ABC
 
 CONFIG_incore_t_oovv_mp2 = getattr(__config__, 'incore_t_oovv_mp2', None)
 """ Flag for MP2 amplitude tensor :math:`t_{ij}^{ab}` stored in memory or disk.
@@ -53,7 +54,7 @@ None
 CONFIG_etb_first = getattr(__config__, "etb_first", False)
 
 
-class MP2Base(EngBase):
+class MP2Base(EngBase, ABC):
     """ Restricted MP2 base class. """
 
     def __init__(self, mf, frozen=None, omega=0, with_df=None, **kwargs):
@@ -80,6 +81,10 @@ class RMP2ConvPySCF(mp.mp2.RMP2, EngBase):
         EngBase.__init__(self, mf)
         super().__init__(mf, *args, **kwargs)
 
+    @property
+    def restricted(self):
+        return True
+
     def get_frozen_mask(self):  # type: () -> np.ndarray
         return EngBase.get_frozen_mask(self)
 
@@ -99,6 +104,9 @@ class RMP2ConvPySCF(mp.mp2.RMP2, EngBase):
 
 class RMP2RIPySCF(mp.dfmp2.DFMP2, EngBase):
     """ Restricted MP2 class of doubly hybrid with RI integral evaluated by PySCF. """
+
+    def restricted(self):
+        return True
 
     def nuc_grad_method(self):
         raise NotImplementedError
@@ -219,6 +227,10 @@ def kernel_energy_rmp2_conv_full_incore(
 
 class RMP2Conv(MP2Base):
     """ Restricted MP2 class of doubly hybrid with conventional integral. """
+
+    @property
+    def restricted(self):
+        return True
 
     def driver_eng_mp2(self, **kwargs):
         mask = self.get_frozen_mask()
@@ -353,6 +365,10 @@ class RMP2RI(MP2Base):
         super().__init__(mf, frozen=frozen, omega=omega, with_df=with_df, **kwargs)
         self.with_df_2 = None
 
+    @property
+    def restricted(self):
+        return True
+
     def driver_eng_mp2(self, **kwargs):
         mask = self.get_frozen_mask()
         nocc_act = (mask & (self.mo_occ != 0)).sum()
@@ -401,9 +417,12 @@ class RMP2RI(MP2Base):
         self.results.update(results)
         return results
 
-    def to_resp(self):
+    def to_resp(self, key):
         from pyscf.dh.response.mp2.rmp2ri import RMP2RespRI
-        return RMP2RespRI.from_cls(self, self.scf, copy_all=True)
+        resp_dict = {
+            "resp": RMP2RespRI,
+        }
+        return resp_dict[key].from_cls(self, self.scf, copy_all=True)
 
     kernel_energy_mp2 = staticmethod(kernel_energy_rmp2_ri_incore)
     kernel = driver_eng_mp2

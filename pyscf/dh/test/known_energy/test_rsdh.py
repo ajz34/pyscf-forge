@@ -11,7 +11,7 @@ Comparison value from
 class TestRSDH(unittest.TestCase):
     def test_RS_PBE_P86(self):
         # reference: MRCC
-        # test case: MINP_H2O_cc-pVTZ_RKS_B2PLYP
+        # test case: MINP_H2O_aug-cc-pVDZ_RS-PBE-P86
         REF_ESCF = -76.219885498301
         REF_ETOT = -76.315858865489
 
@@ -20,6 +20,21 @@ class TestRSDH(unittest.TestCase):
         H     0.00000000    1.43266384    0.99210317
         H     0.00000000   -1.43266384    0.99210317
         """, basis="aug-cc-pVDZ", unit="AU").build()
+        mf = dh.DH(mol, xc="RS-PBE-P86").run(frozen="FreezeNobleGasCore")
+        self.assertAlmostEqual(mf._scf.e_tot, REF_ESCF, places=5)
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
+    def test_RS_PBE_P86_unrestricted(self):
+        # reference: MRCC
+        # test case: MINP_H2O_cc-pVTZ_RKS_B2PLYP
+        REF_ESCF = -55.696693317025
+        REF_ETOT = -55.767337206897
+
+        mol = gto.Mole(atom="""
+        N     0.00000000    0.00000000   -0.12502304
+        H     0.00000000    1.43266384    0.99210317
+        H     0.00000000   -1.43266384    0.99210317
+        """, basis="aug-cc-pVDZ", unit="AU", spin=1).build()
         mf = dh.DH(mol, xc="RS-PBE-P86").run(frozen="FreezeNobleGasCore")
         self.assertAlmostEqual(mf._scf.e_tot, REF_ESCF, places=5)
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)

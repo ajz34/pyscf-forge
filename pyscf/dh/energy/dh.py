@@ -475,12 +475,17 @@ class DH(EngBase):
 
     @property
     def restricted(self):
-        return isinstance(self.scf, scf.rhf.RHF)
+        if hasattr(self, "_scf") and self.scf is not NotImplemented:
+            return isinstance(self.scf, scf.rhf.RHF)
+        return NotImplemented
 
     def __init__(self, mf_or_mol, xc, flags=None, **kwargs):
         # cheat to generate someting by __init__ from base class
         mol = mf_or_mol if isinstance(mf_or_mol, gto.Mole) else mf_or_mol.mol
-        super().__init__(scf.HF(mol))
+        restricted = self.restricted
+        if restricted is NotImplemented:
+            restricted = (mol.spin == 0)
+        super().__init__(scf.RHF(mol) if restricted else scf.UHF(mol))
         self.inherited = dict()  # type: dict[str, tuple[XCList, list[EngBase]]]
         self.xc = NotImplemented  # type: XCDH
         self.log = NotImplemented  # type: lib.logger.Logger
@@ -714,8 +719,16 @@ class DH(EngBase):
         return mf
 
 
-RDH = DH
-UDH = DH  # currently workflow of unrestricted is exactly the same to restricted
+class RDH(DH):
+    @property
+    def restricted(self):
+        return True
+
+
+class UDH(DH):
+    @property
+    def restricted(self):
+        return False
 
 
 if __name__ == '__main__':

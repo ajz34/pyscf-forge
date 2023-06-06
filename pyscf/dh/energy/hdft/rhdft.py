@@ -281,23 +281,22 @@ def numint_customized(xc, _mol=None):
             raise ValueError("Some type of xc is not available!")
 
     def array_add_with_diff_rows(mat1, mat2):
-        assert len(mat1.shape) == len(mat2.shape)
-        assert mat1.shape[-1] == mat2.shape[-1]
-        if len(mat1) < len(mat2):
+        assert mat1.ndim == mat2.ndim
+        assert mat1.shape[-1] == mat2.shape[-1], "Last dimension must be DFT grid and should be same."
+
+        # determine which matrix is larger
+        larger_arr = np.array(mat1.shape) > np.array(mat2.shape)
+        if np.all(larger_arr):
+            larger = True
+        elif np.all(~larger_arr):
+            larger = False
+        else:
+            assert False, "One array must be larger in all dimensions compared to another array."
+        if not larger:
             mat1, mat2 = mat2, mat1
 
-        if mat1.ndim == 1:
-            mat1 += mat2
-        elif mat1.ndim == 2:
-            mat1[:mat2.shape[0]] += mat2
-        elif mat1.ndim == 3:
-            mat1[:mat2.shape[0], :mat2.shape[1]] += mat2
-        elif mat1.ndim == 4:
-            mat1[:mat2.shape[0], :mat2.shape[1], :mat2.shape[2]] += mat2
-        elif mat1.ndim == 5:
-            mat1[:mat2.shape[0], :mat2.shape[1], :mat2.shape[2], :mat2.shape[3]] += mat2
-        else:
-            raise NotImplementedError
+        # perform addition
+        mat1[np.ix_(*[np.arange(0, mat2.shape[idx]) for idx in range(mat2.ndim)])] += mat2
         return mat1
 
     def eval_xc_eff(*args, **kwargs):
@@ -392,7 +391,80 @@ def custom_mf(mf, xc, auxbasis_or_with_df=None):
     return mf
 
 
-class RHDFT(EngBase):
+class RSCF(EngBase):
+    """ Restricted SCF hybrid (low-rung) DFT wrapper class of convenience.
+
+    Notes
+    -----
+    This class is an extension to original PySCF's RKS/UKS.
+
+    - Only for further usage of response properties.
+
+    Warnings
+    --------
+    This class may change the underlying SCF object.
+    It's better to initialize this object first, before actually running SCF iterations.
+    """
+
+    def __init__(self, mf):
+        super().__init__(mf)
+        if not hasattr(mf, "xc"):
+            self.xc = "HF"
+        else:
+            self.xc = mf.xc
+        xc_scf = XCList(self.xc, code_scf=True)
+        xc_eng = XCList(self.xc, code_scf=False)
+        if xc_scf != xc_eng:
+            raise ValueError("Given energy functional contains part that could not handle with SCF!")
+        self.xc = xc_scf
+
+    @cached_property
+    def restricted(self):
+        return True
+
+    @cached_property
+    def e_tot(self) -> float:
+        return self.scf.e_tot
+
+    def make_energy_purexc(self, xc_lists, numint=None, dm=None):
+        """ Evaluate energy contributions of pure (DFT) exchange-correlation effects.
+
+        Parameters
+        ----------
+        xc_lists : str or XCInfo or XCList or list[str or XCInfo or XCList]
+            List of xc codes.
+        numint : dft.numint.NumInt
+            Special numint item if required.
+        dm : np.ndarray
+            Density matrix in AO basis.
+
+        See Also
+        --------
+        get_energy_purexc
+        """
+        grids = self.hdft.grids
+        if dm is None:
+            dm = self.hdft.make_rdm1()
+        dm = np.asarray(dm)
+        if (self.restricted and dm.ndim != 2) or (not self.restricted and (dm.ndim != 3 or dm.shape[0] != 2)):
+            raise ValueError("Dimension of input density matrix is not correct.")
+        rho = self.get_rho(self.mol, grids, dm)
+        return self.get_energy_purexc(
+            xc_lists, rho, grids.weights, self.restricted, numint=numint)
+
+    def kernel(self, *args, **kwargs):
+        if not self.scf.converged:
+            self.scf.kernel(*args, **kwargs)
+        return self.e_tot
+
+    get_energy_exactx = staticmethod(get_energy_restricted_exactx)
+    get_energy_noxc = staticmethod(get_energy_restricted_noxc)
+    get_energy_vv10 = staticmethod(get_energy_vv10)
+    get_energy_purexc = staticmethod(get_energy_purexc)
+    get_rho = staticmethod(get_rho)
+
+
+class RHDFT(RSCF):
     """ Restricted hybrid (low-rung) DFT wrapper class of convenience.
 
     Notes
@@ -428,53 +500,24 @@ class RHDFT(EngBase):
         self.hdft = custom_mf(mf, xc_scf)
 
     @cached_property
-    def restricted(self):
-        return isinstance(self.hdft, scf.rhf.RHF)
-
-    @cached_property
     def e_tot(self) -> float:
         return self.hdft.energy_tot()
-
-    def make_energy_purexc(self, xc_lists, numint=None, dm=None):
-        """ Evaluate energy contributions of pure (DFT) exchange-correlation effects.
-
-        Parameters
-        ----------
-        xc_lists : str or XCInfo or XCList or list[str or XCInfo or XCList]
-            List of xc codes.
-        numint : dft.numint.NumInt
-            Special numint item if required.
-        dm : np.ndarray
-            Density matrix in AO basis.
-
-        See Also
-        --------
-        get_energy_purexc
-        """
-        grids = self.hdft.grids
-        if dm is None:
-            dm = self.hdft.make_rdm1()
-        dm = np.asarray(dm)
-        if (self.restricted and dm.ndim != 2) or (not self.restricted and (dm.ndim != 3 or dm.shape[0] != 2)):
-            raise ValueError("Dimension of input density matrix is not correct.")
-        rho = self.get_rho(self.mol, grids, dm)
-        return self.get_energy_purexc(
-            xc_lists, rho, grids.weights, self.restricted, numint=numint)
 
     def kernel(self, *args, **kwargs):
         if not self.scf.converged:
             self.scf.kernel(*args, **kwargs)
+        if self.hdft.mo_coeff is None:
+            self.hdft.mo_coeff = self.scf.mo_coeff
+            self.hdft.mo_occ = self.scf.mo_occ
+            self.hdft.mo_energy = self.scf.mo_energy
         return self.e_tot
 
-    def to_resp(self):
+    def to_resp(self, key):
         from pyscf.dh.response.hdft.rhdft import RHDFTResp
-        return RHDFTResp.from_cls(self, self.scf, copy_all=True)
-
-    get_energy_exactx = staticmethod(get_energy_restricted_exactx)
-    get_energy_noxc = staticmethod(get_energy_restricted_noxc)
-    get_energy_vv10 = staticmethod(get_energy_vv10)
-    get_energy_purexc = staticmethod(get_energy_purexc)
-    get_rho = staticmethod(get_rho)
+        resp_dict = {
+            "resp": RHDFTResp,
+        }
+        return resp_dict[key].from_cls(self, self.scf, copy_all=True)
 
 
 if __name__ == '__main__':
