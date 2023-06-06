@@ -52,6 +52,9 @@ def get_mp2_integrals_deriv(
     log = lib.logger.new_logger(verbose=verbose)
     time0 = lib.logger.process_clock(), lib.logger.perf_counter()
 
+    eval_ss = t_oovv[αα] is not None
+    eval_os = t_oovv[αβ] is not None
+
     nprop, naux = pd_cderi_uov[0].shape[0:2]
     nocc = (mo_occ != 0).sum(axis=-1)
     nvir = (mo_occ == 0).sum(axis=-1)
@@ -64,6 +67,10 @@ def get_mp2_integrals_deriv(
     pd_rdm1_corr = np.zeros((2, nprop, nmo, nmo))
 
     for σς, σ, ς in (αα, α, α), (αβ, α, β), (ββ, β, β):
+
+        if (σ == ς and not eval_ss) or (σ != ς and not eval_os):
+            continue
+
         D_ovv = lib.direct_sum("j - a - b -> jab", mo_energy[ς][so[ς]], mo_energy[σ][sv[σ]], mo_energy[ς][sv[ς]])
         mem_avail = max_memory - lib.current_memory()[0]
         nbatch = util.calc_batch_size(4 * nprop * max(nocc) * max(nvir)**2, mem_avail)
