@@ -87,6 +87,7 @@ def get_Ax1_contrib_pure_dft_unrestricted(
     dm : np.ndarray
     dmU : np.ndarray
     dmR : np.ndarray
+    tol_rho_U : float
     max_memory : float
     verbose : int
 
