@@ -195,7 +195,7 @@ class RMP2DipoleRI(DipoleBase, RMP2RespRI):
             verbose=verbose,
             max_memory=max_memory)
 
-        self.tensors[self.pad_prop("cderi_uov")] = pd_cderi_uov
+        self.tensors[self.pad_prop("pd_cderi_uov")] = pd_cderi_uov
         return pd_cderi_uov
 
     def _make_mp2_integrals_deriv(self):
