@@ -39,26 +39,30 @@ class RDHResp(RespBase, RDH):
         if self._inherited_updated:
             return
 
+        inherited = self.inherited.copy()
+
         # if energy not evaluated, then evaluate energy first
-        if len(self.inherited) == 0:
+        if len(inherited) == 0:
             self.driver_energy_dh(xc=self.xc.xc_eng, force_evaluate=self.flags.get("force_evaluate", False))
+            inherited = self.inherited.copy()
 
         # for energy evaluation, instance of low_rung may not be generated.
-        if len(self.inherited["low_rung"][1]) == 0:
+        if len(inherited["low_rung"][1]) == 0:
             HDFT = RHDFT if self.restricted else UHDFT
-            instance = HDFT(self.scf, xc=self.inherited["low_rung"][0]).to_resp(resp_type)
+            instance = HDFT(self.scf, xc=inherited["low_rung"][0]).to_resp(resp_type)
             instance.scf_resp = self.scf_resp
-            self.inherited["low_rung"][1].append(instance)
+            inherited["low_rung"][1].append(instance)
 
         # transform instances to response functions
         # note that if Ax0_Core appears, then this object is already response, or have been inherited
-        for key in self.inherited:
-            for idx in range(len(self.inherited[key][1])):
-                instance = self.inherited[key][1][idx]
+        for key in inherited:
+            for idx in range(len(inherited[key][1])):
+                instance = inherited[key][1][idx]
                 instance = instance.to_resp(key=resp_type)
                 instance.scf_resp = self.scf_resp
-                self.inherited[key][1][idx] = instance
+                inherited[key][1][idx] = instance
 
+        self.inherited = inherited
         self._inherited_updated = True
 
     def make_lag_vo(self):
