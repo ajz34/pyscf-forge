@@ -21,16 +21,16 @@ from scipy import linalg
 
 from pyscf.lib import logger
 from pyscf.fci import direct_spin1
-from pyscf import mcpdft
+from pyscf import mcpdft, lib
 from pyscf.mcpdft import _dms
 from pyscf.mcscf.addons import StateAverageMCSCFSolver, \
     StateAverageMixFCISolver
 
 
 def weighted_average_densities(mc, ci=None, weights=None):
-    '''Compute the weighted average 1- and 2-electron CAS densities. 
+    '''Compute the weighted average 1- and 2-electron CAS densities.
     1-electron CAS is returned as spin-separated.
-    
+
     Args:
         mc : instance of class _PDFT
 
@@ -42,7 +42,7 @@ def weighted_average_densities(mc, ci=None, weights=None):
             calculation
 
     Returns:
-        A tuple, the first is casdm1s and the second is casdm2 where they are 
+        A tuple, the first is casdm1s and the second is casdm2 where they are
         weighted averages where the weights are given.
     '''
 
@@ -55,7 +55,7 @@ def get_lpdfthconst(mc, veff1_0, veff2_0, casdm1s_0, casdm2_0, mo_coeff=None,
 
     Args:
         mc : instance of class _PDFT
-        
+
         veff1_0 : ndarray with shape (nao, nao)
             1-body effective potential in the AO basis.
             Should not include classical Coulomb potential term.
@@ -66,7 +66,7 @@ def get_lpdfthconst(mc, veff1_0, veff2_0, casdm1s_0, casdm2_0, mo_coeff=None,
             Generated from expansion density.
 
         casdm1s_0 : ndarray of shape (2, ncas, ncas)
-            Spin-separated 1-RDM in the active space generated 
+            Spin-separated 1-RDM in the active space generated
             from expansion density.
 
         casdm2_0 : ndarray of shape (ncas, ncas, ncas, ncas)
@@ -195,7 +195,7 @@ def transformed_h1e_for_cas(mc, veff1_0, veff2_0, casdm1s_0, casdm2_0,
         core_dm = np.dot(mo_core, mo_core.conj().T) * 2
         # This is precomputed in MRH's ERIS object
         energy_core += veff2_0.energy_core
-        energy_core += np.einsum('ij,ji', core_dm, hcore_eff).real
+        energy_core += np.tensordot(core_dm, hcore_eff).real
 
     h1eff = reduce(np.dot, (mo_cas.conj().T, hcore_eff, mo_cas))
     # Add in the 2-electron portion that acts as a 1-electron operator
@@ -298,7 +298,8 @@ def make_lpdft_ham_(mc, mo_coeff=None, ci=None, ot=None):
         mc._irrep_slices.append(slice(start, end))
         start = end
 
-    return [construct_ham_slice(s, irrep, mc.fcisolver._get_nelec (s, mc.nelecas)) for s, irrep in zip(mc.fcisolver.fcisolvers, mc._irrep_slices)]
+    return [construct_ham_slice(s, irrep, mc.fcisolver._get_nelec (s, mc.nelecas))
+            for s, irrep in zip(mc.fcisolver.fcisolvers, mc._irrep_slices)]
 
 
 def kernel(mc, mo_coeff=None, ci0=None, ot=None, verbose=logger.NOTE):
