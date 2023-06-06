@@ -11,6 +11,7 @@ from abc import ABC, abstractmethod
 
 def get_Ax1_contrib_pure_dft_restricted(
         ni, mol, grids, xc, dm, dmU, dmR,
+        tol_rho_U=1e-8,
         max_memory=2000, verbose=lib.logger.NOTE):
     """ Evaluate contribution to property from Fock second-order response to MO coefficients.
 
@@ -23,6 +24,7 @@ def get_Ax1_contrib_pure_dft_restricted(
     dm : np.ndarray
     dmU : np.ndarray
     dmR : np.ndarray
+    tol_rho_U : float
     max_memory : float
     verbose : int
 
@@ -53,6 +55,7 @@ def get_Ax1_contrib_pure_dft_restricted(
         rho = ni.eval_rho(mol, ao, dm, xctype=xctype, with_lapl=False)
         rho_R = ni.eval_rho(mol, ao, dmR, xctype=xctype, with_lapl=False)
         rho_U = np.zeros(tuple([nprop] + list(rho.shape)))
+        rho_U[abs(rho_U) < tol_rho_U] = 0
         for idx in range(nprop):
             rho_U[idx] = ni.eval_rho(mol, ao, dmU[idx], xctype=xctype, with_lapl=False)
         _, _, _, kxc = ni.eval_xc_eff(xc, rho, deriv=3)
@@ -63,12 +66,15 @@ def get_Ax1_contrib_pure_dft_restricted(
             prop += 2 * lib.einsum("tsrg, Atg, Bsg, rg, g -> AB", kxc, rho_U, rho_U, rho_R, weights)
         idx_grid_start = idx_grid_stop
 
+    log.debug("Ax1_contrib_pure_dft of dipole")
+    log.debug(str(prop))
     log.timer("get_Ax1_contrib_pure_dft of dipole", *time0)
     return prop
 
 
 def get_Ax1_contrib_pure_dft_unrestricted(
         ni, mol, grids, xc, dm, dmU, dmR,
+        tol_rho_U=1e-8,
         max_memory=2000, verbose=lib.logger.NOTE):
     """ Evaluate contribution to property from Fock second-order response to MO coefficients.
 
@@ -114,6 +120,7 @@ def get_Ax1_contrib_pure_dft_unrestricted(
             for idx in range(nprop):
                 rho_U[σ][idx] = ni.eval_rho(mol, ao, dmU[σ][idx], xctype=xctype, with_lapl=False)
         rho, rho_R, rho_U = np.array(rho), np.array(rho_R), np.array(rho_U)
+        rho_U[abs(rho_U) < tol_rho_U] = 0
         _, _, _, kxc = ni.eval_xc_eff(xc, rho, deriv=3)
         if xctype == "LDA":
             kxc = kxc.reshape(2, 2, 2, -1)
@@ -122,6 +129,8 @@ def get_Ax1_contrib_pure_dft_unrestricted(
             # xyz for spin, tsr for kxc gradient components
             prop += 0.5 * lib.einsum("xtyszrg, xAtg, yBsg, zrg, g -> AB", kxc, rho_U, rho_U, rho_R, weights)
 
+    log.debug("Ax1_contrib_pure_dft of dipole")
+    log.debug(str(prop))
     log.timer("get_Ax1_contrib_pure_dft of dipole", *time0)
     return prop
 
