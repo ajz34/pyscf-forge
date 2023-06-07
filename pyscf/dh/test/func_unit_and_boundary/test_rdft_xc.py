@@ -3,7 +3,7 @@ from pyscf import gto, dh, dft, df
 
 
 class TestRDFTXC(unittest.TestCase):
-    def test_various_xc_combinations(self):
+    def test_various_xc_combinations_including_rsdh(self):
         # make sure some complicated xc code is able to be computed
         # note that the following code does not make sure result is correct
         mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
