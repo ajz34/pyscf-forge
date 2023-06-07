@@ -14,5 +14,5 @@ prune pyscf/lib/build
 recursive-include pyscf/lib *.c *.h CMakeLists.txt
 
 # dh functionals
-recursive-include pyscf/dh/util/xccode/correlations
-recursive-include pyscf/dh/util/xccode/functionals
+recursive-include pyscf/dh/util/xccode/correlations *.json
+recursive-include pyscf/dh/util/xccode/functionals *.json
