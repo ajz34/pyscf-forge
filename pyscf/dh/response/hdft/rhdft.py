@@ -511,11 +511,14 @@ class RSCFResp(RSCF, RespBase):
 
 class RHDFTResp(RHDFT, RSCFResp):
 
-    @cached_property
+    @property
     def vresp(self):
         """ Fock response function (derivative w.r.t. molecular coefficient in AO basis). """
+        if self._vresp is not NotImplemented:
+            return self._vresp
+
         try:
-            return self.hdft.gen_response()
+            vresp = self.hdft.gen_response()
         except ValueError:
             # case that have customized xc
             # should pass check of ni.libxc.test_deriv_order and ni.libxc.is_hybrid_xc
@@ -527,9 +530,10 @@ class RHDFTResp(RHDFT, RSCFResp):
                 fake_xc = "PBE"
             actual_xc = self.hdft.xc
             self.hdft.xc = fake_xc
-            resp = self.hdft.gen_response()
+            vresp = self.hdft.gen_response()
             self.hdft.xc = actual_xc
-            return resp
+        self._vresp = vresp
+        return self._vresp
 
     def make_lag_vo(self):
         r""" Generate hybrid DFT contribution to Lagrangian vir-occ block :math:`L_{ai}`. """
