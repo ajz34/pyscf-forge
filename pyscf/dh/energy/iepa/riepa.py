@@ -37,12 +37,12 @@ class IEPABase(EngBase, ABC):
         self.set(**kwargs)
 
 
-def kernel_energy_riepa(
-    mo_energy, gen_g_IJab, mo_occ, iepa_schemes,
-    screen_func=erfc,
-    tol=1e-10, max_cycle=64,
-    tensors=None,
-    verbose=lib.logger.NOTE):
+def kernel_energy_riepa(mo_energy, gen_g_IJab, mo_occ, iepa_schemes,
+                        screen_func=erfc,
+                        tol=1e-10, max_cycle=64,
+                        tensors=None,
+                        verbose=lib.logger.NOTE):
+
     """ Kernel of restricted IEPA-like methods.
 
     Parameters

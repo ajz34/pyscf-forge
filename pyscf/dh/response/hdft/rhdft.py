@@ -7,7 +7,6 @@ from pyscf.dh.response import RespBase
 from pyscf.scf import _response_functions  # this import is not unnecessary
 from pyscf.dh.energy.hdft.rhdft import get_rho, RSCF
 import numpy as np
-from functools import cached_property
 
 
 CONFIG_dh_verbose = getattr(__config__, "dh_verbose", lib.logger.NOTE)
@@ -245,12 +244,16 @@ class RSCFResp(RSCF, RespBase):
         self.grids_cpks = dft.Grids(self.mol)
         self.grids_cpks.level = grid_level_cpks
         self.grids_cpks.build()
+        self._vresp = NotImplemented
 
-    @cached_property
+    @property
     def vresp(self):
         """ Fock response function (derivative w.r.t. molecular coefficient in AO basis). """
+        if self._vresp is not NotImplemented:
+            return self._vresp
+
         try:
-            return self.scf.gen_response()
+            vresp = self.scf.gen_response()
         except ValueError:
             # case that have customized xc
             # should pass check of ni.libxc.test_deriv_order and ni.libxc.is_hybrid_xc
@@ -262,9 +265,10 @@ class RSCFResp(RSCF, RespBase):
                 fake_xc = "PBE"
             actual_xc = self.scf.xc
             self.scf.xc = fake_xc
-            resp = self.scf.gen_response()
+            vresp = self.scf.gen_response()
             self.scf.xc = actual_xc
-            return resp
+        self._vresp = vresp
+        return self._vresp
 
     def make_cderi_uaa(self, omega=0):
         """ Generate cholesky decomposed ERI (all block, full orbitals, s1 symm, in memory/disk). """

@@ -1,5 +1,3 @@
-from functools import cached_property
-
 from pyscf.dh import util
 from pyscf.dh.util import XCList, XCType, XCInfo
 from pyscf.dh.energy import EngBase
@@ -420,11 +418,11 @@ class RSCF(EngBase):
             raise ValueError("Given energy functional contains part that could not handle with SCF!")
         self.xc = xc_scf
 
-    @cached_property
+    @property
     def restricted(self):
         return True
 
-    @cached_property
+    @property
     def e_tot(self) -> float:
         return self.scf.e_tot
 
@@ -510,9 +508,14 @@ class RHDFT(RSCF):
 
         self.hdft = custom_mf(mf, xc_scf)
 
-    @cached_property
+    @property
     def e_tot(self) -> float:
-        return self.hdft.energy_tot()
+        key = f"eng_tot_{self.xc.token}"
+        if key in self.results:
+            return self.results[key]
+
+        self.results[key] = self.hdft.energy_tot()
+        return self.results[key]
 
     def kernel(self, *args, **kwargs):
         if not self.scf.converged:

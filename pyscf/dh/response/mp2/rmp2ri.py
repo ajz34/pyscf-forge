@@ -251,7 +251,7 @@ def get_lag_vo(
 
 
 class RMP2RespRI(RMP2RI, RespBase):
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.frozen not in (None, [], 0):

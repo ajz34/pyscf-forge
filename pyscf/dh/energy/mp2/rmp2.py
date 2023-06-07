@@ -410,7 +410,7 @@ class RMP2RI(MP2Base):
             max_memory=max_memory,
             cderi_uov_2=cderi_uov_2,
             **kwargs)
-        
+
         self.e_corr = results["eng_corr_MP2"]
         # pad omega
         results = {pad_omega(key, self.omega): val for (key, val) in results.items()}
