@@ -44,7 +44,7 @@ class XCInfo:
     """ Type of xc contribution. """
     additional: dict
     """ (experimental) Additional parameters.
-    
+
     Parameters that is not sutiable to be passed as string token, or very advanced parameters.
     """
 
