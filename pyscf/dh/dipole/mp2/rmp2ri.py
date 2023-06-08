@@ -252,7 +252,7 @@ class RMP2DipoleRI(DipoleBase, RMP2RespRI):
             cderi_uaa, G_uov, pd_G_uov, U_1,
             mo_occ,
             verbose=lib.logger.NOTE,
-            max_memory=2000)
+            max_memory=self.max_memory)
 
         self.tensors[self.pad_prop("SCR3")] = SCR3
         return SCR3
