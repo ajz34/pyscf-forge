@@ -442,9 +442,9 @@ class RSCF(EngBase):
         --------
         get_energy_purexc
         """
-        grids = self.hdft.grids
+        grids = self.scf.grids
         if dm is None:
-            dm = self.hdft.make_rdm1()
+            dm = self.scf.make_rdm1()
         dm = np.asarray(dm)
         if (self.restricted and dm.ndim != 2) or (not self.restricted and (dm.ndim != 3 or dm.shape[0] != 2)):
             raise ValueError("Dimension of input density matrix is not correct.")
