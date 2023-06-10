@@ -718,6 +718,8 @@ class DH(EngBase):
 
         return mf
 
+    driver_energy_dh = driver_energy_dh
+
 
 class RDH(DH):
     @property

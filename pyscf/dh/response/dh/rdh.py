@@ -2,42 +2,29 @@
 import numpy as np
 
 from pyscf.dh.energy.dh import RDH
+from pyscf.dh import RHDFT, UHDFT
 from pyscf.dh.response import RespBase
-from pyscf.dh.response.hdft.rhdft import RHDFTResp
-from pyscf.dh.response.hdft.uhdft import UHDFTResp
 
 
-class RDHResp(RDH, RespBase):
+class RDHResp(RespBase, RDH):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # generate response instance for SCF (to obtain Ax0_Core)
-        HDFTResp = RHDFTResp if self.restricted else UHDFTResp
-        self.scf_resp = HDFTResp(self.scf)
         self._inherited_updated = False
-
+        
     @property
-    def Ax0_Core(self):
-        """ Fock response of underlying SCF object in MO basis. """
-        if self._Ax0_Core is NotImplemented:
-            self._Ax0_Core = self.scf_resp.Ax0_Core
-        return self._Ax0_Core
-
-    @Ax0_Core.setter
-    def Ax0_Core(self, Ax0_Core):
-        self._Ax0_Core = Ax0_Core
+    def resp_type(self):
+        return "resp"
 
     # in response instance, we first transfer all child instances into response
     def to_scf(self, *args, **kwargs):
-        mf_resp = super().to_scf(*args, **kwargs).to_resp(key="resp")
-        mf_resp.Ax0_Core = self.scf_resp.Ax0_Core
+        mf_resp = super().to_scf(*args, **kwargs).to_resp(key=self.resp_type)
         return mf_resp
 
     def to_mp2(self, *args, **kwargs):
         assert len(args) == 0
-        mf_resp = super().to_mp2(**kwargs).to_resp(key="resp")
-        mf_resp.Ax0_Core = self.scf_resp.Ax0_Core
+        mf_resp = super().to_mp2(**kwargs).to_resp(key=self.resp_type)
         return mf_resp
 
     def to_iepa(self, *args, **kwargs):
@@ -46,37 +33,43 @@ class RDHResp(RDH, RespBase):
     def to_ring_ccd(self, *args, **kwargs):
         raise NotImplementedError("Not implemented for response functions.")
 
-    def update_inherited(self):
+    def update_inherited(self, resp_type):
         """ Update inherited attribute, to transfer all child method instances to response. """
 
         if self._inherited_updated:
             return
 
+        inherited = self.inherited.copy()
+
         # if energy not evaluated, then evaluate energy first
-        if len(self.inherited) == 0:
-            self.kernel()
+        if len(inherited) == 0:
+            self.driver_energy_dh(xc=self.xc.xc_eng, force_evaluate=self.flags.get("force_evaluate", False))
+            inherited = self.inherited.copy()
 
         # for energy evaluation, instance of low_rung may not be generated.
-        if len(self.inherited["low_rung"][1]) == 0:
-            HDFTResp = RHDFTResp if self.restricted else UHDFTResp
-            self.inherited["low_rung"][1].append(HDFTResp(self.scf, xc=self.inherited["low_rung"][0]))
+        if len(inherited["low_rung"][1]) == 0:
+            HDFT = RHDFT if self.restricted else UHDFT
+            instance = HDFT(self.scf, xc=inherited["low_rung"][0]).to_resp(resp_type)
+            instance.scf_resp = self.scf_resp
+            inherited["low_rung"][1].append(instance)
 
         # transform instances to response functions
         # note that if Ax0_Core appears, then this object is already response, or have been inherited
-        for key in self.inherited:
-            for idx in range(len(self.inherited[key][1])):
-                instance = self.inherited[key][1][idx]
-                if not hasattr(instance, "Ax0_Core"):
-                    instance = instance.to_resp(key="resp")
-                    self.inherited[key][1][idx] = instance
+        for key in inherited:
+            for idx in range(len(inherited[key][1])):
+                instance = inherited[key][1][idx]
+                instance = instance.to_resp(key=resp_type)
+                instance.scf_resp = self.scf_resp
+                inherited[key][1][idx] = instance
 
+        self.inherited = inherited
         self._inherited_updated = True
 
     def make_lag_vo(self):
         if "lag_vo" in self.tensors:
             return self.tensors["lag_vo"]
 
-        self.update_inherited()
+        self.update_inherited(self.resp_type)
 
         nocc, nvir, nmo = self.nocc, self.nvir, self.nmo
         lag_vo = np.zeros((nvir, nocc))
@@ -91,7 +84,7 @@ class RDHResp(RDH, RespBase):
         if "rdm1_resp" in self.tensors:
             return self.tensors["rdm1_resp"]
 
-        self.update_inherited()
+        self.update_inherited(self.resp_type)
 
         rdm1_resp = np.diag(self.mo_occ)
         for key in self.inherited:

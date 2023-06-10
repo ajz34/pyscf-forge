@@ -93,7 +93,7 @@ def get_mp2_integrals(
     G_uov = np.zeros((naux, nocc_act, nvir_act))
     t_oovv = util.allocate_array(
         incore_t_oovv, (nocc_act, nocc_act, nvir_act, nvir_act), max_memory,
-        h5file=h5file, name="t_oovv", zero_init=False, chunk=(1, 1, nvir_act, nvir_act))
+        h5file=h5file, name="t_oovv", zero_init=False, chunks=(1, 1, nvir_act, nvir_act))
     eng_bi1 = eng_bi2 = 0
 
     # for async write t_oovv
@@ -391,7 +391,7 @@ class RMP2RespRI(RMP2RI, RespBase):
 
         For response computation of MP2, energy evaluation is accompanied with evaluation of MP2 integrals.
         """
-        if "eng_corr_MP2" not in self.results:
+        if util.pad_omega("eng_corr_MP2", self.omega) not in self.results:
             self._make_mp2_integrals()
 
         return self.results
@@ -442,13 +442,6 @@ class RMP2RespRI(RMP2RI, RespBase):
         # prepare input
         lag_vo = self.tensors.get("lag_vo", self.make_lag_vo())
         rdm1_corr = self.tensors["rdm1_corr"]
-        mask = self.get_frozen_mask()
-        mo_energy = self.mo_energy[mask]
-        mo_occ = self.mo_occ[mask]
-        Ax0_Core = self.Ax0_Core
-        max_cycle = self.max_cycle_cpks
-        tol = self.tol_cpks
-        verbose = self.verbose
 
         # main function
         rdm1_corr_resp_vo = self.solve_cpks(lag_vo)

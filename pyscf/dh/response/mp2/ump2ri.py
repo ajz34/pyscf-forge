@@ -60,23 +60,31 @@ def get_mp2_integrals(
     assert (naux, nocc_act[β], nvir_act[β]) == cderi_uov[β].shape
     assert incore_t_oovv is not None, "t_oovv must be stored for evaluation of MP2 response"
 
+    eval_ss = abs(c_ss) > 1e-10
+    eval_os = abs(c_os) > 1e-10
+
     so = [slice(0, nocc_act[σ]) for σ in (α, β)]  # active only
     sv = [slice(nocc_act[σ], nmo) for σ in (α, β)]  # active only
 
     # preparation
     eo = [mo_energy[σ][mask_occ_act[σ]] for σ in (α, β)]
     ev = [mo_energy[σ][mask_vir_act[σ]] for σ in (α, β)]
-    D_ovv = [lib.direct_sum("j - a - b -> jab", eo[ς], ev[σ], ev[ς]) for (σ, ς) in ((α, α), (α, β), (β, β))]
 
     # allocate results
     rdm1_corr = np.zeros((2, nmo, nmo))
     G_uov = [np.zeros((naux, nocc_act[σ], nvir_act[σ])) for σ in (α, β)]
     t_oovv = []
+    D_ovv = []
     for (σ, ς, σς) in ((α, α, αα), (α, β, αβ), (β, β, ββ)):
         mem_avail = max_memory - lib.current_memory()[0]
-        t_oovv.append(util.allocate_array(
-            incore_t_oovv, (nocc_act[σ], nocc_act[ς], nvir_act[σ], nvir_act[ς]), mem_avail,
-            h5file=h5file, name=f"t_oovv_{σς}", zero_init=False, chunk=(1, 1, nvir_act[σ], nvir_act[ς])))
+        if (σ == ς and eval_ss) or (σ != ς and eval_os):
+            D_ovv.append(lib.direct_sum("j - a - b -> jab", eo[ς], ev[σ], ev[ς]))
+            t_oovv.append(util.allocate_array(
+                incore_t_oovv, (nocc_act[σ], nocc_act[ς], nvir_act[σ], nvir_act[ς]), mem_avail,
+                h5file=h5file, name=f"t_oovv_{σς}", zero_init=False, chunks=(1, 1, nvir_act[σ], nvir_act[ς])))
+        else:
+            D_ovv.append(None)
+            t_oovv.append(None)
     eng_spin = np.array([0, 0, 0], dtype=float)
 
     # for async write t_oovv
@@ -86,21 +94,23 @@ def get_mp2_integrals(
     # prepare batch
     mem_avail = max_memory - lib.current_memory()[0]
     nbatch = util.calc_batch_size(4 * max(nocc_act) * max(nvir_act)**2 + naux * max(nvir_act), mem_avail)
-
     with lib.call_in_background(write_t_oovv) as async_write_t_oovv:
         for σ, ς, σς in ((α, α, αα), (α, β, αβ), (β, β, ββ)):
+            if (σ == ς and not eval_ss) or (σ != ς and not eval_os):
+                continue
             for sI in util.gen_batch(0, nocc_act[σ], nbatch):
                 log.debug(f"[DEBUG] Loop in get_mp2_integrals, spin {σ, ς} slice {sI} of {nocc_act} orbitals.")
                 D_Oovv = eo[σ][sI, None, None, None] + D_ovv[σς]
                 g_Oovv = lib.einsum("Pia, Pjb -> ijab", cderi_uov[σ][:, sI], cderi_uov[ς])
-                t_Oovv = g_Oovv / D_Oovv
+                t_Oovv_raw = g_Oovv / D_Oovv
+                async_write_t_oovv(σς, sI, t_Oovv_raw)
                 if σ == ς:  # same spin
                     # t_Oovv -= t_Oovv.swapaxes(-1, -2)
-                    util.hermi_sum_last2dim(t_Oovv, hermi=ANTIHERMI, inplace=True)
+                    t_Oovv = util.hermi_sum_last2dim(t_Oovv_raw, hermi=ANTIHERMI, inplace=False)
                     eng_spin[σς] += 0.25 * np.einsum("Ijab, Ijab, Ijab ->", t_Oovv, t_Oovv, D_Oovv)
                 else:
+                    t_Oovv = t_Oovv_raw
                     eng_spin[σς] += np.einsum("Ijab, Ijab, Ijab ->", t_Oovv, t_Oovv, D_Oovv)
-                async_write_t_oovv(σς, sI, t_Oovv)
 
                 if σ == ς:  # same spin
                     rdm1_corr[σ, so[σ], so[σ]] -= 0.5 * c_ss * lib.einsum("kiab, kjab -> ij", t_Oovv, t_Oovv)
@@ -108,6 +118,8 @@ def get_mp2_integrals(
                     G_uov[σ][:, sI] += c_ss * lib.einsum("ijab, Pjb -> Pia", t_Oovv, cderi_uov[σ])
                 else:  # spin αβ
                     for sJ in util.gen_batch(0, nocc_act[α], nbatch):
+                        if sI.start < sJ.start:
+                            continue
                         t_Ikab = t_Oovv
                         t_Jkab = t_Oovv if sI == sJ else t_oovv[αβ][sJ]
                         rdm1_tmp = c_os * lib.einsum("ikab, jkab -> ij", t_Ikab, t_Jkab)
@@ -344,6 +356,9 @@ class UMP2RespRI(UMP2RI, RMP2RespRI):
         if ao_repr:
             rdm1_resp = np.array([self.mo_coeff[σ] @ rdm1_resp[σ] @ self.mo_coeff[σ].T for σ in (α, β)])
         return rdm1_resp
+
+    driver_eng_mp2 = RMP2RespRI.driver_eng_mp2
+    kernel = driver_eng_mp2
 
     get_mp2_integrals = staticmethod(get_mp2_integrals)
     get_W_I = staticmethod(get_W_I)

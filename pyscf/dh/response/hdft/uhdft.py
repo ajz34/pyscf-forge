@@ -298,7 +298,7 @@ class USCFResp(USCF, RSCFResp):
                 max_memory=self.max_memory,
                 h5file=self._tmpfile,
                 name="eri_cpks_vovo",
-                chunk=(1, nocc[σ], nvir[ς], nocc[ς])))
+                chunks=(1, nocc[σ], nvir[ς], nocc[ς])))
 
         self.get_eri_cpks_vovo(
             cderi_uaa=cderi_uaa,
@@ -389,7 +389,7 @@ class USCFResp(USCF, RSCFResp):
     get_Ax0_Core_KS = staticmethod(get_Ax0_Core_KS)
 
 
-class UHDFTResp(UHDFT, USCFResp):
+class UHDFTResp(UHDFT, USCFResp, RHDFTResp):
 
     def make_lag_vo(self):
         r""" Generate hybrid DFT contribution to Lagrangian vir-occ block :math:`L_{ai}`. """

@@ -194,9 +194,8 @@ def get_Ax0_Core_resp(
         A function where input is :math:`X_{rs}^\mathbb{A}`, and output is
         :math:`\sum_{rs} A_{pq, rs} X_{rs}^\mathbb{A}`.
     """
-    C = mo_coeff
-
     def Ax0_Core_resp_inner(X):
+        C = mo_coeff
         log = lib.logger.new_logger(verbose=verbose)
         time0 = lib.logger.process_clock(), lib.logger.perf_counter()
 
@@ -216,23 +215,19 @@ def get_Ax0_Core_resp(
 
 def get_xc_integral(ni, mol, grids, xc, dm):
     rho = get_rho(mol, grids, dm)
-    try:
-        exc, vxc, fxc, kxc = ni.eval_xc_eff(xc, rho, deriv=3)
-        tensors = {
-            "rho": rho,
-            f"exc_{xc}": exc,
-            f"vxc_{xc}": vxc,
-            f"fxc_{xc}": fxc,
-            f"kxc_{xc}": kxc,
-        }
-    except NotImplementedError:
-        exc, vxc, fxc, _ = ni.eval_xc_eff(xc, rho, deriv=2)
-        tensors = {
-            "rho": rho,
-            f"exc_{xc}": exc,
-            f"vxc_{xc}": vxc,
-            f"fxc_{xc}": fxc,
-        }
+    spin_polarized = dm.ndim == 3
+    if ni._xc_type(xc) == "LDA":
+        rho_eval = rho[0] if not spin_polarized else rho[:, 0]
+    else:
+        rho_eval = rho
+
+    exc, vxc, fxc, _ = ni.eval_xc_eff(xc, rho_eval, deriv=2)
+    tensors = {
+        "rho": rho_eval,
+        f"exc_{xc}": exc,
+        f"vxc_{xc}": vxc,
+        f"fxc_{xc}": fxc,
+    }
     return tensors
 
 
@@ -245,7 +240,7 @@ class RSCFResp(RSCF, RespBase):
         self.incore_eri_cpks_vovo = CONFIG_incore_eri_cpks_vovo
         self.use_eri_cpks = CONFIG_use_eri_cpks
 
-        grid_level_cpks = max(CONFIG_dft_gen_grid_Grids_level - 1, 1)
+        grid_level_cpks = max(CONFIG_dft_gen_grid_Grids_level - 2, 1)
         self.grids_cpks = dft.Grids(self.mol)
         self.grids_cpks.level = grid_level_cpks
         self.grids_cpks.build()
@@ -397,7 +392,7 @@ class RSCFResp(RSCF, RespBase):
             max_memory=self.max_memory,
             h5file=self._tmpfile,
             name="eri_cpks_vovo",
-            chunk=(1, nocc, nvir, nocc))
+            chunks=(1, nocc, nvir, nocc))
 
         self.get_eri_cpks_vovo(
             cderi_uaa=cderi_uaa,
@@ -458,7 +453,7 @@ class RSCFResp(RSCF, RespBase):
         grids = self.grids_cpks
         xc_token = self.xc.token
         dm = self.scf.make_rdm1()
-        if f"fxc_{xc_token}" not in self.tensors:
+        if f"fxc_{xc_token}/cpks" not in self.tensors:
             self.make_xc_integral_cpks()
         rho = self.tensors[f"rho/cpks"]
         vxc = self.tensors[f"vxc_{xc_token}/cpks"]
@@ -515,6 +510,30 @@ class RSCFResp(RSCF, RespBase):
 
 
 class RHDFTResp(RHDFT, RSCFResp):
+
+    @property
+    def vresp(self):
+        """ Fock response function (derivative w.r.t. molecular coefficient in AO basis). """
+        if self._vresp is not NotImplemented:
+            return self._vresp
+
+        try:
+            vresp = self.hdft.gen_response()
+        except ValueError:
+            # case that have customized xc
+            # should pass check of ni.libxc.test_deriv_order and ni.libxc.is_hybrid_xc
+            ni = self.hdft._numint
+            omega, alpha, hyb = ni.rsh_and_hybrid_coeff(self.hdft.xc, self.mol.spin)
+            if abs(hyb) > 1e-10 or abs(omega) > 1e-10:
+                fake_xc = "B3LYPg"
+            else:
+                fake_xc = "PBE"
+            actual_xc = self.hdft.xc
+            self.hdft.xc = fake_xc
+            vresp = self.hdft.gen_response()
+            self.hdft.xc = actual_xc
+        self._vresp = vresp
+        return self._vresp
 
     def make_lag_vo(self):
         r""" Generate hybrid DFT contribution to Lagrangian vir-occ block :math:`L_{ai}`. """

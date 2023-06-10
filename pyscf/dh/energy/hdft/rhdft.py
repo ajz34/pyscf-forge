@@ -89,14 +89,14 @@ def get_rho(mol, grids, dm):
     Returns
     -------
     np.ndarray
-        Density grid of dimension (6, ngrid) or (nset, 6, ngrid).
+        Density grid of dimension (5, ngrid) or (nset, 5, ngrid).
     """
     ngrid = grids.weights.size
     ni = dft.numint.NumInt()
-    make_rho, nset, nao = ni._gen_rho_evaluator(mol, dm)
-    rho = np.empty((nset, 6, ngrid))
+    make_rho, nset, nao = ni._gen_rho_evaluator(mol, dm, with_lapl=False)
+    rho = np.empty((nset, 5, ngrid))
     p1 = 0
-    for ao, mask, weight, coords in ni.block_loop(mol, grids, nao, deriv=2, max_memory=2000):
+    for ao, mask, weight, coords in ni.block_loop(mol, grids, nao, deriv=1, max_memory=2000):
         p0, p1 = p1, p1 + weight.size
         for idm in range(nset):
             rho[idm, :, p0:p1] = make_rho(idm, ao, mask, 'MGGA')
@@ -219,6 +219,7 @@ def numint_customized(xc, _mol=None):
     ni_custom = dft.numint.NumInt()  # customized numint, to be returned
     ni_original = dft.numint.NumInt()  # original numint
     xc_parsable = xc.extract_by_xctype(XCType.PYSCF_PARSABLE)  # parsable xc; handle it by normal way
+    xc.extract_by_xctype(XCType.RUNG_LOW).token
     xc_remains = xc.remove(xc_parsable, inplace=False)  # xc handled in this function
     hyb = ni_original.hybrid_coeff(xc_parsable.token)  # hybrid coefficient from parsable xc
     rsh_coeff = ni_original.rsh_coeff(xc_parsable.token)  # range separate coefficients from parsable xc
@@ -363,6 +364,7 @@ def custom_mf(mf, xc, auxbasis_or_with_df=None):
         log.note("[INFO] Exchange-correlation is not the same to SCF object. Change xc of SCF.")
         mf.xc = xc.token
         mf.converged = False
+        mf._numint = dft.numint.NumInt()  # refresh numint
 
     # try PySCF parsing of xc code; if not PySCF parsable, customize numint first
     try:
@@ -455,6 +457,15 @@ class RSCF(EngBase):
             self.scf.kernel(*args, **kwargs)
         return self.e_tot
 
+    def to_resp(self, key):
+        from pyscf.dh.response.hdft.rhdft import RSCFResp
+        from pyscf.dh.dipole.hdft.rhdft import RSCFDipole
+        resp_dict = {
+            "resp": RSCFResp,
+            "dipole": RSCFDipole,
+        }
+        return resp_dict[key].from_cls(self, self.scf, copy_all=True)
+
     get_energy_exactx = staticmethod(get_energy_restricted_exactx)
     get_energy_noxc = staticmethod(get_energy_restricted_noxc)
     get_energy_vv10 = staticmethod(get_energy_vv10)
@@ -517,8 +528,10 @@ class RHDFT(RSCF):
 
     def to_resp(self, key):
         from pyscf.dh.response.hdft.rhdft import RHDFTResp
+        from pyscf.dh.dipole.hdft.rhdft import RHDFTDipole
         resp_dict = {
             "resp": RHDFTResp,
+            "dipole": RHDFTDipole,
         }
         return resp_dict[key].from_cls(self, self.scf, copy_all=True)
 

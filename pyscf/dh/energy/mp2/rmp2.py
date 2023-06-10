@@ -246,7 +246,7 @@ class RMP2Conv(MP2Base):
         max_memory = self.max_memory - lib.current_memory()[0]
         t_oovv = util.allocate_array(
             self.incore_t_oovv_mp2, (nocc_act, nocc_act, nvir_act, nvir_act), max_memory,
-            h5file=self._tmpfile, name="t_oovv_mp2", zero_init=False, chunk=(1, 1, nvir_act, nvir_act),
+            h5file=self._tmpfile, name="t_oovv_mp2", zero_init=False, chunks=(1, 1, nvir_act, nvir_act),
             dtype=mo_coeff_act.dtype)
         if t_oovv is not None:
             self.tensors["t_oovv"] = t_oovv
@@ -383,7 +383,7 @@ class RMP2RI(MP2Base):
         max_memory = self.max_memory - lib.current_memory()[0]
         t_oovv = util.allocate_array(
             self.incore_t_oovv_mp2, (nocc_act, nocc_act, nvir_act, nvir_act), max_memory,
-            h5file=self._tmpfile, name="t_oovv_mp2", zero_init=False, chunk=(1, 1, nvir_act, nvir_act),
+            h5file=self._tmpfile, name="t_oovv_mp2", zero_init=False, chunks=(1, 1, nvir_act, nvir_act),
             dtype=mo_coeff_act.dtype)
         # generate cderi_uov
         omega = self.omega
@@ -419,8 +419,10 @@ class RMP2RI(MP2Base):
 
     def to_resp(self, key):
         from pyscf.dh.response.mp2.rmp2ri import RMP2RespRI
+        from pyscf.dh.dipole.mp2.rmp2ri import RMP2DipoleRI
         resp_dict = {
             "resp": RMP2RespRI,
+            "dipole": RMP2DipoleRI,
         }
         return resp_dict[key].from_cls(self, self.scf, copy_all=True)
 

@@ -218,7 +218,7 @@ def pad_omega(s, omega):
 
 
 def allocate_array(incore, shape, max_memory,
-                   h5file=None, name=None, dtype=float, zero_init=True, chunk=None, **kwargs):
+                   h5file=None, name=None, dtype=float, zero_init=True, chunks=None, **kwargs):
     """ Allocate an array with given memory estimation and incore stragety.
 
     Parameters
@@ -237,7 +237,7 @@ def allocate_array(incore, shape, max_memory,
         Type of numpy array.
     zero_init : bool
         Initialize array as zero if required; only useful when numpy-based.
-    chunk : tuple
+    chunks : tuple
         Chunk of array; only useful when h5py-based.
 
     Returns
@@ -264,7 +264,7 @@ def allocate_array(incore, shape, max_memory,
             name = "".join(random.choices(string.ascii_letters, k=6))
             while name not in h5file:
                 name = "".join(random.choices(string.ascii_letters, k=6))
-        return h5file.create_dataset(name=name, shape=shape, chunk=chunk, dtype=dtype, **kwargs)
+        return h5file.create_dataset(name=name, shape=shape, chunks=chunks, dtype=dtype, **kwargs)
 
 
 def update_results(results, income_result, allow_overwrite=True, warn_overwrite=True):
