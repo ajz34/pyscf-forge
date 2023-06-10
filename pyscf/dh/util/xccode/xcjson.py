@@ -31,7 +31,7 @@ FUNCTIONALS_DICT.update(FUNCTIONALS_DICT_ADD)
 
 # advanced correlation contributors
 dir_functionals = os.path.join(os.path.dirname(os.path.abspath(__file__)), "correlations")
-with open(os.path.join(dir_functionals, "definition_corr.json"), "r") as f:
+with open(os.path.join(dir_functionals, "definition_adv_corr.json"), "r") as f:
     ADV_CORR_DICT = json.load(f)
 with open(os.path.join(dir_functionals, "alias.json"), "r") as f:
     ADV_CORR_ALIAS = json.load(f)

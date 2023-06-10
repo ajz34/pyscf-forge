@@ -64,6 +64,14 @@ class XCType(Flag):
     "High-rung (5th) approximation"
     # endregion
 
+    # region nuc_corr
+    DFTD3 = enum.auto()
+    "DFT-D3 vDW dispersion correction"
+    DFTD4 = enum.auto()
+    "DFT-D4 vDW dispersion correction"
+    NUC_CORR = DFTD3 | DFTD4
+    "Correction schemes that only depends on neucleu coordinates"
+
     # region vDW
     VV10 = enum.auto()
     "Vydrov and van Voorhis 2010"
@@ -105,9 +113,10 @@ class XCType(Flag):
         contradictory(*decompose(self.EXX))
         contradictory(*decompose(self.RUNG_LOW))
         contradictory(*decompose(self.RUNG_HIGH))
+        contradictory(*decompose(self.NUC_CORR))
         contradictory(*decompose(self.VDW))
         contradictory(self.CORR, self.EXCH, self.HYB)
-        contradictory(self.RUNG_HIGH, self.RUNG_LOW, self.VDW)
+        contradictory(self.RUNG_HIGH, self.RUNG_LOW, self.NUC_CORR, self.VDW)
 
         # check special rules
         # SSR
@@ -120,7 +129,7 @@ class XCType(Flag):
 
         # must exist flags
         assert (self.EXCH | self.CORR | self.HYB) & self
-        assert (self.RUNG_HIGH | self.RUNG_LOW | self.VDW) & self
+        assert (self.RUNG_HIGH | self.RUNG_LOW | self.NUC_CORR | self.VDW) & self
 
     @classmethod
     def def_parameters(cls) -> dict:
@@ -157,7 +166,11 @@ class XCType(Flag):
             cls.SSR: [
                 ["functional to be scaled by range-separate coefficient", False],
                 ["range-separate omega", False],
-            ]
+            ],
+            cls.DFTD3: [
+                ["Damping type", False],
+            ],
+            cls.DFTD4: [],
         }
         return dct
 

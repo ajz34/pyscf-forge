@@ -41,6 +41,9 @@ class TestXCCode(unittest.TestCase):
         xc_io(
             ", RS_MP2(0.5, 1, 0.5) + LR_MP2(0.5, 1, 0.8) + LR_MP2(0.3, 0.4, 1) + SR_MP2(0.3, 1, 1)",
             ", RS_MP2(-0.3, 1, 1) + RS_MP2(0.3, 0.4, 1) + RS_MP2(0.5, 2, 1.3)")
+        # test dft-d
+        xc_io("0.5*Slater + 0.8*B88, 0.3*DFTD3(6, rs6=1.5)", "0.8*B88 + 0.5*SLATER, 0.3*DFTD3(6, RS6=1.5)")
+        xc_io("0.5*Slater + 0.8*B88, 0.3*DFTD4(rs6=1.5)", "0.8*B88 + 0.5*SLATER, 0.3*DFTD4(RS6=1.5)")
         # test name with hyphen
         xc_io(
             "M11-L + 0.25*M06-L - 2.0*CAM-B3LYP, PBE - 0.35*LDA - 0.25*MP2cr-OS + 1.5*MP2cr",

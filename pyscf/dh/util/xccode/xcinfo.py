@@ -23,7 +23,7 @@ from .xcjson import ADV_CORR_ALIAS, ADV_CORR_DICT
 from pyscf import dft
 
 
-REGEX_XC = r"((,?)([+-]*)([0-9.]+\*)?([\w@]+)(\([\w+\-\*.,;]+\))?)"
+REGEX_XC = r"((,?)([+-]*)([0-9.]+\*)?([\w@]+)(\([\w+\-\*.,;=]+\))?)"
 
 
 @dataclass
@@ -48,12 +48,16 @@ class XCInfo:
     Parameters that is not sutiable to be passed as string token, or very advanced parameters.
     """
 
-    def __init__(self, fac, name, parameters, typ):
+    def __init__(self, fac, name, parameters, typ, additional=None):
         self.fac = fac
         self.name = name
         self.parameters = parameters
         self.type = typ
-        self.additional = dict()
+        if additional is None:
+            self.additional = dict()
+        else:
+            assert isinstance(additional, dict)
+            self.additional = additional
         self.round()
 
     def round(self, ndigits=10) -> "XCInfo":
@@ -64,7 +68,12 @@ class XCInfo:
             return round(f, n)
 
         self.fac = adv_round(self.fac, ndigits)
-        self.parameters = [adv_round(f, ndigits) if isinstance(f, (float, int)) else str(f) for f in self.parameters]
+        self.parameters = [
+            adv_round(f, ndigits) if isinstance(f, (float, int)) else str(f)
+            for f in self.parameters]
+        self.additional = {
+            k: adv_round(f, ndigits) if isinstance(f, (float, int)) else str(f)
+            for k, f in self.additional.items()}
         return self
 
     @property
@@ -75,13 +84,19 @@ class XCInfo:
         """
         self.round()
         token = ""
+        # 1. factor
         if self.fac < 0:
             token += "- "
         if abs(self.fac) != 1:
             token += str(abs(self.fac)) + "*"
+        # 2. name
         token += self.name
-        if len(self.parameters) != 0:
-            token += "(" + ", ".join([str(f) for f in self.parameters]) + ")"
+        # 3. parameter and additional
+        param_tokens = [str(f) for f in self.parameters]
+        param_tokens += [f"{key}={val}" for key, val in self.additional.items()]
+        if len(param_tokens) != 0:
+            token += "(" + ", ".join(param_tokens) + ")"
+        # finalize: upper_case
         token = token.upper()
         return token
 
@@ -103,7 +118,7 @@ class XCInfo:
                 "XC token {:} is not successfully parsed.\n"
                 "Regex match of this token becomes {:}".format(inp, match[0][0]))
         inp = match[0]
-        _, comma, sgn, fac, name, parameters = inp
+        _, comma, sgn, fac, name, parameters_str = inp
 
         # additional check for guess type of correlation
         if comma == ",":
@@ -126,13 +141,19 @@ class XCInfo:
             except ValueError:
                 return s
 
-        if len(parameters) > 0:
-            parameters = [try_convert_float(item) for item in re.split(r"[,;]", parameters[1:-1])]
-        else:
-            parameters = []
+        parameters = []
+        additional = {}
+        if len(parameters_str) > 0:
+            for item in re.split(r"[,;]", parameters_str[1:-1]):
+                if "=" not in item:
+                    parameters.append(try_convert_float(item))
+                else:
+                    assert item.count("=") == 1
+                    key, val = item.split("=")
+                    additional[key] = try_convert_float(val)
 
         # build basic information
-        xc_info = XCInfo(fac, name, parameters, XCType.UNKNOWN)
+        xc_info = XCInfo(fac, name, parameters, XCType.UNKNOWN, additional=additional)
         # for advanced correlations, try to substitute alias first
         if xc_info.name in ADV_CORR_ALIAS:
             xc_info.name = ADV_CORR_ALIAS[xc_info.name]
@@ -234,6 +255,8 @@ class XCInfo:
                 "IEPA": XCType.IEPA,
                 "RS_RING_CCD": XCType.RS_RING_CCD,
                 "VDW": XCType.VDW,
+                "DFTD3": XCType.DFTD3,
+                "DFTD4": XCType.DFTD4,
             }
             if name in ADV_CORR_DICT:
                 xc_type |= XCType.CORR | type_map[ADV_CORR_DICT[name]["type"]]

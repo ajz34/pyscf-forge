@@ -240,7 +240,9 @@ class XCList:
             xc_lists_x.append(inner_list)
         # 3. extract pure, MP2, IEPA, RPA, VDW
         xc_lists_c = []
-        for xctype in [XCType.RUNG_LOW, XCType.MP2, XCType.RSMP2, XCType.IEPA, XCType.RPA, XCType.VDW, lambda _: True]:
+        for xctype in [
+                XCType.RUNG_LOW, XCType.MP2, XCType.RSMP2, XCType.IEPA, XCType.RPA,
+                XCType.NUC_CORR, XCType.VDW, lambda _: True]:
             inner_list = extracting(xc_list_c, xctype)
             for info in inner_list:
                 exclude(xc_list_c, info)
@@ -331,13 +333,6 @@ class XCDH:
         else:
             self.xc_scf = XCList.build_from_token(token, True, **kwargs)
             self.xc_eng = XCList.build_from_token(token, False, **kwargs)
-
-
-# region modify when additional contribution added
-
-# region parse automatically
-
-# endregion
 
 
 if __name__ == '__main__':
