@@ -106,6 +106,15 @@ class TestRMP2LikeDH(unittest.TestCase):
         self.assertAlmostEqual(mf._scf.e_tot, REF_ESCF, places=5)
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
 
+    def test_DSD_PBE_P86_D3(self):
+        # reference: QChem 5.1.1
+        from pyscf import lib
+        lib.num_threads(4)
+        REF_ETOT = -76.20159807
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
+        mf = dh.DH(mol, xc="DSD-PBEP86-D3", route_scf="conv", route_mp2="conv").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
 
 class TestUMP2LikeDH(unittest.TestCase):
     @classmethod
