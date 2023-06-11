@@ -10,13 +10,19 @@ from pyscf import lib
 
 class DFTD3Eng(EngBase):
 
-    def __init__(self, mf, version, atm=False, **kwargs):
+    def __init__(self, mf, version, atm=False, xc=None, XC=None, **kwargs):
         super().__init__(mf)
 
         self.param_cls = NotImplemented
         self.param = NotImplemented  # type: DampingParam
         self.version = NotImplemented  # type: str
-        self.parse_param(version, xc=mf.xc, atm=atm, param_input=kwargs)
+
+        # upper case input XC steams from upper case transformation in xccode
+        assert not (xc is not None and XC is not None), "Only one of xc or XC is None"
+        xc = XC if xc is None else xc
+        xc = mf.xc if xc is None else xc
+
+        self.parse_param(version, xc=xc, atm=atm, param_input=kwargs)
 
     def parse_param(self, version, xc=None, atm=False, param_input=None):
         """ Parse DFT-D3 parameters.
@@ -33,19 +39,19 @@ class DFTD3Eng(EngBase):
 
         # parse version
         version = str(version).lower()
-        if version in ["4", "bj"]:
+        if version in ["4", "bj", "d3bj"]:
             self.param_cls = RationalDampingParam
             self.version = "bj"
-        elif version in ["3", "zero"]:
+        elif version in ["3", "zero", "d3zero"]:
             self.param_cls = ZeroDampingParam
             self.version = "zero"
-        elif version in ["6", "bjm"]:
+        elif version in ["6", "bjm", "mbj", "d3mbj"]:
             self.param_cls = ModifiedRationalDampingParam
             self.version = "bjm"
-        elif version in ["5", "zerom"]:
+        elif version in ["5", "zerom", "mzero", "d3mzero"]:
             self.param_cls = ModifiedZeroDampingParam
             self.version = "zerom"
-        elif version in ["op"]:
+        elif version in ["op", "d3op"]:
             self.param_cls = OptimizedPowerDampingParam
             self.version = "op"
         else:
