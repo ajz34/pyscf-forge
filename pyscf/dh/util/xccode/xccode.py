@@ -77,7 +77,7 @@ class XCList:
         5. list of parameters with parentheses
         """
         token = token.upper().replace(" ", "")
-        for key, val in _NAME_WITH_DASH.items():
+        for key, val in _NAME_WITH_DASH:
             token = token.replace(key, val)
         if len(token) == 0:
             return []

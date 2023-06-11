@@ -43,3 +43,5 @@ _NAME_WITH_DASH.update({
     for key in list(ADV_CORR_DICT.keys()) + list(ADV_CORR_ALIAS.keys())
     if "_" in key})
 _NAME_WITH_DASH.update(dft.libxc._NAME_WITH_DASH)
+# avoid cases that have multiple hyphens; replace string with larger string first
+_NAME_WITH_DASH = sorted(_NAME_WITH_DASH.items(), key=lambda v: -len(v[1]))
