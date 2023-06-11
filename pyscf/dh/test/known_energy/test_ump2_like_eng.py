@@ -101,6 +101,68 @@ class TestUMP2LikeDH(unittest.TestCase):
         mf = dh.DH(mol, xc="DSD-PBEP86-D3BJ", route_scf="conv", route_mp2="conv").run()
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
 
+    def test_DSD_PBEPBE_D3(self):
+        # reference: QChem 5.1.1
+        """
+        $molecule
+        0 2
+        N
+        H 1 0.94
+        H 1 0.94 2 104.5
+        $end
+
+        $rem
+        JOBTYPE   sp
+        EXCHANGE  DSD-PBEPBE-D3
+        BASIS     6-31G
+        SCF_CONVERGENCE 8
+        XC_GRID 000099000590
+        $end
+        """
+        REF_ETOT = -55.68647430
+        mol = gto.Mole(atom="N; H 1 0.94; H 1 0.94 2 104.5", spin=1, basis="6-31G").build()
+        mf = dh.DH(mol, xc="DSD-PBEPBE-D3BJ", route_scf="conv", route_mp2="conv").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
+    def test_DSD_PBEB95_D3(self):
+        # reference: QChem 5.1.1
+        """
+        $molecule
+        0 2
+        N
+        H 1 0.94
+        H 1 0.94 2 104.5
+        $end
+
+        $rem
+        JOBTYPE   sp
+        EXCHANGE  DSD-PBEB95-D3
+        BASIS     6-31G
+        SCF_CONVERGENCE 8
+        XC_GRID 000099000590
+        $end
+        """
+        REF_ETOT = -55.69615797
+        mol = gto.Mole(atom="N; H 1 0.94; H 1 0.94 2 104.5", spin=1, basis="6-31G").build()
+        mf = dh.DH(mol, xc="DSD-PBEB95-D3BJ", route_scf="conv", route_mp2="conv").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
+    def test_DSD_BLYP_D3(self):
+        # reference: QChem 5.1.1
+        """
+        ! DSD-BLYP/2013 D3BJ 6-31G NORI NoFrozenCore
+
+        * gzmt 0 2
+        N
+        H 1 0.94
+        H 1 0.94 2 104.5
+        *
+        """
+        REF_ETOT = -55.716954594253
+        mol = gto.Mole(atom="N; H 1 0.94; H 1 0.94 2 104.5", spin=1, basis="6-31G").build()
+        mf = dh.DH(mol, xc="DSD-BLYP-D3BJ", route_scf="conv", route_mp2="conv").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
     def test_XYG3(self):
         # reference: MRCC 2022-03-18
         """

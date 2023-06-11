@@ -19,20 +19,5 @@
     "LS1DH_PBE": {
         "code": "0.75*HF + 0.25*PBE, 0.578125*PBE + 0.421875*MP2",
         "ref": "10.1063/1.3640019"
-    },
-    "DSD_PBEPBE_D3": {
-        "code": "0.68*HF + 0.32*PBE, 0.49*PBE + 0.55*MP2_OS + 0.13*MP2_SS",
-        "ref": "10.1002/jcc.23391",
-        "family": "DSD-D3"
-    },
-    "DSD_BLYP_D3": {
-        "code": "0.71*HF + 0.29*B88, 0.54*LYP + 0.47*MP2_OS + 0.40*MP2_SS",
-        "ref": "10.1002/jcc.23391",
-        "family": "DSD-D3"
-    },
-    "DSD_PBEB95_D3": {
-        "code": "0.66*HF + 0.34*PBE, 0.55*B95 + 0.46*MP2_OS + 0.09*MP2_SS",
-        "ref": "10.1002/jcc.23391",
-        "family": "DSD-D3"
     }
 }

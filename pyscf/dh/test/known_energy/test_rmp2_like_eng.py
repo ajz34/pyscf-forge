@@ -118,6 +118,69 @@ class TestRMP2LikeDH(unittest.TestCase):
         mf = dh.DH(mol, xc="DSD-PBEP86-D3BJ", route_scf="conv", route_mp2="conv").run()
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
 
+    def test_DSD_PBEPBE_D3(self):
+        # reference: QChem 5.1.1
+        """
+        $molecule
+        0 1
+        O
+        H 1 0.94
+        H 1 0.94 2 104.5
+        $end
+
+        $rem
+        JOBTYPE   sp
+        EXCHANGE  DSD-PBEPBE-D3
+        BASIS     6-31G
+        SCF_CONVERGENCE 8
+        XC_GRID 000099000590
+        $end
+        """
+        REF_ETOT = -76.20415120
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
+        mf = dh.DH(mol, xc="DSD-PBEPBE-D3BJ", route_scf="conv", route_mp2="conv").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
+    def test_DSD_PBEB95_D3(self):
+        # reference: QChem 5.1.1
+        """
+        $molecule
+        0 1
+        O
+        H 1 0.94
+        H 1 0.94 2 104.5
+        $end
+
+        $rem
+        JOBTYPE   sp
+        EXCHANGE  DSD-PBEB95-D3
+        BASIS     6-31G
+        SCF_CONVERGENCE 8
+        XC_GRID 000099000590
+        $end
+        """
+        REF_ETOT = -76.22012321
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
+        mf = dh.DH(mol, xc="DSD-PBEB95-D3BJ", route_scf="conv", route_mp2="conv").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
+    def test_DSD_BLYP_D3(self):
+        # reference: ORCA 5.0.4
+        """
+        ! DSD-BLYP/2013 D3BJ 6-31G NORI NoFrozenCore
+
+        * gzmt 0 1
+        O
+        H 1 0.94
+        H 1 0.94 2 104.5
+        *
+        """
+        REF_ETOT = -76.242758111867
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
+        mf = dh.DH(mol, xc="DSD-BLYP-D3BJ", route_scf="conv", route_mp2="conv").run()
+        print(mf.e_tot - REF_ETOT)
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
     def test_XYG3(self):
         # reference: MRCC 2022-03-18
         # MINP_H2O_cc-pVTZ_XYG3
@@ -259,5 +322,4 @@ class TestRMP2LikeDH(unittest.TestCase):
             basis="aug-cc-pVDZ", unit="AU").build()
         mf = dh.DH(mol, xc="RS-PW91-PW91", frozen="FreezeNobleGasCore").run()
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
-
 
