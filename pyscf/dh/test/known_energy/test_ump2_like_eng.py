@@ -102,21 +102,22 @@ class TestUMP2LikeDH(unittest.TestCase):
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
 
     def test_XYG3(self):
-        # reference: MRCC
-        # test input
-        #    basis=cc-pVTZ
-        #    calc=XYG3
-        #
-        #    unit=bohr
-        #    geom
-        #    H
-        #    O 1 R1
-        #
-        #    R1=2.00000000000
-        REF_ETOT = -75.715897359518
+        # reference: MRCC 2022-03-18
+        """
+        basis=cc-pVTZ
+        calc=XYG3
 
-        mol = self.mol
-        mf = dh.DH(mol, xc="XYG3") \
-            .build_scf(route_scf="ri", auxbasis_jk="cc-pVTZ-jkfit") \
-            .run(frozen="FreezeNobleGasCore", auxbasis_ri="cc-pVTZ-ri")
+        unit=bohr
+        geom
+        H
+        N 1 R1
+        H 2 R1 1 A
+
+        R1=2.00000000000
+        A=104.2458898548
+        """
+        REF_ETOT = -55.863759071398
+
+        mol = gto.Mole(atom="N; H 1 2; H 1 2 2 104.2458898548", spin=1, unit="AU", basis="cc-pVTZ").build()
+        mf = dh.DH(mol, xc="XYG3", frozen="FreezeNobleGasCore").run()
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)

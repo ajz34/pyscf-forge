@@ -2,7 +2,8 @@
     "XYG3": {
         "code_scf": "B3LYPg",
         "code": "0.8033*HF - 0.0140*LDA + 0.2107*B88, 0.6789*LYP + 0.3211*MP2",
-        "ref": "10.1073/pnas.0901093106"
+        "ref": "10.1073/pnas.0901093106",
+        "tested": "MRCC 2022-03-18"
     },
     "XYGJ_OS": {
         "code_scf": "B3LYPg",
@@ -17,7 +18,8 @@
     "lrc_XYG3": {
         "code_scf": "B3LYPg",
         "code": "0.8033*HF - 0.0140*LDA + 0.2107*B88, 0.6789*LYP + 0.3211*MP2 + 0.4822*RS_MP2(0.2, 1, 1)",
-        "ref": "10.1021/jz400695u"
+        "ref": "10.1021/jz400695u",
+        "tested": "QChem local"
     },
     "revXYG3": {
         "code_scf": "B3LYPg",

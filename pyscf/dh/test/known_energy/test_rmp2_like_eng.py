@@ -119,42 +119,39 @@ class TestRMP2LikeDH(unittest.TestCase):
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
 
     def test_XYG3(self):
-        # reference: MRCC
+        # reference: MRCC 2022-03-18
         # MINP_H2O_cc-pVTZ_XYG3
-        REF_ETOT = -76.400701189006
+        """
+        # XYG3 calculation for water with the cc-pVTZ basis set.
+        basis=cc-pVTZ
+        calc=XYG3
+        mem=500MB
 
-        mol = self.mol
-        mf = dh.DH(mol, xc="XYG3") \
-            .build_scf(route_scf="ri", auxbasis_jk="cc-pVTZ-jkfit") \
-            .run(frozen="FreezeNobleGasCore", auxbasis_ri="cc-pVTZ-ri")
+        test=-76.400700770721
+
+        unit=bohr
+        geom
+        H
+        O 1 R1
+        H 2 R1 1 A
+
+        R1=2.00000000000
+        A=104.2458898548
+        """
+        REF_ETOT = -76.400701189007
+
+        mol = gto.Mole(atom="O; H 1 2; H 1 2 2 104.2458898548", unit="AU", basis="cc-pVTZ").build()
+        mf = dh.DH(mol, xc="XYG3", frozen="FreezeNobleGasCore").run()
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
 
-    def test_SCAN0_2(self):
-        # reference: MRCC
-        # MINP_H2O_cc-pVTZ_SCAN0-2_Libxc
-        # TODO: SCAN seems to be very instable for different softwares.
-        REF_ESCF = -76.204558509844
-        REF_ETOT = -76.348414592594
-
-        mol = self.mol
-        mf = dh.DH(mol, xc="SCAN0-2") \
-            .build_scf(route_scf="ri", auxbasis_jk="cc-pVTZ-jkfit") \
-            .run(frozen="FreezeNobleGasCore", auxbasis_ri="cc-pVTZ-ri")
-        print(mf._scf.e_tot)
-        print(mf.e_tot)
-        # self.assertAlmostEqual(mf.mf.e_tot, REF_ESCF, places=5)
-        # self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
-
     def test_LRC_XYG3(self):
-        # reference: Q-Chem
+        # reference: QChem local version
         REF_ESCF = -109.5673226196
         REF_ETOT = -109.5329015372
         mol = gto.Mole(
             atom="N 0 0 0.54777500; N 0 0 -0.54777500",
             basis="6-311+G(3df,2p)").build()
-        mf = dh.DH(mol, xc="lrc-XYG3") \
-            .build_scf(route_scf="conv") \
-            .run(route_mp2="conv")
+        mf = dh.DH(mol, xc="lrc-XYG3", route_scf="conv", route_mp2="conv").run()
         self.assertAlmostEqual(mf._scf.e_tot, REF_ESCF, places=5)
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
 
