@@ -121,3 +121,108 @@ class TestUMP2LikeDH(unittest.TestCase):
         mol = gto.Mole(atom="N; H 1 2; H 1 2 2 104.2458898548", spin=1, unit="AU", basis="cc-pVTZ").build()
         mf = dh.DH(mol, xc="XYG3", frozen="FreezeNobleGasCore").run()
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
+    def test_RS_PBE_P86(self):
+        # reference: MRCC 2022-03-18
+        # test case: MINP_NH2_aug-cc-pVDZ_RS-PBE-P86
+        """
+        # RS-DH DFT calculation for water using a PBE-P86-based functional, ansatz of Toulouse,
+        # as well as the default lambda=0.5 and mu=0.7 parameters
+        basis=aug-cc-pVDZ
+        calc=SCF
+        dft=RS-PBE-P86
+        mem=1GB
+        test=-5.576733720503658E+01
+
+        unit=bohr
+        geom=xyz
+        3
+
+        N     0.00000000    0.00000000   -0.12502304
+        H     0.00000000    1.43266384    0.99210317
+        H     0.00000000   -1.43266384    0.99210317
+        """
+        REF_ETOT = -5.576733720503658E+01
+        mol = gto.Mole(
+            atom="""
+                N     0.00000000    0.00000000   -0.12502304
+                H     0.00000000    1.43266384    0.99210317
+                H     0.00000000   -1.43266384    0.99210317""",
+            basis="aug-cc-pVDZ", spin=1, unit="AU").build()
+        mf = dh.DH(mol, xc="RS-PBE-P86", frozen="FreezeNobleGasCore").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
+    def test_RS_PBE_PBE(self):
+        # reference: MRCC 2022-03-18
+        """
+        basis=aug-cc-pVDZ
+        calc=SCF
+        dft=RS-PBE-PBE
+
+        unit=bohr
+        geom=xyz
+        3
+
+        N     0.00000000    0.00000000   -0.12502304
+        H     0.00000000    1.43266384    0.99210317
+        H     0.00000000   -1.43266384    0.99210317
+        """
+        REF_ETOT = -55.753154450773
+        mol = gto.Mole(
+            atom="""
+                N     0.00000000    0.00000000   -0.12502304
+                H     0.00000000    1.43266384    0.99210317
+                H     0.00000000   -1.43266384    0.99210317""",
+            basis="aug-cc-pVDZ", spin=1, unit="AU").build()
+        mf = dh.DH(mol, xc="RS-PBE-PBE", frozen="FreezeNobleGasCore").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
+    def test_RS_B88_LYP(self):
+        # reference: MRCC 2022-03-18
+        """
+        basis=aug-cc-pVDZ
+        calc=SCF
+        dft=RS-B88-LYP
+
+        unit=bohr
+        geom=xyz
+        3
+
+        N     0.00000000    0.00000000   -0.12502304
+        H     0.00000000    1.43266384    0.99210317
+        H     0.00000000   -1.43266384    0.99210317
+        """
+        REF_ETOT = -55.775322590985
+        mol = gto.Mole(
+            atom="""
+                N     0.00000000    0.00000000   -0.12502304
+                H     0.00000000    1.43266384    0.99210317
+                H     0.00000000   -1.43266384    0.99210317""",
+            basis="aug-cc-pVDZ", spin=1, unit="AU").build()
+        mf = dh.DH(mol, xc="RS-B88-LYP", frozen="FreezeNobleGasCore").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
+    def test_RS_PW91_PW91(self):
+        # reference: MRCC 2022-03-18
+        """
+        basis=aug-cc-pVDZ
+        calc=SCF
+        dft=RS-PW91-PW91
+
+        unit=bohr
+        geom=xyz
+        3
+
+        N     0.00000000    0.00000000   -0.12502304
+        H     0.00000000    1.43266384    0.99210317
+        H     0.00000000   -1.43266384    0.99210317
+        """
+        REF_ETOT = -55.773193557166
+        mol = gto.Mole(
+            atom="""
+                N     0.00000000    0.00000000   -0.12502304
+                H     0.00000000    1.43266384    0.99210317
+                H     0.00000000   -1.43266384    0.99210317""",
+            basis="aug-cc-pVDZ", spin=1, unit="AU").build()
+        mf = dh.DH(mol, xc="RS-PW91-PW91", frozen="FreezeNobleGasCore").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)

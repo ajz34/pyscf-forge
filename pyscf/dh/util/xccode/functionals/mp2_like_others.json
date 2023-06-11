@@ -34,9 +34,5 @@
         "code": "0.66*HF + 0.34*PBE, 0.55*B95 + 0.46*MP2_OS + 0.09*MP2_SS",
         "ref": "10.1002/jcc.23391",
         "family": "DSD-D3"
-    },
-    "RS_PBE_P86": {
-        "code": "LR_HF(0.7) + 0.5*SR_HF(0.7) + 0.5*SSR(GGA_X_PBE, 0.7), 0.75*SSR(GGA_C_P86, 0.7) + 0.5*MP2(1, 1) - 0.25*SR_MP2(0.7) + 0.5*LR_MP2(0.7)",
-        "ref": "10.1021/acs.jctc.0c01135"
     }
 }
