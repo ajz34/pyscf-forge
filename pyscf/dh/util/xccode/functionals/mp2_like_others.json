@@ -1,12 +1,4 @@
 {
-    "B2PLYP": {
-        "code": "0.53*HF + 0.47*B88, 0.73*LYP + 0.27*MP2",
-        "ref": "10.1063/1.2148954"
-    },
-    "mPW2PLYP": {
-        "code": "0.55*HF + 0.45*mPW91, 0.75*LYP + 0.25*MP2",
-        "ref": "10.1039/b608478h"
-    },
     "PBE0_DH": {
         "code": "0.5*HF + 0.5*PBE, 0.875*PBE + 0.125*MP2",
         "ref": "10.1063/1.3604569"
@@ -23,10 +15,6 @@
         "code": "0.793701*HF + 0.206299*SCAN, 0.5*SCAN + 0.5*MP2",
         "ref": "10.1063/1.4940734",
         "todo": "Result of functional SCAN seems to be unstable for different programs."
-    },
-    "B2GPPLYP": {
-        "code": "0.65*HF + 0.35*B88, 0.64*LYP + 0.36*MP2",
-        "ref": "10.1021/jp801805p"
     },
     "LS1DH_PBE": {
         "code": "0.75*HF + 0.25*PBE, 0.578125*PBE + 0.421875*MP2",
@@ -46,22 +34,6 @@
         "code": "0.66*HF + 0.34*PBE, 0.55*B95 + 0.46*MP2_OS + 0.09*MP2_SS",
         "ref": "10.1002/jcc.23391",
         "family": "DSD-D3"
-    },
-    "B2PLYP_D3": {
-        "code": "0.53*HF + 0.47*B88, 0.73*LYP + 0.27*MP2",
-        "ref": "10.1063/1.3382344"
-    },
-    "ZRPS@PBE": {
-        "code_scf": "PBE",
-        "code": "0.5*HF + 0.5*PBE, 0.75*PBE + 0.25*SIEPA_OS",
-        "ref": "10.1103/PhysRevLett.117.133002",
-        "family": "ZRPS"
-    },
-    "ZRPS@PBE0": {
-        "code_scf": "PBE0",
-        "code": "0.5*HF + 0.5*PBE, 0.75*PBE + 0.25*SIEPA_OS",
-        "ref": "10.1103/PhysRevLett.117.133002",
-        "family": "ZRPS"
     },
     "RS_PBE_P86": {
         "code": "LR_HF(0.7) + 0.5*SR_HF(0.7) + 0.5*SSR(GGA_X_PBE, 0.7), 0.75*SSR(GGA_C_P86, 0.7) + 0.5*MP2(1, 1) - 0.25*SR_MP2(0.7) + 0.5*LR_MP2(0.7)",
