@@ -278,6 +278,70 @@ class TestRMP2LikeDH(unittest.TestCase):
         mf = dh.DH(mol, xc="DSD-BLYP-D3BJ", route_scf="conv", route_mp2="conv").run()
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
 
+    def test_wB2PLYP(self):
+        # reference: ORCA 5.0.4
+        """
+        ! wB2PLYP 6-31G NORI NoFrozenCore
+
+        * gzmt 0 1
+        O
+        H 1 0.94
+        H 1 0.94 2 104.5
+        *
+        """
+        REF_ETOT = -76.223828450855
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
+        mf = dh.DH(mol, xc="wB2PLYP", route_scf="conv", route_mp2="conv").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
+    def test_wB2GPPLYP(self):
+        # reference: ORCA 5.0.4
+        """
+        ! wB2GP-PLYP 6-31G NORI NoFrozenCore
+
+        * gzmt 0 1
+        O
+        H 1 0.94
+        H 1 0.94 2 104.5
+        *
+        """
+        REF_ETOT = -76.216969239009
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
+        mf = dh.DH(mol, xc="wB2GPPLYP", route_scf="conv", route_mp2="conv").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
+    def test_RSX_0DH(self):
+        # reference: ORCA 5.0.4
+        """
+        ! RSX-0DH 6-31G NORI NoFrozenCore
+
+        * gzmt 0 1
+        O
+        H 1 0.94
+        H 1 0.94 2 104.5
+        *
+        """
+        REF_ETOT = -76.223451307545
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
+        mf = dh.DH(mol, xc="RSX-0DH", route_scf="conv", route_mp2="conv").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
+    def test_RSX_QIDH(self):
+        # reference: ORCA 5.0.4
+        """
+        ! RSX-QIDH 6-31G NORI NoFrozenCore
+
+        * gzmt 0 1
+        O
+        H 1 0.94
+        H 1 0.94 2 104.5
+        *
+        """
+        REF_ETOT = -76.208221215310
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
+        mf = dh.DH(mol, xc="RSX-QIDH", route_scf="conv", route_mp2="conv").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
     def test_XYG3(self):
         # reference: MRCC 2022-03-18
         # MINP_H2O_cc-pVTZ_XYG3

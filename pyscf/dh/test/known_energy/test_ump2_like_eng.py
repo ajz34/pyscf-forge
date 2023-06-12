@@ -254,7 +254,7 @@ class TestUMP2LikeDH(unittest.TestCase):
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
 
     def test_DSD_BLYP_D3(self):
-        # reference: QChem 5.1.1
+        # reference: ORCA 5.0.4
         """
         ! DSD-BLYP/2013 D3BJ 6-31G NORI NoFrozenCore
 
@@ -267,6 +267,70 @@ class TestUMP2LikeDH(unittest.TestCase):
         REF_ETOT = -55.716954594253
         mol = gto.Mole(atom="N; H 1 0.94; H 1 0.94 2 104.5", spin=1, basis="6-31G").build()
         mf = dh.DH(mol, xc="DSD-BLYP-D3BJ", route_scf="conv", route_mp2="conv").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
+    def test_wB2PLYP(self):
+        # reference: ORCA 5.0.4
+        """
+        ! wB2PLYP 6-31G NORI NoFrozenCore
+
+        * gzmt 0 2
+        N
+        H 1 0.94
+        H 1 0.94 2 104.5
+        *
+        """
+        REF_ETOT = -55.695205388045
+        mol = gto.Mole(atom="N; H 1 0.94; H 1 0.94 2 104.5", spin=1, basis="6-31G").build()
+        mf = dh.DH(mol, xc="wB2PLYP", route_scf="conv", route_mp2="conv").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
+    def test_wB2GPPLYP(self):
+        # reference: ORCA 5.0.4
+        """
+        ! wB2GP-PLYP 6-31G NORI NoFrozenCore
+
+        * gzmt 0 2
+        N
+        H 1 0.94
+        H 1 0.94 2 104.5
+        *
+        """
+        REF_ETOT = -55.691810769285
+        mol = gto.Mole(atom="N; H 1 0.94; H 1 0.94 2 104.5", spin=1, basis="6-31G").build()
+        mf = dh.DH(mol, xc="wB2GPPLYP", route_scf="conv", route_mp2="conv").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
+    def test_RSX_0DH(self):
+        # reference: ORCA 5.0.4
+        """
+        ! RSX-0DH 6-31G NORI NoFrozenCore
+
+        * gzmt 0 2
+        N
+        H 1 0.94
+        H 1 0.94 2 104.5
+        *
+        """
+        REF_ETOT = -55.700962329751
+        mol = gto.Mole(atom="N; H 1 0.94; H 1 0.94 2 104.5", spin=1, basis="6-31G").build()
+        mf = dh.DH(mol, xc="RSX-0DH", route_scf="conv", route_mp2="conv").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
+    def test_RSX_QIDH(self):
+        # reference: ORCA 5.0.4
+        """
+        ! RSX-QIDH 6-31G NORI NoFrozenCore
+
+        * gzmt 0 2
+        N
+        H 1 0.94
+        H 1 0.94 2 104.5
+        *
+        """
+        REF_ETOT = -55.689372372061
+        mol = gto.Mole(atom="N; H 1 0.94; H 1 0.94 2 104.5", spin=1, basis="6-31G").build()
+        mf = dh.DH(mol, xc="RSX-QIDH", route_scf="conv", route_mp2="conv").run()
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
 
     def test_XYG3(self):
