@@ -7,7 +7,7 @@
     "B2PLYP_D3BJ": {
         "code": "0.53*HF + 0.47*B88, 0.73*LYP + 0.27*MP2 + DFTD3(BJ, xc=B2PLYP)",
         "ref": ["10.1063/1.2148954", "10.1021/acs.jpclett.6b00780"],
-        "tested": "Gaussian 16, Rev B.01"
+        "tested": ["Gaussian 16, Rev B.01", "MRCC 2022-03-18"]
     },
     "mPW2PLYP": {
         "code": "0.55*HF + 0.45*mPW91, 0.75*LYP + 0.25*MP2",

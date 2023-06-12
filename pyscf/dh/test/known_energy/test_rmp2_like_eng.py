@@ -2,24 +2,7 @@ import unittest
 from pyscf import dh, gto, df
 
 
-"""
-Comparison value from
-- MRCC 2022-03-18.
-- Q-Chem (development ver)
-"""
-
-
 class TestRMP2LikeDH(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        coord = """
-        H
-        O 1 R1
-        H 2 R1 1 A
-        """.replace("R1", "2.0").replace("A", "104.2458898548")
-
-        mol = gto.Mole(atom=coord, basis="cc-pVTZ", unit="AU", verbose=0).build()
-        cls.mol = mol
 
     def test_B2PLYP(self):
         # reference: MRCC 2022-03-18
@@ -48,7 +31,6 @@ class TestRMP2LikeDH(unittest.TestCase):
         mf = dh.DH(mol, xc="B2PLYP", route_scf="conv", frozen="FreezeNobleGasCore", auxbasis_ri="cc-pVTZ-ri").run()
         self.assertFalse(hasattr(mf.scf, "with_df"))
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
-        print(mf.e_tot - REF_ETOT)
 
     def test_B2PLYP_D3BJ(self):
         # reference: Gaussian 16, Rev B.01
@@ -67,7 +49,6 @@ class TestRMP2LikeDH(unittest.TestCase):
         mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="cc-pVDZ", verbose=0).build()
         mf = dh.DH(mol, xc="B2PLYP_D3BJ", route_scf="conv", route_mp2="conv").run()
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
-        print(mf.e_tot - REF_ETOT)
 
     def test_B2GPPLYP_D3BJ(self):
         # reference: MRCC 2022-03-18
@@ -178,7 +159,6 @@ class TestRMP2LikeDH(unittest.TestCase):
         REF_ETOT = -76.242758111867
         mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
         mf = dh.DH(mol, xc="DSD-BLYP-D3BJ", route_scf="conv", route_mp2="conv").run()
-        print(mf.e_tot - REF_ETOT)
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
 
     def test_XYG3(self):

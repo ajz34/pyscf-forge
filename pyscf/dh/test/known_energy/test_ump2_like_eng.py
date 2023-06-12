@@ -3,15 +3,6 @@ from pyscf import dh, gto, df
 
 
 class TestUMP2LikeDH(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        coord = """
-        H
-        O 1 R1
-        """.replace("R1", "2.0")
-
-        mol = gto.Mole(atom=coord, basis="cc-pVTZ", unit="AU", spin=1, verbose=0).build()
-        cls.mol = mol
 
     def test_B2PLYP(self):
         # reference: MRCC 2022-03-18
@@ -30,10 +21,9 @@ class TestUMP2LikeDH(unittest.TestCase):
         """
         REF_ETOT = -75.708153526127
 
-        mol = self.mol
+        mol = gto.Mole(atom="H; O 1 2", spin=1, unit="AU", basis="cc-pVTZ", verbose=0).build()
         mf = dh.DH(mol, xc="B2PLYP", route_scf="conv", frozen="FreezeNobleGasCore", auxbasis_ri="cc-pVTZ-ri").run()
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
-        print(mf.e_tot - REF_ETOT)
 
     def test_B2PLYP_D3BJ(self):
         # reference: Gaussian 16, Rev B.01
@@ -48,11 +38,9 @@ class TestUMP2LikeDH(unittest.TestCase):
         H 1 0.94 2 104.5
         """
         REF_ETOT = -0.55803873816579E+02
-
         mol = gto.Mole(atom="N; H 1 0.94; H 1 0.94 2 104.5", spin=1, basis="cc-pVDZ", verbose=0).build()
         mf = dh.DH(mol, xc="B2PLYP_D3BJ", route_scf="conv", route_mp2="conv").run()
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
-        print(mf.e_tot - REF_ETOT)
 
     def test_B2GPPLYP_D3BJ(self):
         # reference: MRCC 2022-03-18
