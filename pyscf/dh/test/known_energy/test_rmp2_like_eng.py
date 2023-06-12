@@ -104,7 +104,7 @@ class TestRMP2LikeDH(unittest.TestCase):
         """
         REF_ETOT = -0.76333221124716E+02
         mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="cc-pVDZ", verbose=0).build()
-        mf = dh.DH(mol, xc="PBE0-DH", route_scf="conv", route_mp2="conv").run()
+        mf = dh.DH(mol, xc="PBE0-DH-Gaussian", route_scf="conv", route_mp2="conv").run()
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
 
     def test_PBE_QIDH_GAUSSIAN(self):
@@ -121,7 +121,7 @@ class TestRMP2LikeDH(unittest.TestCase):
         """
         REF_ETOT = -0.76314248223580E+02
         mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="cc-pVDZ", verbose=0).build()
-        mf = dh.DH(mol, xc="PBE-QIDH", route_scf="conv", route_mp2="conv").run()
+        mf = dh.DH(mol, xc="PBE-QIDH-GAUSSIAN", route_scf="conv", route_mp2="conv").run()
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
 
     def test_PBE_QIDH_QCHEM(self):
