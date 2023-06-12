@@ -10,15 +10,5 @@
         "ref": "10.1021/acs.jctc.9b00013",
         "tested": "ORCA 5.0.4",
         "alias": ["ωB2GP_PLYP"]
-    },
-    "RSX_0DH": {
-        "code": "0.5*HF + 0.5*LR_HF(0.33) + 0.5*GGA_X_ITYH_PBE, 0.875*PBE + 0.125*MP2",
-        "ref": "10.1021/acs.jctc.8b00261",
-        "tested": "ORCA 5.0.4"
-    },
-    "RSX_QIDH": {
-        "code": "0.69*HF + 0.31*LR_HF(0.27) + 0.31*GGA_X_ITYH_PBE, 0.67*PBE + 0.33*MP2",
-        "ref": "10.1021/acs.jctc.8b00261",
-        "tested": "ORCA 5.0.4"
     }
 }

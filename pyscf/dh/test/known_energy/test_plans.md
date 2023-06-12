@@ -76,8 +76,8 @@ A possible way to make sure problem originates from functional implementation:
 - [x] DSD-PBEP95-D3
 - [x] wB2PLYP
 - [x] wB2GP-PLYP
-- [ ] RSX-QIDH
-- [ ] RSX-0DH
+- [x] RSX-QIDH
+- [x] RSX-0DH
 - [ ] wB88PP86
 - [ ] wPBEPP86
 - [ ] wB97X-2 *LibXC*
