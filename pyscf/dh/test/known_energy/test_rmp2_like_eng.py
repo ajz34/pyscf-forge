@@ -26,7 +26,6 @@ class TestRMP2LikeDH(unittest.TestCase):
         A=104.2458898548
         """
         REF_ETOT = -76.391961060726
-
         mol = gto.Mole(atom="H; O 1 2.0; H 2 2.0 1 104.2458898548", basis="cc-pVTZ", unit="AU", verbose=0).build()
         mf = dh.DH(mol, xc="B2PLYP", route_scf="conv", frozen="FreezeNobleGasCore", auxbasis_ri="cc-pVTZ-ri").run()
         self.assertFalse(hasattr(mf.scf, "with_df"))
@@ -45,7 +44,6 @@ class TestRMP2LikeDH(unittest.TestCase):
         H 1 0.94 2 104.5
         """
         REF_ETOT = -0.76352886529203E+02
-
         mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="cc-pVDZ", verbose=0).build()
         mf = dh.DH(mol, xc="B2PLYP_D3BJ", route_scf="conv", route_mp2="conv").run()
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
@@ -71,9 +69,128 @@ class TestRMP2LikeDH(unittest.TestCase):
         A=104.2458898548
         """
         REF_ETOT = -76.378332323817
-
         mol = gto.Mole(atom="H; O 1 2.0; H 2 2.0 1 104.2458898548", basis="cc-pVTZ", unit="AU", verbose=0).build()
         mf = dh.DH(mol, xc="B2GPPLYP-D3BJ", frozen="FreezeNobleGasCore").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
+    def test_mPW2PLYP(self):
+        # reference: Gaussian 16, Rev B.01
+        """
+        #p mPW2PLYP(Full)/cc-pVDZ NoSymm Int(Grid=99590)
+
+        [Title]
+
+        0 1
+        O
+        H 1 0.94
+        H 1 0.94 2 104.5
+        """
+        REF_ETOT = -0.76352240789110E+02
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="cc-pVDZ", verbose=0).build()
+        mf = dh.DH(mol, xc="mPW2PLYP", route_scf="conv", route_mp2="conv").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
+    def test_PBE0_DH(self):
+        # reference: Gaussian 16, Rev B.01
+        """
+        #p PBE0DH(Full)/cc-pVDZ NoSymm Int(Grid=99590)
+
+        [Title]
+
+        0 1
+        O
+        H 1 0.94
+        H 1 0.94 2 104.5
+        """
+        REF_ETOT = -0.76333221124716E+02
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="cc-pVDZ", verbose=0).build()
+        mf = dh.DH(mol, xc="PBE0-DH", route_scf="conv", route_mp2="conv").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
+    def test_PBE_QIDH_GAUSSIAN(self):
+        # reference: Gaussian 16, Rev B.01
+        """
+        #p PBEQIDH(Full)/cc-pVDZ NoSymm Int(Grid=99590)
+
+        [Title]
+
+        0 1
+        O
+        H 1 0.94
+        H 1 0.94 2 104.5
+        """
+        REF_ETOT = -0.76314248223580E+02
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="cc-pVDZ", verbose=0).build()
+        mf = dh.DH(mol, xc="PBE-QIDH", route_scf="conv", route_mp2="conv").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
+    def test_PBE_QIDH_QCHEM(self):
+        # reference: QChem 5.1.1
+        """
+        $molecule
+        0 1
+        O
+        H 1 0.94
+        H 1 0.94 2 104.5
+        $end
+
+        $rem
+        JOBTYPE   sp
+        EXCHANGE  PBE-QIDH
+        BASIS     cc-pVDZ
+        SCF_CONVERGENCE 8
+        XC_GRID 000099000590
+        $end
+        """
+        REF_ETOT = -76.31427137
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="cc-pVDZ", verbose=0).build()
+        mf = dh.DH(mol, xc="PBE-QIDH-QChem", route_scf="conv", route_mp2="conv").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
+    def test_LS1DH_PBE(self):
+        # reference: QChem 5.1.1
+        """
+        $molecule
+        0 1
+        O
+        H 1 0.94
+        H 1 0.94 2 104.5
+        $end
+
+        $rem
+        JOBTYPE   sp
+        EXCHANGE  LS1DH-PBE
+        BASIS     cc-pVDZ
+        SCF_CONVERGENCE 8
+        XC_GRID 000099000590
+        $end
+        """
+        REF_ETOT = -76.30452835
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="cc-pVDZ", verbose=0).build()
+        mf = dh.DH(mol, xc="LS1DH-PBE", route_scf="conv", route_mp2="conv").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
+    def test_PBE0_2(self):
+        # reference: QChem 5.1.1
+        """
+        $molecule
+        0 1
+        O
+        H 1 0.94
+        H 1 0.94 2 104.5
+        $end
+
+        $rem
+        JOBTYPE   sp
+        EXCHANGE  PBE0-2
+        BASIS     cc-pVDZ
+        SCF_CONVERGENCE 8
+        XC_GRID 000099000590
+        $end
+        """
+        REF_ETOT = -76.29541437
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="cc-pVDZ", verbose=0).build()
+        mf = dh.DH(mol, xc="PBE0-2", route_scf="conv", route_mp2="conv").run()
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
 
     def test_DSD_PBEP86_D3(self):

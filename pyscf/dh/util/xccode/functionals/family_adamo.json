@@ -1,0 +1,27 @@
+{
+    "PBE0_DH": {
+        "code": "0.5*HF + 0.5*GGA_X_PBE_GAUSSIAN, 0.875*GGA_C_PBE_GAUSSIAN + 0.125*MP2",
+        "ref": "10.1063/1.3604569",
+        "tested": "Gaussian 16, Rev B.01",
+        "notes": "Functional was proposed by Gaussian developers. Convention is set to the same with Gaussian."
+    },
+    "PBE_QIDH_CoefPrecision": {
+        "code": "0.6933612744*HF + 0.3066387256*PBE, 0.6666666667*PBE + 0.3333333333*MP2",
+        "ref": "10.1063/1.4890314",
+        "tested": "QChem 5.1.1",
+        "notes": "This implementation should be the same to rhetoric of original paper (rounded at 1e-10).",
+        "alias": ["PBE_QIDH_QCHEM"]
+    },
+    "PBE_QIDH": {
+        "code": "0.69*HF + 0.31*GGA_X_PBE_GAUSSIAN, 0.6666*GGA_C_PBE_GAUSSIAN + 0.3334*MP2",
+        "ref": "10.1063/1.4890314",
+        "tested": "Gaussian 16, Rev B.01",
+        "notes": "This implementation gives results of Gaussian.",
+        "alias": ["PBE_QIDH_GAUSSIAN"]
+    },
+    "LS1DH_PBE": {
+        "code": "0.75*HF + 0.25*PBE, 0.578125*PBE + 0.421875*MP2",
+        "ref": "10.1063/1.3640019",
+        "tested": "QChem 5.1.1"
+    }
+}

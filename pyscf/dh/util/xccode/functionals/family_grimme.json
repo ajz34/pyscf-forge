@@ -11,6 +11,7 @@
     },
     "mPW2PLYP": {
         "code": "0.55*HF + 0.45*mPW91, 0.75*LYP + 0.25*MP2",
-        "ref": "10.1039/b608478h"
+        "ref": "10.1039/b608478h",
+        "tested": "Gaussian 16, Rev B.01"
     }
 }
