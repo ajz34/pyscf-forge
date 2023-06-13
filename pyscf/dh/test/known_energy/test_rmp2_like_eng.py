@@ -310,6 +310,38 @@ class TestRMP2LikeDH(unittest.TestCase):
         mf = dh.DH(mol, xc="wB2GPPLYP", route_scf="conv", route_mp2="conv").run()
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
 
+    def test_wB88PP86(self):
+        # reference: ORCA 5.0.4
+        """
+        ! wB88PP86 6-31G NORI NoFrozenCore
+
+        * gzmt 0 1
+        O
+        H 1 0.94
+        H 1 0.94 2 104.5
+        *
+        """
+        REF_ETOT = -76.223203247789
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
+        mf = dh.DH(mol, xc="wB88PP86", route_scf="conv", route_mp2="conv").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
+    def test_wPBEPP86(self):
+        # reference: ORCA 5.0.4
+        """
+        ! wPBEPP86 6-31G NORI NoFrozenCore
+
+        * gzmt 0 1
+        O
+        H 1 0.94
+        H 1 0.94 2 104.5
+        *
+        """
+        REF_ETOT = -76.261632401477
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G").build()
+        mf = dh.DH(mol, xc="wPBEPP86", route_scf="conv", route_mp2="conv").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
     def test_RSX_0DH(self):
         # reference: ORCA 5.0.4
         """

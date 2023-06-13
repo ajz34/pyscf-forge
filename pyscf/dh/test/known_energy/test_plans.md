@@ -78,8 +78,8 @@ A possible way to make sure problem originates from functional implementation:
 - [x] wB2GP-PLYP
 - [x] RSX-QIDH
 - [x] RSX-0DH
-- [ ] wB88PP86
-- [ ] wPBEPP86
+- [x] wB88PP86
+- [x] wPBEPP86
 - [ ] wB97X-2 *LibXC*
 - [ ] SCS/SOS-B2PLYP21
 - [ ] SCS/SOS-PBE-QIDH
