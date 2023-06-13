@@ -1,3 +1,9 @@
+try:
+    import dftd3
+except ImportError:
+    raise ImportError("simple-dftd3 is required for your computation."
+                      "For install guide, see https://github.com/dftd3/simple-dftd3.")
+
 from dftd3.parameters import get_damping_param
 from dftd3.interface import (
     DispersionModel, DampingParam, RationalDampingParam, ZeroDampingParam,
