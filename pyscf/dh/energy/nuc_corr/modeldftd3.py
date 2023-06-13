@@ -16,12 +16,15 @@ from pyscf import lib
 
 class DFTD3Eng(EngBase):
 
-    def __init__(self, mf, version, atm=False, xc=None, XC=None, **kwargs):
+    def __init__(self, mf=None, version=None, atm=False, xc=None, XC=None, **kwargs):
         super().__init__(mf)
 
         self.param_cls = NotImplemented
         self.param = NotImplemented  # type: DampingParam
         self.version = NotImplemented  # type: str
+
+        if mf is None:
+            return
 
         # upper case input XC steams from upper case transformation in xccode
         assert not (xc is not None and XC is not None), "Only one of xc or XC is None"
@@ -97,6 +100,16 @@ class DFTD3Eng(EngBase):
         self.e_corr = self.results["energy_dftd3"]
         log.info(f"[INFO] Energy of DFT-D3 correction: {self.e_corr}")
         return self.e_tot
+
+    def to_resp(self, key):
+        from pyscf.dh.response.resp_nuc_corr import DFTD3Resp
+        from pyscf.dh.dipole.dipole_nuc_corr import DFTD3Dipole
+
+        resp_dict = {
+            "resp": DFTD3Resp,
+            "dipole": DFTD3Dipole,
+        }
+        return resp_dict[key].from_cls(self, copy_all=True)
 
     kernel = driver_eng_dftd3
 

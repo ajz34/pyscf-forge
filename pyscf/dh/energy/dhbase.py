@@ -46,17 +46,23 @@ class EngBase(lib.StreamObject, ABC):
     What's less than general post-SCF classes in PySCF:
     - We do not accept the case where SCF molecular orbitals are not the same to post-SCF orbitals.
     """
-    def __init__(self, mf):
-        self._scf = mf
-        self.mol = mf.mol
+    def __init__(self, mf=None):
+        self._scf = NotImplemented
+        self.mol = NotImplemented
         self.with_df = NotImplemented
         self.frozen = 0
-        self.verbose = self.mol.verbose
-        self.max_memory = self.mol.max_memory
+        self.verbose = NotImplemented
+        self.max_memory = NotImplemented
         self.results = dict()
         self.tensors = dict()
         self._tmpfile = lib.H5TmpFile()
         self.e_corr = NotImplemented
+
+        if mf is not None:
+            self._scf = mf
+            self.mol = mf.mol
+            self.verbose = self.mol.verbose
+            self.max_memory = self.mol.max_memory
 
     @property
     @abstractmethod
@@ -200,4 +206,4 @@ class EngBase(lib.StreamObject, ABC):
 
         - `resp`: First-order response class.
         """
-        raise NotImplementedError
+        raise NotImplementedError(f"{key} of {self.__class__} is not implemented.")
