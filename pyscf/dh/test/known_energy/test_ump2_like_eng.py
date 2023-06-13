@@ -81,7 +81,7 @@ class TestUMP2LikeDH(unittest.TestCase):
         mf = dh.DH(mol, xc="mPW2PLYP", route_scf="conv", route_mp2="conv").run()
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
 
-    def test_PBE0_DH(self):
+    def test_PBE0_DH_GAUSSIAN(self):
         # reference: Gaussian 16, Rev B.01
         """
         #p PBE0DH(Full)/cc-pVDZ NoSymm Int(Grid=99590)
