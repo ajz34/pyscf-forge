@@ -354,8 +354,9 @@ def eval_xc_eff_ext_param_generator(name_code, ext_param):
 
         return exc, vxc, fxc, kxc
 
-    def get_sigma(nabla_rho):
-        return np.einsum("tg, tg -> g", nabla_rho, nabla_rho, optimize=True)
+    def get_sigma(nabla_rho_1, nabla_rho_2=None):
+        nabla_rho_2 = nabla_rho_2 if nabla_rho_2 is not None else nabla_rho_1
+        return np.einsum("tg, tg -> g", nabla_rho_1, nabla_rho_2, optimize=True)
 
     def eval_xc(func, rho, spin_polarized, deriv=1, *_args, **_kwargs):
 
@@ -376,19 +377,21 @@ def eval_xc_eff_ext_param_generator(name_code, ext_param):
         else:
             if xctype == "LDA":
                 inp = {"rho": rho}
-            elif len(rho[0]) == 4:
-                inp = {"rho": np.array(rho[:, 0], order='C'),
-                       "sigma": np.array([get_sigma(rho[0, 1:4]), get_sigma(rho[1, 1:4])])}
-            elif len(rho[0]) == 5:
-                inp = {"rho": np.array(rho[:, 0], order='C'),
-                       "sigma": np.array([get_sigma(rho[0, 1:4]), get_sigma(rho[1, 1:4])]),
-                       "tau": np.array(rho[:, 4], order='C')}
-            elif len(rho[0]) == 6:
-                inp = {"rho": np.array(rho[:, 0], order='C'),
-                       "sigma": np.array([get_sigma(rho[0, 1:4]), get_sigma(rho[1, 1:4])]),
-                       "tau": np.array(rho[:, 5], order='C')}
             else:
-                assert False
+                sigma = np.array([
+                    get_sigma(rho[0, 1:4]),
+                    get_sigma(rho[0, 1:4], rho[1, 1:4]),
+                    get_sigma(rho[1, 1:4])], order="F").T  # F transformed to C contiguous
+                if len(rho[0]) == 4:
+                    inp = {"rho": np.array(rho[:, 0].T, order='C'), "sigma": sigma}
+                elif len(rho[0]) == 5:
+                    inp = {"rho": np.array(rho[:, 0].T, order='C'), "sigma": sigma,
+                           "tau": np.array(rho[:, 4].T, order='C')}
+                elif len(rho[0]) == 6:
+                    inp = {"rho": np.array(rho[:, 0].T, order='C'), "sigma": sigma,
+                           "tau": np.array(rho[:, 5].T, order='C')}
+                else:
+                    assert False
 
         # computation
         comput_kwargs = {
