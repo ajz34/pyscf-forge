@@ -2,7 +2,8 @@ from pyscf.dh.energy import EngBase
 from typing import Tuple, List
 from pyscf.dh import util
 from pyscf.dh.util import XCType, XCList, XCDH, update_results, pad_omega
-from pyscf.dh.energy.hdft.rhdft import get_rho, numint_customized
+from pyscf.dh.energy.hdft.rhdft import get_rho
+from pyscf.dh.util.numint_addon import numint_customized
 from pyscf import lib, scf, gto, dft, df, __config__
 from pyscf.dh.energy.hdft.rhdft import custom_mf
 
