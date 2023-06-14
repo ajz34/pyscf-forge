@@ -374,6 +374,29 @@ class TestRMP2LikeDH(unittest.TestCase):
         mf = dh.DH(mol, xc="RSX-QIDH", route_scf="conv", route_mp2="conv").run()
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
 
+    def test_PTPSS(self):
+        # reference: QChem 5.1.1
+        """
+        $molecule
+        0 1
+        O
+        H 1 0.94
+        H 1 0.94 2 104.5
+        $end
+
+        $rem
+        JOBTYPE   sp
+        EXCHANGE  PTPSS-D3
+        BASIS     6-31G
+        SCF_CONVERGENCE 8
+        XC_GRID 000099000590
+        $end
+        """
+        REF_ETOT = -76.28365901
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G", verbose=0).build()
+        mf = dh.DH(mol, xc="PTPSS", route_scf="conv", route_mp2="conv").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
     def test_XYG3(self):
         # reference: MRCC 2022-03-18
         # MINP_H2O_cc-pVTZ_XYG3
