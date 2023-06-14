@@ -517,21 +517,7 @@ class RHDFTResp(RHDFT, RSCFResp):
         if self._vresp is not NotImplemented:
             return self._vresp
 
-        try:
-            vresp = self.hdft.gen_response()
-        except ValueError:
-            # case that have customized xc
-            # should pass check of ni.libxc.test_deriv_order and ni.libxc.is_hybrid_xc
-            ni = self.hdft._numint
-            omega, alpha, hyb = ni.rsh_and_hybrid_coeff(self.hdft.xc, self.mol.spin)
-            if abs(hyb) > 1e-10 or abs(omega) > 1e-10:
-                fake_xc = "B3LYPg"
-            else:
-                fake_xc = "PBE"
-            actual_xc = self.hdft.xc
-            self.hdft.xc = fake_xc
-            vresp = self.hdft.gen_response()
-            self.hdft.xc = actual_xc
+        vresp = self.hdft.gen_response()
         self._vresp = vresp
         return self._vresp
 

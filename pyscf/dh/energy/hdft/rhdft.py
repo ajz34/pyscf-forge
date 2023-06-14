@@ -2,6 +2,7 @@ from pyscf.dh import util
 from pyscf.dh.util import XCList, XCType, XCInfo
 from pyscf.dh.energy import EngBase
 from pyscf import dft, lib, scf, df, __config__
+from pyscf.dft import libxc
 import numpy as np
 import copy
 from types import MethodType
@@ -223,6 +224,8 @@ def numint_customized(xc, _mol=None):
     xc_remains = xc.remove(xc_parsable, inplace=False)  # xc handled in this function
     hyb = ni_original.hybrid_coeff(xc_parsable.token)  # hybrid coefficient from parsable xc
     rsh_coeff = ni_original.rsh_coeff(xc_parsable.token)  # range separate coefficients from parsable xc
+    assert abs(rsh_coeff[1] + rsh_coeff[2] - hyb) < 1e-7, "range-separate coeff is not consistent to exx coeff."
+    rsh_coeff = list(rsh_coeff)
 
     # parse type of current xc
     def get_xc_type(xc_list):
@@ -276,6 +279,18 @@ def numint_customized(xc, _mol=None):
                 gen_lists.append(generator)
             else:
                 assert False, "Scaled short-range functional must be explicitly defined as exchange or correlation."
+        elif XCType.WITH_EXT_PARAM in xc_info.type:
+            generator, cam_coeff_ext = util.eval_xc_eff_ext_param_generator(xc_info.name, xc_info.additional)
+            # update rsh_coeff
+            if cam_coeff_ext[0] == 0 or rsh_coeff[0] == 0 or abs(cam_coeff_ext[0] - rsh_coeff[0]) < 1e-7:
+                rsh_coeff[0] = max(cam_coeff_ext[0], rsh_coeff[0])
+                rsh_coeff[1] += cam_coeff_ext[1]
+                rsh_coeff[2] += cam_coeff_ext[2]
+                hyb = rsh_coeff[1] + rsh_coeff[2]
+            else:
+                raise ValueError(f"Two rsh omega {rsh_coeff[0]} and {cam_coeff_ext[0]} appears in one numint object.")
+            generator = multiply_factor_on_eval_xc_eff(generator, xc_info.fac)
+            gen_lists.append(generator)
         else:
             raise ValueError("Some type of xc is not available!")
 
@@ -312,11 +327,25 @@ def numint_customized(xc, _mol=None):
                 kxc = array_add_with_diff_rows(kxc, kxc1)
         return exc, vxc, fxc, kxc
 
+    class LibxcCustom:
+        # hybrid_coeff = libxc.hybrid_coeff
+        # nlc_coeff = libxc.nlc_coeff
+        # rsh_coeff = libxc.rsh_coeff
+        eval_xc = libxc.eval_xc
+        xc_type = libxc.xc_type
+        is_hybrid_xc = lambda *args, **kwargs: hyb != 0 or tuple(rsh_coeff) != (0, 0, 0)
+        __name__ = libxc.__name__
+        __version__ = libxc.__version__
+        __reference__ = libxc.__reference__
+        xc_reference = libxc.xc_reference
+        test_deriv_order = lambda *args, **kwargs: True
+
     ni_custom.eval_xc_eff = MethodType(eval_xc_eff, ni_custom)
     ni_custom.hybrid_coeff = lambda *args, **kwargs: hyb
-    ni_custom.rsh_coeff = lambda *args, **kwargs: rsh_coeff
+    ni_custom.rsh_coeff = lambda *args, **kwargs: tuple(rsh_coeff)
     ni_custom._xc_type = lambda *args, **kwargs: xc_type_full
     ni_custom.custom = True
+    ni_custom.libxc = LibxcCustom
     return ni_custom
 
 

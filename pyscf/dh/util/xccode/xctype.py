@@ -93,6 +93,8 @@ class XCType(Flag):
     "Scaled short-range"
     PYSCF_PARSABLE = enum.auto()
     "Functional contribution that is able to be parsed by pyscf.dft.numint"
+    WITH_EXT_PARAM = enum.auto()
+    "Functional with external parameters for libxc"
     # endregion
 
     UNKNOWN = 0

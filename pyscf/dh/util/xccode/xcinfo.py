@@ -203,15 +203,22 @@ class XCInfo:
         try:
             # try if pyscf parse_xc success (must be low_rung)
             dft_type = ni._xc_type(guess_name)
-            xc_type |= XCType.PYSCF_PARSABLE
+            if len(xc_info.parameters) != 0:
+                raise ValueError(f"Currently do not accept parameters (list of floats) for {dft_type}. "
+                                 f"Please try to use additional (dictionary of floats) to specify ext_params of libxc.")
+            if len(xc_info.additional) == 0:
+                xc_type |= XCType.PYSCF_PARSABLE
+            else:
+                # if additional parameters included, then these should be handled by ext_param in libxc
+                xc_type |= XCType.WITH_EXT_PARAM
             # except special cases
             if name == "VV10" and len(xc_info.parameters) > 0:
-                raise KeyError("We use VV10 as vDW correction with parameters, instead of XC_GGA_XC_VV10.")
+                raise ValueError("We use VV10 as vDW correction with parameters, instead of XC_GGA_XC_VV10.")
             # parse dft type
             if guess_type != XCType.HYB:
                 xc_type |= guess_type
             if dft_type == "NLC":
-                raise KeyError("NLC code (with __VV10 by PySCF) is not accepted currently!")
+                raise ValueError("NLC code (with __VV10 by PySCF) is not accepted currently!")
             assert dft_type != "HF"
             DFT_TYPE_MAP = {
                 "LDA": XCType.LDA,
