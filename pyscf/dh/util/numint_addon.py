@@ -460,8 +460,8 @@ def numint_customized(xc, _mol=None):
     """
 
     # extract the functionals that is parsable by PySCF
-    ni_custom = dft.numint.NumInt()  # customized numint, to be returned
     ni_original = dft.numint.NumInt()  # original numint
+    xc_list = xc  # for definition in NumIntCustomized
     xc_parsable = xc.extract_by_xctype(XCType.PYSCF_PARSABLE)  # parsable xc; handle it by normal way
     xc_remains = xc.remove(xc_parsable, inplace=False)  # xc handled in this function
     hyb = ni_original.hybrid_coeff(xc_parsable.token)  # hybrid coefficient from parsable xc
@@ -555,7 +555,7 @@ def numint_customized(xc, _mol=None):
         mat1[np.ix_(*[np.arange(0, mat2.shape[idx]) for idx in range(mat2.ndim)])] += mat2
         return mat1
 
-    def eval_xc_eff(*args, **kwargs):
+    def eval_xc_eff_customized(*args, **kwargs):
         exc, vxc, fxc, kxc = gen_lists[0](*args, **kwargs)
         for gen in gen_lists[1:]:
             exc1, vxc1, fxc1, kxc1 = gen(*args, **kwargs)
@@ -575,17 +575,64 @@ def numint_customized(xc, _mol=None):
         # rsh_coeff = libxc.rsh_coeff
         eval_xc = libxc.eval_xc
         xc_type = libxc.xc_type
-        is_hybrid_xc = lambda *args, **kwargs: hyb != 0 or tuple(rsh_coeff) != (0, 0, 0)
         __name__ = libxc.__name__
         __version__ = libxc.__version__
         __reference__ = libxc.__reference__
         xc_reference = libxc.xc_reference
-        test_deriv_order = lambda *args, **kwargs: True
 
-    ni_custom.eval_xc_eff = MethodType(eval_xc_eff, ni_custom)
-    ni_custom.hybrid_coeff = lambda *args, **kwargs: hyb
-    ni_custom.rsh_coeff = lambda *args, **kwargs: tuple(rsh_coeff)
-    ni_custom._xc_type = lambda *args, **kwargs: xc_type_full
-    ni_custom.custom = True
-    ni_custom.libxc = LibxcCustom
-    return ni_custom
+        def is_hybrid_xc(self, *args, **kwargs):
+            return hyb != 0 or tuple(rsh_coeff) != (0, 0, 0)
+
+        def test_deriv_order(self, *args, **kwargs):
+            return True
+
+    class NumIntCustomized(dft.numint.NumInt):
+        custom = True
+        libxc = LibxcCustom
+        _xc_code_customized = xc_list.token
+        _mute_check = False
+
+        def check_customized_xc_code(self, xc_code):
+            """ For customized NumInt object, other kind of xc_code should not be input. """
+            if self._mute_check:
+                return
+
+            if xc_code.upper() != self._xc_code_customized:
+                raise ValueError(f"Input code {xc_code.upper()} is not the same to "
+                                 f"customized code {self._xc_code_customized}.")
+
+        def hybrid_coeff(self, xc_code, spin=0):
+            self.check_customized_xc_code(xc_code)
+            return hyb
+
+        def rsh_coeff(self, xc_code):
+            self.check_customized_xc_code(xc_code)
+            return tuple(rsh_coeff)
+
+        def _xc_type(self, xc_code):
+            self.check_customized_xc_code(xc_code)
+            return xc_type_full
+
+        def eval_xc(self, xc_code, *args, **kwargs):
+            self.check_customized_xc_code(xc_code)
+            return super().eval_xc(xc_code, *args, **kwargs)
+
+        def eval_xc_eff(self, xc_code, *args, **kwargs):
+            self.check_customized_xc_code(xc_code)
+            return eval_xc_eff_customized(self, xc_code, *args, **kwargs)
+
+        def nr_rks(self, mol, grids, xc_code, dms, *args, **kwargs):
+            self.check_customized_xc_code(xc_code)
+            self._mute_check = True  # bypass check of MGGA for laplacian in nr_rks
+            results = super().nr_rks(mol, grids, "", dms, *args, **kwargs)
+            self._mute_check = False
+            return results
+
+        def nr_uks(self, mol, grids, xc_code, dms, *args, **kwargs):
+            self.check_customized_xc_code(xc_code)
+            self._mute_check = True  # bypass check of MGGA for laplacian in nr_rks
+            results = super().nr_uks(mol, grids, "", dms, *args, **kwargs)
+            self._mute_check = False
+            return results
+
+    return NumIntCustomized()
