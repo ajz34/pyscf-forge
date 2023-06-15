@@ -365,7 +365,7 @@ class TestUMP2LikeDH(unittest.TestCase):
         mf = dh.DH(mol, xc="RSX-QIDH", route_scf="conv", route_mp2="conv").run()
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
 
-    def test_PTPSS(self):
+    def test_PTPSS_D3Zero(self):
         # reference: QChem 5.1.1
         """
         $molecule
@@ -388,7 +388,7 @@ class TestUMP2LikeDH(unittest.TestCase):
         mf = dh.DH(mol, xc="PTPSS", route_scf="conv", route_mp2="conv").run()
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
 
-    def test_PWPB95(self):
+    def test_PWPB95_D3Zero(self):
         # reference: QChem 5.1.1
         """
         $molecule
