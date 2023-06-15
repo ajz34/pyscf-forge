@@ -15,6 +15,8 @@ File structure
   - ``df_addon.py``: Helper additional functions for density fitting
 """
 
+from . import pylibxc
+
 from .helper import (
     calc_batch_size, gen_batch, gen_leggauss_0_1, gen_leggauss_0_inf, sanity_dimension, check_real, parse_incore_flag,
     pad_omega, allocate_array, update_results)

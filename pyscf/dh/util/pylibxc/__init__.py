@@ -14,3 +14,4 @@ from .functional import LibXCFunctional
 
 from . import util
 from . import version
+from . import flags
