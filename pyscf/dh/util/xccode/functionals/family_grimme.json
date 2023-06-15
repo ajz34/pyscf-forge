@@ -19,5 +19,11 @@
         "ref": "10.1021/ct100466k",
         "tested": "QChem 5.1.1",
         "alias": ["PTPSS"]
+    },
+    "PWPB95_D3Zero": {
+        "code": "0.5*HF + 0.5*GGA_X_MPW91(_bt=0.00444, _alpha=19.823391, _expo=3.7868), 0.731*MGGA_C_BC95(_css=0.03241, _copp=0.00250) + 0.269*MP2_OS + DFTD3(Zero, s6=0.82, s8=0.705, rs6=1.557)",
+        "ref": "10.1021/ct100466k",
+        "tested": "QChem 5.1.1",
+        "alias": ["PWPB95"]
     }
 }

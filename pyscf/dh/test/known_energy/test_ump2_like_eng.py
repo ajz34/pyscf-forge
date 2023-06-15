@@ -388,6 +388,29 @@ class TestUMP2LikeDH(unittest.TestCase):
         mf = dh.DH(mol, xc="PTPSS", route_scf="conv", route_mp2="conv").run()
         self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
 
+    def test_PWPB95(self):
+        # reference: QChem 5.1.1
+        """
+        $molecule
+        0 2
+        N
+        H 1 0.94
+        H 1 0.94 2 104.5
+        $end
+
+        $rem
+        JOBTYPE   sp
+        EXCHANGE  PWPB95-D3
+        BASIS     6-31G
+        SCF_CONVERGENCE 8
+        XC_GRID 000099000590
+        $end
+        """
+        REF_ETOT = -55.76486314
+        mol = gto.Mole(atom="N; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G", spin=1, verbose=0).build()
+        mf = dh.DH(mol, xc="PWPB95", route_scf="conv", route_mp2="conv").run()
+        self.assertAlmostEqual(mf.e_tot, REF_ETOT, places=5)
+
     def test_XYG3(self):
         # reference: MRCC 2022-03-18
         """
