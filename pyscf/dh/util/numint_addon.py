@@ -291,14 +291,14 @@ def eval_xc_eff_ext_param_generator(name_code, ext_param):
 
     # determine xctype
     xctype_id = func_tmp.get_family()
-    if xctype_id == pylibxc_flags.XC_FAMILY_LDA:
+    if xctype_id in [pylibxc_flags.XC_FAMILY_LDA, pylibxc_flags.XC_FAMILY_HYB_LDA]:
         xctype_use = "LDA"
-    elif xctype_id == pylibxc_flags.XC_FAMILY_GGA:
+    elif xctype_id in [pylibxc_flags.XC_FAMILY_GGA, pylibxc_flags.XC_FAMILY_HYB_GGA]:
         xctype_use = "GGA"
-    elif xctype_id == pylibxc_flags.XC_FAMILY_MGGA:
+    elif xctype_id in [pylibxc_flags.XC_FAMILY_MGGA, pylibxc_flags.XC_FAMILY_HYB_MGGA]:
         xctype_use = "MGGA"
     else:
-        raise ValueError("xc family is not recognized (UNKNOWN, LCA, OEP not accepted).")
+        raise ValueError(f"xc family {xctype_id} is not recognized (UNKNOWN, LCA, OEP not accepted).")
 
     # determine hybrid coefficients
     omega, alpha, beta = 0, 0, 0

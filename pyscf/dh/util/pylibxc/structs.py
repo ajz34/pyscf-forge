@@ -4,6 +4,10 @@ Wrappers to the LibXC C structs
 
 import ctypes
 import numpy as np
+from . import util
+
+
+VER6 = int(util.xc_version()[0]) < 7
 
 
 class func_reference_type(ctypes.Structure):
@@ -136,26 +140,50 @@ class xc_func_type(ctypes.Structure):
     The primary xc_func_type used to hold all data pertaining to a given
     LibXC functional
     """
-    _fields_ = [
-        ("info", ctypes.POINTER(xc_func_info_type)),  # const xc_func_info_type *info;
-        ("nspin", ctypes.c_int),
-        ("n_func_aux", ctypes.c_int),
-        ("xc_func_type", ctypes.c_void_p),
-        ("mix_coef", ctypes.POINTER(ctypes.c_double)),
+    if not VER6:
+        _fields_ = [
+            ("info", ctypes.POINTER(xc_func_info_type)),  # const xc_func_info_type *info;
+            ("nspin", ctypes.c_int),
+            ("n_func_aux", ctypes.c_int),
+            ("xc_func_type", ctypes.c_void_p),
+            ("mix_coef", ctypes.POINTER(ctypes.c_double)),
 
-        # Hybrids
-        ("hyb_number_terms", ctypes.c_int),
-        ("hyb_type", ctypes.POINTER(ctypes.c_int)),
-        ("hyb_coeff", ctypes.POINTER(ctypes.c_double)),
-        ("hyb_omega", ctypes.POINTER(ctypes.c_double)),
+            # Hybrids
+            ("hyb_number_terms", ctypes.c_int),
+            ("hyb_type", ctypes.POINTER(ctypes.c_int)),
+            ("hyb_coeff", ctypes.POINTER(ctypes.c_double)),
+            ("hyb_omega", ctypes.POINTER(ctypes.c_double)),
 
-        # VV10
-        ("nlc_b", ctypes.c_double),
-        ("nlc_C", ctypes.c_double),
+            # VV10
+            ("nlc_b", ctypes.c_double),
+            ("nlc_C", ctypes.c_double),
 
-        ("dim", xc_dimensions),
-        
-        # parameters
-        ("params", ctypes.c_void_p),  # void *params;
-        ("dens_threshold", ctypes.c_double),
-    ]
+            ("dim", xc_dimensions),
+
+            # parameters
+            ("params", ctypes.c_void_p),  # void *params;
+            ("dens_threshold", ctypes.c_double),
+        ]
+    else:
+        _fields_ = [
+            ("info", ctypes.POINTER(xc_func_info_type)),  # const xc_func_info_type *info;
+            ("nspin", ctypes.c_int),
+            ("n_func_aux", ctypes.c_int),
+            ("xc_func_type", ctypes.c_void_p),
+            ("mix_coef", ctypes.POINTER(ctypes.c_double)),
+
+            # Hybrids
+            ("cam_omega", ctypes.c_double),
+            ("cam_alpha", ctypes.c_double),
+            ("cam_beta", ctypes.c_double),
+
+            # VV10
+            ("nlc_b", ctypes.c_double),
+            ("nlc_C", ctypes.c_double),
+
+            ("dim", xc_dimensions),
+
+            # parameters
+            ("params", ctypes.c_void_p),  # void *params;
+            ("dens_threshold", ctypes.c_double),
+        ]
