@@ -19,8 +19,8 @@ Will not be implemented
 ## Q-Chem (6.0)
 
 - [x] DSD-PBEPBE-D3
-- [ ] wB97X-2(LP) *LibXC*
-- [ ] wB97X-2(TQZ) *LibXC*
+- [x] wB97X-2(LP)
+- [x] wB97X-2(TQZ)
 - [x] XYG3
 - [x] XYGJ-OS
 - [x] B2PLYP
@@ -30,10 +30,10 @@ Will not be implemented
 - [x] PBE-QIDH
 - [x] PBE0-2
 - [x] PBE0-DH
-- [ ] wB97M(2) *LibXC*
-- [ ] PTPSS-D3 *LibXC*
+- [ ] wB97M(2) *VV10*
+- [x] PTPSS-D3
 - [x] DSD-PBEB95-D3
-- [ ] PWPB95-D3 *LibXC*
+- [x] PWPB95-D3
 
 ## MRCC (2022-03-18)
 
@@ -68,7 +68,7 @@ A possible way to make sure problem originates from functional implementation:
 - [x] B2GP-PLYP
 - [ ] B2KP-PLYP
 - [ ] B2TP-PLYP
-- [ ] PWPB95 *LibXC*
+- [x] PWPB95 *LibXC*
 - [x] PBE-QIDH
 - [x] PBE0-DH
 - [x] DSD-BLYP-D3
@@ -80,7 +80,7 @@ A possible way to make sure problem originates from functional implementation:
 - [x] RSX-0DH
 - [x] wB88PP86
 - [x] wPBEPP86
-- [ ] wB97X-2 *LibXC*
+- [x] wB97X-2
 - [ ] SCS/SOS-B2PLYP21
 - [ ] SCS/SOS-PBE-QIDH
 - [ ] SCS/SOS-B2GP-PLYP21
