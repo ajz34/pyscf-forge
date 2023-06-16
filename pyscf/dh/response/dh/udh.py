@@ -26,6 +26,9 @@ class UDHResp(UDH, RDHResp):
         for key in self.inherited:
             for instance in self.inherited[key][1]:
                 lag_vo_component = instance.make_lag_vo()
+                if isinstance(lag_vo_component, (int, float)):
+                    # some value is actually constant
+                    lag_vo_component = (lag_vo_component, lag_vo_component)
                 for σ in α, β:
                     lag_vo[σ] += lag_vo_component[σ]
 

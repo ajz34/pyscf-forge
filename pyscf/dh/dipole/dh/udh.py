@@ -27,6 +27,9 @@ class UDHDipole(UDHResp, RDHDipole):
             for instance in self.inherited[key][1]:
                 if hasattr(instance, "make_SCR3"):
                     SCR3_contrib = instance.make_SCR3()
+                    if isinstance(SCR3_contrib, (int, float)):
+                        # some value is actually constant
+                        SCR3_contrib = (SCR3_contrib, SCR3_contrib)
                     for σ in (α, β):
                         SCR3[σ] += SCR3_contrib[σ]
 

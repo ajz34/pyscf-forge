@@ -2,7 +2,8 @@ from pyscf.dh.energy import EngBase
 from typing import Tuple, List
 from pyscf.dh import util
 from pyscf.dh.util import XCType, XCList, XCDH, update_results, pad_omega
-from pyscf.dh.energy.hdft.rhdft import get_rho, numint_customized
+from pyscf.dh.energy.hdft.rhdft import get_rho
+from pyscf.dh.util.numint_addon import numint_customized
 from pyscf import lib, scf, gto, dft, df, __config__
 from pyscf.dh.energy.hdft.rhdft import custom_mf
 
@@ -50,6 +51,10 @@ def _process_xc_split(xc_list):
     xc_ring_ccd = xc_extracted.extract_by_xctype(XCType.RS_RING_CCD)
     xc_extracted = xc_extracted.remove(xc_ring_ccd)
     result["ring_ccd"] = xc_ring_ccd
+    # 2.4 Nuc Corr
+    xc_nuc_corr = xc_extracted.extract_by_xctype(XCType.NUC_CORR)
+    xc_extracted = xc_extracted.remove(xc_nuc_corr)
+    result["nuc_corr"] = xc_nuc_corr
 
     # finalize
     if len(xc_extracted) > 0:
@@ -278,6 +283,61 @@ def _process_energy_ring_ccd(mf_dh, xc_ring_ccd, force_evaluate=False):
     return eng_tot
 
 
+def _process_energy_nuc_corr(mf_dh, xc_nuc_corr, force_evaluate=False):
+    """ Evaluate nuclear correlation contribution.
+
+    Parameters
+    ----------
+    mf_dh : DH
+    xc_nuc_corr : XCList
+    force_evaluate : bool
+
+    Returns
+    -------
+    tuple[XCList, float]
+    """
+    if len(xc_nuc_corr) == 0:
+        return 0
+
+    log = lib.logger.new_logger(verbose=mf_dh.verbose)
+    log.info(f"[INFO] XCList to be evaluated by process_energy_nuc_corr: {xc_nuc_corr.token}")
+
+    def comput_nuc_corr():
+        eng_tot = 0
+        results = mf_dh.results
+        for xc_info in xc_nuc_corr:
+            if XCType.DFTD3 in xc_info.type:
+                eng_tot += results["energy_dftd3"]
+            elif XCType.DFTD4 in xc_info.type:
+                eng_tot += results["energy_dftd4"]
+            else:
+                raise NotImplementedError
+        return eng_tot
+
+    def force_comput_nuc_corr():
+        for xc_info in xc_nuc_corr:
+            if XCType.DFTD3 in xc_info.type:
+                mf_nuc_corr = mf_dh.to_dftd3(xc_info.parameters[0], **xc_info.additional).run()
+            elif XCType.DFTD4 in xc_info.type:
+                raise NotImplementedError
+            else:
+                raise NotImplementedError
+            update_results(mf_dh.results, mf_nuc_corr.results)
+            mf_dh.inherited["nuc_corr"][1].append(mf_nuc_corr)
+        eng_tot = comput_nuc_corr()
+        return eng_tot
+
+    if force_evaluate:
+        eng_tot = force_comput_nuc_corr()
+    else:
+        try:
+            eng_tot = comput_nuc_corr()
+        except KeyError:
+            eng_tot = force_comput_nuc_corr()
+
+    return eng_tot
+
+
 def _process_energy_low_rung(mf_dh, xc_list):
     """ Evaluate low-rung pure DFT exchange/correlation energy.
 
@@ -448,6 +508,10 @@ def driver_energy_dh(mf_dh, xc=None, force_evaluate=False):
     xc_ring_ccd = xc_splitted["ring_ccd"]
     eng_ring_ccd = _process_energy_ring_ccd(mf_dh, xc_ring_ccd)
     eng_tot += eng_ring_ccd
+    # 2.4 Nuc Corr
+    xc_nuc_corr = xc_splitted["nuc_corr"]
+    eng_nuc_corr = _process_energy_nuc_corr(mf_dh, xc_nuc_corr)
+    eng_tot += eng_nuc_corr
     # # 2.4 VV10
     # xc_extracted, eng_vdw = _process_energy_vdw(mf_dh, xc_extracted)
     # eng_tot += eng_vdw
@@ -717,6 +781,11 @@ class DH(EngBase):
             mf.max_cycle = max_cycle_ring_ccd
 
         return mf
+
+    def to_dftd3(self, version, atm=False, **kwargs):
+        from pyscf.dh.energy.nuc_corr.modeldftd3 import DFTD3Eng
+        mf_dftd3 = DFTD3Eng(self.scf, version, atm=atm, **kwargs)
+        return mf_dftd3
 
     driver_energy_dh = driver_energy_dh
 

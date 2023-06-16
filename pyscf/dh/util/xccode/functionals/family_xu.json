@@ -2,7 +2,8 @@
     "XYG3": {
         "code_scf": "B3LYPg",
         "code": "0.8033*HF - 0.0140*LDA + 0.2107*B88, 0.6789*LYP + 0.3211*MP2",
-        "ref": "10.1073/pnas.0901093106"
+        "ref": "10.1073/pnas.0901093106",
+        "tested": "MRCC 2022-03-18"
     },
     "XYGJ_OS": {
         "code_scf": "B3LYPg",
@@ -17,7 +18,8 @@
     "lrc_XYG3": {
         "code_scf": "B3LYPg",
         "code": "0.8033*HF - 0.0140*LDA + 0.2107*B88, 0.6789*LYP + 0.3211*MP2 + 0.4822*RS_MP2(0.2, 1, 1)",
-        "ref": "10.1021/jz400695u"
+        "ref": "10.1021/jz400695u",
+        "tested": "QChem local"
     },
     "revXYG3": {
         "code_scf": "B3LYPg",
@@ -54,5 +56,17 @@
         "code": "0.8928*HF + 0.3393*LDA - 0.2321*B88, 0.3268*VWN3 - 0.0635*LYP + 0.5574*MP2_OS",
         "ref": "10.1021/acs.jpclett.1c00360",
         "family": "xDH@B3LYP"
+    },
+    "ZRPS@PBE": {
+        "code_scf": "PBE",
+        "code": "0.5*HF + 0.5*PBE, 0.75*PBE + 0.25*SIEPA_OS",
+        "ref": "10.1103/PhysRevLett.117.133002",
+        "family": "ZRPS"
+    },
+    "ZRPS@PBE0": {
+        "code_scf": "PBE0",
+        "code": "0.5*HF + 0.5*PBE, 0.75*PBE + 0.25*SIEPA_OS",
+        "ref": "10.1103/PhysRevLett.117.133002",
+        "family": "ZRPS"
     }
 }

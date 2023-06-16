@@ -1,15 +1,11 @@
 from pyscf.dh import util
-from pyscf.dh.util import XCList, XCType, XCInfo
+from pyscf.dh.util import XCList, XCInfo
 from pyscf.dh.energy import EngBase
 from pyscf import dft, lib, scf, df, __config__
 import numpy as np
 import copy
-from types import MethodType
 
-CONFIG_ssr_x_fr = getattr(__config__, "ssr_x_fr", "LDA_X")
-CONFIG_ssr_x_sr = getattr(__config__, "ssr_x_sr", "LDA_X_ERF")
-CONFIG_ssr_c_fr = getattr(__config__, "ssr_c_fr", "LDA_C_PW")
-CONFIG_ssr_c_sr = getattr(__config__, "ssr_c_sr", "LDA_C_PW_ERF")
+from pyscf.dh.util.numint_addon import numint_customized
 
 
 def get_energy_restricted_exactx(mf, dm, omega=None):
@@ -199,127 +195,6 @@ def get_energy_vv10(mol, dm, nlc_pars, grids=None, nlcgrids=None, verbose=lib.lo
     return result
 
 
-def numint_customized(xc, _mol=None):
-    """ Customized (specialized) numint for a certain given xc.
-
-    Parameters
-    ----------
-    xc : XCList
-        xc list evaluation. Currently only accept low-rung (without VV10) and scaled short-range functionals.
-    _mol : gto.Mole
-        Molecule object (currently not utilized).
-
-    Returns
-    -------
-    dft.numint.NumInt
-        A customized numint object that only evaluates dft grids on given xc.
-    """
-
-    # extract the functionals that is parsable by PySCF
-    ni_custom = dft.numint.NumInt()  # customized numint, to be returned
-    ni_original = dft.numint.NumInt()  # original numint
-    xc_parsable = xc.extract_by_xctype(XCType.PYSCF_PARSABLE)  # parsable xc; handle it by normal way
-    xc.extract_by_xctype(XCType.RUNG_LOW).token
-    xc_remains = xc.remove(xc_parsable, inplace=False)  # xc handled in this function
-    hyb = ni_original.hybrid_coeff(xc_parsable.token)  # hybrid coefficient from parsable xc
-    rsh_coeff = ni_original.rsh_coeff(xc_parsable.token)  # range separate coefficients from parsable xc
-
-    # parse type of current xc
-    def get_xc_type(xc_list):
-        if len(xc_list.extract_by_xctype(XCType.MGGA)) > 0:
-            xc_type = "MGGA"
-        elif len(xc_list.extract_by_xctype(XCType.GGA)) > 0:
-            xc_type = "GGA"
-        elif len(xc_list.extract_by_xctype(XCType.LDA)) > 0:
-            xc_type = "LDA"
-        else:
-            xc_type = "HF"
-        return xc_type
-
-    xc_type_full = get_xc_type(xc)  # xctype of full xc code
-    xc_type_parsable = get_xc_type(xc_parsable)  # xctype of parsable xc code
-
-    # evaluate parsable xc by normal way
-    def eval_xc_eff_parsable(_numint, _xc_code, rho, xctype=xc_type_parsable, *args, **kwargs):
-        return ni_original.eval_xc_eff(xc_parsable.token, rho, *args, **kwargs)
-
-    # multiply factor (XCInfo.fac) on generated exc, vxc, fxc, kxc
-    def multiply_factor_on_eval_xc_eff(generator, factor):
-        def wrapped(*args, **kwargs):
-            results = generator(*args, **kwargs)
-            for res in results:
-                if res is not None:
-                    res *= factor
-            return results
-        return wrapped
-
-    # lists of xc_eff generators
-    gen_lists = [eval_xc_eff_parsable]
-
-    # append xc_eff generators
-    # for any other types of xc, add codes here
-    for xc_info in xc_remains:
-        if XCType.SSR in xc_info.type:
-            if XCType.EXCH in xc_info.type:
-                x_code, omega = xc_info.parameters
-                x_fr = xc_info.additional.get("ssr_x_fr", CONFIG_ssr_x_fr)
-                x_sr = xc_info.additional.get("ssr_x_sr", CONFIG_ssr_x_sr)
-                generator = util.eval_xc_eff_ssr_generator(x_code, x_fr, x_sr, omega=omega)
-                generator = multiply_factor_on_eval_xc_eff(generator, xc_info.fac)
-                gen_lists.append(generator)
-            elif XCType.CORR in xc_info.type:
-                c_code, omega = xc_info.parameters
-                c_fr = xc_info.additional.get("ssr_c_fr", CONFIG_ssr_c_fr)
-                c_sr = xc_info.additional.get("ssr_c_sr", CONFIG_ssr_c_sr)
-                generator = util.eval_xc_eff_ssr_generator(c_code, c_fr, c_sr, omega=omega)
-                generator = multiply_factor_on_eval_xc_eff(generator, xc_info.fac)
-                gen_lists.append(generator)
-            else:
-                assert False, "Scaled short-range functional must be explicitly defined as exchange or correlation."
-        else:
-            raise ValueError("Some type of xc is not available!")
-
-    def array_add_with_diff_rows(mat1, mat2):
-        assert mat1.ndim == mat2.ndim
-        assert mat1.shape[-1] == mat2.shape[-1], "Last dimension must be DFT grid and should be same."
-
-        # determine which matrix is larger
-        larger_arr = np.array(mat1.shape) > np.array(mat2.shape)
-        if np.all(larger_arr):
-            larger = True
-        elif np.all(~larger_arr):
-            larger = False
-        else:
-            assert False, "One array must be larger in all dimensions compared to another array."
-        if not larger:
-            mat1, mat2 = mat2, mat1
-
-        # perform addition
-        mat1[np.ix_(*[np.arange(0, mat2.shape[idx]) for idx in range(mat2.ndim)])] += mat2
-        return mat1
-
-    def eval_xc_eff(*args, **kwargs):
-        exc, vxc, fxc, kxc = gen_lists[0](*args, **kwargs)
-        for gen in gen_lists[1:]:
-            exc1, vxc1, fxc1, kxc1 = gen(*args, **kwargs)
-            if exc is not None:
-                exc = array_add_with_diff_rows(exc, exc1)
-            if vxc is not None:
-                vxc = array_add_with_diff_rows(vxc, vxc1)
-            if fxc is not None:
-                fxc = array_add_with_diff_rows(fxc, fxc1)
-            if kxc is not None:
-                kxc = array_add_with_diff_rows(kxc, kxc1)
-        return exc, vxc, fxc, kxc
-
-    ni_custom.eval_xc_eff = MethodType(eval_xc_eff, ni_custom)
-    ni_custom.hybrid_coeff = lambda *args, **kwargs: hyb
-    ni_custom.rsh_coeff = lambda *args, **kwargs: rsh_coeff
-    ni_custom._xc_type = lambda *args, **kwargs: xc_type_full
-    ni_custom.custom = True
-    return ni_custom
-
-
 def custom_mf(mf, xc, auxbasis_or_with_df=None):
     """ Customize options of PySCF's mf object.
 
@@ -442,9 +317,9 @@ class RSCF(EngBase):
         --------
         get_energy_purexc
         """
-        grids = self.hdft.grids
+        grids = self.scf.grids
         if dm is None:
-            dm = self.hdft.make_rdm1()
+            dm = self.scf.make_rdm1()
         dm = np.asarray(dm)
         if (self.restricted and dm.ndim != 2) or (not self.restricted and (dm.ndim != 3 or dm.shape[0] != 2)):
             raise ValueError("Dimension of input density matrix is not correct.")
