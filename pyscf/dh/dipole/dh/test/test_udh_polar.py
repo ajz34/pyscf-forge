@@ -108,6 +108,40 @@ class TestUDHPolar(unittest.TestCase):
         self.assertTrue(np.allclose(mf.de, pol_num, atol=1e-6, rtol=1e-4))
         """
 
+    def test_DSD_PBEP86_D3BJ(self):
+        from pyscf import gto, dft, scf
+        np.set_printoptions(10, suppress=True, linewidth=150)
+        mol = gto.Mole(atom="O; H 1 0.94; H 1 0.94 2 104.5", basis="6-31G", charge=1, spin=1, verbose=0).build()
+        mf = UDHPolar(mol, xc="DSD-PBEP86-D3BJ").run()
+        print(mf.de)
+
+        REF = np.array(
+            [[3.6960051605, -0., -0.6345536991],
+             [-0., 2.6720680282, -0.],
+             [-0.6345536916, -0., 3.3677929469]])
+        self.assertTrue(np.allclose(mf.de, REF, atol=1e-6, rtol=1e-4))
+
+        """
+        # generation of numerical result
+
+        def dipole_with_dipole_field(t, h):
+            mf_resp = UDHDipole(mol, xc="DSD-PBEP86-D3BJ").build_scf()
+            mf_resp.scf.get_hcore = lambda *args, **kwargs: scf.hf.get_hcore(mol) - h * mol.intor("int1e_r")[t]
+            mf_resp.scf.conv_tol = 1e-12
+            return mf_resp.make_dipole()
+
+        dip_array = np.zeros((2, 3, 3))
+        h = 3e-4
+        for idx, h in [(0, h), [1, -h]]:
+            for t in (0, 1, 2):
+                dip_array[idx, t] = dipole_with_dipole_field(t, h)
+        pol_num = (dip_array[0] - dip_array[1]) / (2 * h)
+        print(pol_num)
+        print(mf.de - pol_num)
+
+        self.assertTrue(np.allclose(mf.de, pol_num, atol=1e-6, rtol=1e-4))
+        """
+
     def test_wB97X_2_TQZ(self):
         from pyscf import gto, dft, scf
         np.set_printoptions(10, suppress=True, linewidth=150)
@@ -116,8 +150,8 @@ class TestUDHPolar(unittest.TestCase):
         print(mf.de)
 
         REF = np.array(
-            [[3.7056558847, 0., -0.6420418143]
-             [0., 2.6709622585, 0.]
+            [[3.7056558847, 0., -0.6420418143],
+             [0., 2.6709622585, 0.],
              [-0.6420417854, 0., 3.3735910132]])
         self.assertTrue(np.allclose(mf.de, REF, atol=1e-6, rtol=1e-4))
 
