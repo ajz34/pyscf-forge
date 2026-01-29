@@ -1,6 +1,9 @@
 from pyscf.dh.util.xccode.xctype import XCType
-import pyscf.dh.util.pylibxc.flags as pylibxc_flags
-from pyscf.dh.util.pylibxc import LibXCFunctional
+try:
+    import pyscf.dh.util.pylibxc.flags as pylibxc_flags
+    from pyscf.dh.util.pylibxc import LibXCFunctional
+except ImportError:
+    print("Note: Cannot import pyscf.dh.util.pylibxc. Ignore this if not using advanced features.")
 from pyscf import dft, __config__
 from pyscf.dft import xc_deriv, libxc
 from types import MethodType
