@@ -166,7 +166,12 @@ def get_energy_purexc(xc_lists, rho, weights, restricted, numint=None):
                 rho_to_eval = rho[0]
             else:
                 rho_to_eval = rho[:, 0]
-
+        elif ni._xc_type(xc_list.token) == "GGA":
+            if restricted:
+                rho_to_eval = rho[:4]
+            else:
+                rho_to_eval = rho[:, :4]
+        # print(rho_to_eval.shape)
         exc = ni.eval_xc_eff(xc_list.token, rho_to_eval, deriv=0)[0]
         results[f"eng_purexc_{xc_list.token}"] = exc @ wrho0
     return results
