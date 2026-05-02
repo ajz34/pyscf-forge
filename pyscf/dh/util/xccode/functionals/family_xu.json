@@ -41,7 +41,7 @@
     },
     "XYG7": {
         "code_scf": "B3LYPg",
-        "code": "0.8971*HF + 0.2055*LDA - 0.1408*B88, 0.4056*VWN3 + 0.1159*LYP + 0.4502*MP2_OS + 0.2589*MP2_SS",
+        "code": "0.8971*HF + 0.2055*LDA - 0.1408*B88, 0.4056*VWN3 + 0.1159*LYP + 0.4052*MP2_OS + 0.2589*MP2_SS",
         "ref": "10.1021/acs.jpclett.1c00360",
         "family": "xDH@B3LYP"
     },
